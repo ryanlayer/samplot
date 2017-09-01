@@ -3,59 +3,60 @@ import sys
 import numpy as np
 import matplotlib
 import matplotlib.gridspec as gridspec
+matplotlib.use('Agg')
 import pylab
 import random
 import pysam
 import os
-from optparse import OptionParser
+import argparse
 
-matplotlib.use('Agg')
+parser=argparse.ArgumentParser()
 
-parser = OptionParser()
-
-parser.add_option("-b",
+parser.add_argument("-b",
                   dest="bams",
-                  help="Bam file names (CSV)")
+                  help="Bam file names",
+                  nargs="+",
+                  required=True)
 
-parser.add_option("-o",
+parser.add_argument("-o",
                   dest="output_file",
-                  help="Output file name")
+                  help="Output file name",
+                  #type=lambda e:file_choices(("csv","tab"),e)
+                  required=True)
 
-parser.add_option("-s",
+parser.add_argument("-s",
                   dest="start",
                   help="Start range")
 
-parser.add_option("-e",
+parser.add_argument("-e",
                   dest="end",
                   help="End range")
 
-parser.add_option("-c",
+parser.add_argument("-c",
                   dest="chrom",
                   help="Chromosome range")
 
-parser.add_option("-w",
+parser.add_argument("-w",
                   dest="window",
                   type=int,
                   default=1000,
                   help="Window, default(1000)")
                   
-(options, args) = parser.parse_args()
-if not options.output_file:
-    parser.error('Output file not given')
+args = parser.parse_args()
 
 vals = []
 all_plot_pairs = []
 all_plot_reads = []
 
-for bam_file_name in options.bams.split(','):
+for bam_file_name in args.bams:
     bam_file = pysam.AlignmentFile(bam_file_name, "rb")
     pairs = {}
 
     plot_reads = []
 
-    for read in bam_file.fetch(options.chrom,
-                               int(options.start) - options.window,
-                               int(options.end) + options.window):
+    for read in bam_file.fetch(args.chrom,
+                               int(args.start) - args.window,
+                               int(args.end) + args.window):
         if (read.is_paired):
             if (read.reference_end) :
                 if read.query_name not in pairs:
@@ -94,12 +95,12 @@ for bam_file_name in options.bams.split(','):
 
 all_plot_depths = []
 
-for bam_file_name in options.bams.split(','):
+for bam_file_name in args.bams:
     plot_depths = []
     bam_file = pysam.AlignmentFile(bam_file_name, "rb")
-    for depth in bam_file.pileup(options.chrom,
-                               int(options.start) - 1000,
-                               int(options.end) + 1000):
+    for depth in bam_file.pileup(args.chrom,
+                               int(args.start) - 1000,
+                               int(args.end) + 1000):
         plot_depths.append([depth.reference_pos,depth.nsegments])
 
     all_plot_depths.append(plot_depths)
@@ -111,13 +112,12 @@ matplotlib.rcParams.update({'font.size': 12})
 fig = matplotlib.pyplot.figure(figsize=(8,10),dpi=300)
 fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
-num_ax = len(options.bams.split(','))+1
+num_ax = len(args.bams)+1
 ax_i = 1
 
 main_ax = fig.add_subplot(111)    # The big subplot
 
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = [1] + [10] * (num_ax-1))
-
 
 for plot_pairs in all_plot_pairs:
     #ax = fig.add_subplot(num_ax,1,ax_i+1)
@@ -141,7 +141,6 @@ for plot_pairs in all_plot_pairs:
         min_insert_size = min(min_insert_size, insert_size)
         max_insert_size = max(max_insert_size, insert_size)
 
-
         colors = {
                 (True, False): 'black',
                 (False, True): 'red',
@@ -161,12 +160,9 @@ for plot_pairs in all_plot_pairs:
         ax.plot(r2,[insert_size,insert_size],'-',color=color,lw=3, alpha=0.25)
 
         c+=1
+    ax.yaxis.set_ticks(np.arange(min_insert_size, max_insert_size, (max_insert_size-min_insert_size)/4))
 
-    ax.yaxis.set_ticks(np.arange(min_insert_size, \
-                                 max_insert_size, \
-                                 (max_insert_size-min_insert_size)/4))
-
-    ax.set_title(os.path.basename(options.bams.split(',')[ax_i-1]))
+    ax.set_title(os.path.basename(args.bams[ax_i-1]))
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -182,14 +178,14 @@ for plot_pairs in all_plot_pairs:
         labels = [int(range_min + l*(range_max-range_min)) \
                 for l in ax.xaxis.get_majorticklocs()]
         ax.set_xticklabels(labels)
-        ax.set_xlabel('Chromosomal poistion on ' + options.chrom)
+        ax.set_xlabel('Position on Chromosome ' + args.chrom)
     ax.set_ylabel('Insert size')
     ax_i += 1
 
 #ax = fig.add_subplot(num_ax,1,1)
 ax =  matplotlib.pyplot.subplot(gs[0])
-r=[float(int(options.start) - range_min)/float(range_max - range_min), \
-    float(int(options.end) - range_min)/float(range_max - range_min)]
+r=[float(int(args.start) - range_min)/float(range_max - range_min), \
+    float(int(args.end) - range_min)/float(range_max - range_min)]
 ax.plot(r,[insert_size,insert_size],'-',color='black',lw=3)
 ax.set_xlim([0,1])
 ax.spines['top'].set_visible(False)
@@ -200,9 +196,9 @@ matplotlib.pyplot.tick_params(axis='x',length=0)
 matplotlib.pyplot.tick_params(axis='y',length=0)
 ax.set_xticklabels([])
 ax.set_yticklabels([])
-ax.set_title(options.chrom + ':' + \
-             str(options.start) + '-' + \
-             str(options.end))
+ax.set_title(args.chrom + ':' + \
+             str(args.start) + '-' + \
+             str(args.end))
 
 
-matplotlib.pyplot.savefig(options.output_file,bbox_inches='tight')
+matplotlib.pyplot.savefig(args.output_file,bbox_inches='tight')
