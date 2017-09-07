@@ -11,8 +11,6 @@ from bokeh.plotting import figure, output_file, show, gridplot, save
 from bokeh.layouts import column
 from bokeh.resources import CDN
 from bokeh.embed import autoload_static
-from bokeh.io import export_png
-
 
 parser=argparse.ArgumentParser()
 
@@ -34,6 +32,10 @@ parser.add_argument("--embed",
                   #type=lambda e:file_choices(("csv","tab"),e)
                   required=False)
 
+parser.add_argument("-d","--dynamo-config",
+                  dest="dynamo_config",
+                  help="Config file to store embed info in DynamoDB table. If not present, no data sent to DynamoDB",
+                  required=False)
 
 parser.add_argument("-s",
                   dest="start",
@@ -181,10 +183,54 @@ if args.embedded_path:
     f = open( args.embedded_path + '/' + args.output_file , 'w')
     f.write(js)
     f.close()
-    print tag
+    print (tag)
+        
+
+    if args.dynamo_config:
+        import boto3
+        from boto3.s3.transfer import S3Transfer
+        from boto3.dynamodb.conditions import Key, Attr
+        from botocore.exceptions import ClientError
+        import json
+        import ntpath
+        with open(args.dynamo_config,'r') as config_file:
+            config_data = json.load(config_file)
+        key = config_data['folderName'] + '/' + args.output_file
+        client = boto3.client('s3')
+        transfer = S3Transfer(client)
+        transfer.upload_file(
+                f.name,
+                config_data['bucketName'],
+                key,
+                extra_args={'ACL': 'public-read'})
+        file_url = '%s/%s/%s' % (client.meta.endpoint_url, config_data['bucketName'], key)
+        
+        script_fields = tag.strip().split('\n')
+        script_fields[1] = 'src="' + file_url + '"'
+        script = " ".join(script_fields)
+
+        dynamodb = boto3.resource('dynamodb', 
+                region_name=config_data['region'], 
+                endpoint_url=config_data['dynamoEndpoint'])
+        js_info_table = dynamodb.Table(config_data['dynamoTable'])
+        try:
+            response = js_info_table.put_item(
+                Item = {
+                    'id' : ("__").join([ntpath.basename(x) for x in args.bams]) + \
+                            "__" + args.chrom + ':' + args.start + '-' + args.end,
+                    'chr' : args.chrom,
+                    'start' : args.start,
+                    'end' : args.end,
+                    'bams' : [ntpath.basename(x) for x in args.bams],
+                    'script' : script
+                })
+        except ClientError as e:
+            print (e.response['Error']['Message'])
+
 else:
     if args.output_file.split('.')[-1] == "html":
         output_file(args.output_file)
         save(p)
     elif args.output_file.split('.')[-1] == "png":
+        from bokeh.io import export_png
         export_png(p, filename=args.output_file)
