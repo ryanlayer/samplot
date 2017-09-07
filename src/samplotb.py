@@ -11,6 +11,7 @@ from bokeh.plotting import figure, output_file, show, gridplot, save
 from bokeh.layouts import column
 from bokeh.resources import CDN
 from bokeh.embed import autoload_static
+from bokeh.io import export_png
 
 
 parser=argparse.ArgumentParser()
@@ -182,6 +183,8 @@ if args.embedded_path:
     f.close()
     print tag
 else:
-    output_file(args.output_file)
-    save(p)
-
+    if args.output_file.split('.')[-1] == "html":
+        output_file(args.output_file)
+        save(p)
+    elif args.output_file.split('.')[-1] == "png":
+        export_png(p, filename=args.output_file)
