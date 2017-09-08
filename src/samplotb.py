@@ -206,8 +206,12 @@ if args.embedded_path:
         file_url = '%s/%s/%s' % (client.meta.endpoint_url, config_data['bucketName'], key)
         
         script_fields = tag.strip().split('\n')
-        script_fields[1] = 'src="' + file_url + '"'
-        script = " ".join(script_fields)
+        upload_script_params = {}
+        for script_field in script_fields:
+            if "=" in script_field:
+                pair = script_field.split("=")
+                upload_script_params[pair[0].strip()] = pair[1]
+        upload_script_params['src'] = file_url
 
         dynamodb = boto3.resource('dynamodb', 
                 region_name=config_data['region'], 
@@ -222,7 +226,7 @@ if args.embedded_path:
                     'start' : args.start,
                     'end' : args.end,
                     'bams' : [ntpath.basename(x) for x in args.bams],
-                    'script' : script
+                    'script': upload_script_params
                 })
         except ClientError as e:
             print (e.response['Error']['Message'])
