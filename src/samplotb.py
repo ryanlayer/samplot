@@ -181,13 +181,16 @@ if args.embedded_path:
     
     arg_filename = args.embedded_path +'/' +os.path.splitext(args.output_file)[0] + ".args"
     with open(arg_filename, 'w') as arg_file:
-        arg_file.write("#" + "\t".join([str(x) for x in args.__dict__.keys()]) + "\n")
+        keys = [str(x) for x in args.__dict__.keys()]
+        keys.append("script")
+        arg_file.write("#" + "\t".join(keys) + "\n")
         values = args.__dict__.values()
         for i in range(len(values)):
             if type(values[i]) == list:
                 values[i] = ','.join([os.path.basename(v) for v in values[i]])
             else:
                 values[i] = str(values[i])
+        values.append(tag.replace('\n', ' '))
         arg_file.write("\t".join(values) + "\n")
     print (tag)
         
