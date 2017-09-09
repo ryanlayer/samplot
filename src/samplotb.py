@@ -23,13 +23,11 @@ parser.add_argument("-b",
 parser.add_argument("-o",
                   dest="output_file",
                   help="Output file name",
-                  #type=lambda e:file_choices(("csv","tab"),e)
                   required=True)
 
 parser.add_argument("--embed",
                   dest="embedded_path",
                   help="Embedded path",
-                  #type=lambda e:file_choices(("csv","tab"),e)
                   required=False)
 
 parser.add_argument("-s",
@@ -192,7 +190,6 @@ if args.embedded_path:
                 values[i] = str(values[i])
         values.append(tag.replace('\n', ' '))
         arg_file.write("\t".join(values) + "\n")
-    print (tag)
         
 else:
     if args.output_file.split('.')[-1] == "html":
