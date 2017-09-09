@@ -29,8 +29,12 @@ client = boto3.client('s3')
 transfer = S3Transfer(client)
 
 sv_args = {}
-for filename in os.listdir(args.directory):
+dir_files = os.listdir(args.directory)
+for filename in dir_files:
     basename, ext = os.path.splitext(filename)
+    if basename + ".js" not in dir_files or basename + ".args" not in dir_files:
+        print ("Warning: mismatched file '" + filename + "' found in '" + args.directory + "'")
+        continue
     if ext  == '.js':
         to_store = args.directory + '/' + filename
         key = config_data['folderName'] + '/' + filename
