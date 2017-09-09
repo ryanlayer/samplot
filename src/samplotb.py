@@ -32,11 +32,6 @@ parser.add_argument("--embed",
                   #type=lambda e:file_choices(("csv","tab"),e)
                   required=False)
 
-parser.add_argument("-d","--dynamo-config",
-                  dest="dynamo_config",
-                  help="Config file to store embed info in DynamoDB table. If not present, no data sent to DynamoDB",
-                  required=False)
-
 parser.add_argument("-s",
                   dest="start",
                   help="Start range")
@@ -183,54 +178,19 @@ if args.embedded_path:
     f = open( args.embedded_path + '/' + args.output_file , 'w')
     f.write(js)
     f.close()
+    
+    arg_filename = args.embedded_path +'/' +os.path.splitext(args.output_file)[0] + ".args"
+    with open(arg_filename, 'w') as arg_file:
+        arg_file.write("#" + "\t".join([str(x) for x in args.__dict__.keys()]) + "\n")
+        values = args.__dict__.values()
+        for i in range(len(values)):
+            if type(values[i]) == list:
+                values[i] = ','.join([os.path.basename(v) for v in values[i]])
+            else:
+                values[i] = str(values[i])
+        arg_file.write("\t".join(values) + "\n")
     print (tag)
         
-
-    if args.dynamo_config:
-        import boto3
-        from boto3.s3.transfer import S3Transfer
-        from boto3.dynamodb.conditions import Key, Attr
-        from botocore.exceptions import ClientError
-        import json
-        import ntpath
-        with open(args.dynamo_config,'r') as config_file:
-            config_data = json.load(config_file)
-        key = config_data['folderName'] + '/' + args.output_file
-        client = boto3.client('s3')
-        transfer = S3Transfer(client)
-        transfer.upload_file(
-                f.name,
-                config_data['bucketName'],
-                key,
-                extra_args={'ACL': 'public-read'})
-        file_url = '%s/%s/%s' % (client.meta.endpoint_url, config_data['bucketName'], key)
-        
-        script_fields = tag.strip().split('\n')
-        upload_script_params = {}
-        for script_field in script_fields:
-            if "=" in script_field:
-                pair = script_field.split("=")
-                upload_script_params[pair[0].strip()] = pair[1]
-        upload_script_params['src'] = file_url
-
-        dynamodb = boto3.resource('dynamodb', 
-                region_name=config_data['region'], 
-                endpoint_url=config_data['dynamoEndpoint'])
-        js_info_table = dynamodb.Table(config_data['dynamoTable'])
-        try:
-            response = js_info_table.put_item(
-                Item = {
-                    'id' : ("__").join([ntpath.basename(x) for x in args.bams]) + \
-                            "__" + args.chrom + ':' + args.start + '-' + args.end,
-                    'chr' : args.chrom,
-                    'start' : args.start,
-                    'end' : args.end,
-                    'bams' : [ntpath.basename(x) for x in args.bams],
-                    'script': upload_script_params
-                })
-        except ClientError as e:
-            print (e.response['Error']['Message'])
-
 else:
     if args.output_file.split('.')[-1] == "html":
         output_file(args.output_file)
