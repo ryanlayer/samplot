@@ -23,7 +23,9 @@ args = parser.parse_args()
 
 with open(args.config,'r') as config_file:
     config_data = json.load(config_file)
-client = boto3.client('s3')
+client = boto3.client('s3',
+    aws_access_key_id=config_data['accessKey'], 
+    aws_secret_access_key=config_data['secretAccessKey'])
 transfer = S3Transfer(client)
 
 sv_args = {}
@@ -60,7 +62,10 @@ for filename in dir_files:
 
 dynamodb = boto3.resource('dynamodb', 
         region_name=config_data['region'], 
-        endpoint_url=config_data['dynamoEndpoint'])
+        endpoint_url=config_data['dynamoEndpoint'],
+        aws_access_key_id=config_data['accessKey'], 
+        aws_secret_access_key=config_data['secretAccessKey']
+        )
 js_info_table = dynamodb.Table(config_data['dynamoTable'])
 
 with js_info_table.batch_writer() as batch:
