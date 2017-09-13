@@ -35,7 +35,7 @@ for filename in dir_files:
     if basename + ".js" not in dir_files or basename + ".args" not in dir_files:
         print ("Warning: mismatched file '" + filename + "' found in '" + args.directory + "'")
         continue
-    if basename not in sv_args.keys(): sv_args[basename] = {}
+    if basename not in sv_args: sv_args[basename] = {}
     if ext  == '.js':
         to_store = args.directory + '/' + filename
         key = config_data['folderName'] + '/' + filename
@@ -49,6 +49,9 @@ for filename in dir_files:
         with open(args.directory + '/' +filename, 'r') as arg_file:
             keys = arg_file.readline().strip().replace("#", '').split('\t')
             values = arg_file.readline().strip().split('\t')
+            if "file_url" in sv_args[basename]:
+                keys.append("file_url")
+                values.append(sv_args[basename]['file_url'])
             sv_args[basename] = dict(zip(keys, values))
             sv_args[basename]['bams'] = sv_args[basename]['bams'].split(',')
             script_fields = sv_args[basename]['script'].split()
