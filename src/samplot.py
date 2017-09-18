@@ -41,6 +41,11 @@ parser.add_argument("-w",
                   type=int,
                   default=1000,
                   help="Window, default(1000)")
+
+parser.add_argument("--embed",
+                  dest="embedded_path",
+                  help="Embedded path",
+                  required=False)
                   
 args = parser.parse_args()
 
@@ -200,5 +205,25 @@ ax.set_title(args.chrom + ':' + \
              str(args.start) + '-' + \
              str(args.end))
 
-
-matplotlib.pyplot.savefig(args.output_file,bbox_inches='tight')
+if args.embedded_path:
+    if not os.path.isdir(args.embedded_path):
+        os.mkdir(args.embedded_path)
+    filename, ext = os.path.splitext(os.path.basename(args.output_file))
+    img_filename = args.embedded_path + "/" + filename + ext
+    arg_filename = args.embedded_path + "/" + filename + ".args"
+    matplotlib.pyplot.savefig(img_filename,bbox_inches='tight')
+    
+    with open(arg_filename, 'w') as arg_file:
+            keys = [str(x) for x in args.__dict__.keys()]
+            keys.append("script")
+            arg_file.write("#" + "\t".join(keys) + "\n")
+            values = args.__dict__.values()
+            for i in range(len(values)):
+                if type(values[i]) == list:
+                    values[i] = ','.join([os.path.basename(v) for v in values[i]])
+                else:
+                    values[i] = str(values[i])
+            values.append("-")
+            arg_file.write("\t".join(values) + "\n")
+else:
+    matplotlib.pyplot.savefig(args.output_file,bbox_inches='tight')
