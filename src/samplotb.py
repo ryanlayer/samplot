@@ -11,8 +11,6 @@ from bokeh.plotting import figure, output_file, show, gridplot, save
 from bokeh.layouts import column
 from bokeh.resources import CDN
 from bokeh.embed import autoload_static
-from bokeh.io import export_png
-
 
 parser=argparse.ArgumentParser()
 
@@ -25,15 +23,12 @@ parser.add_argument("-b",
 parser.add_argument("-o",
                   dest="output_file",
                   help="Output file name",
-                  #type=lambda e:file_choices(("csv","tab"),e)
                   required=True)
 
 parser.add_argument("--embed",
                   dest="embedded_path",
                   help="Embedded path",
-                  #type=lambda e:file_choices(("csv","tab"),e)
                   required=False)
-
 
 parser.add_argument("-s",
                   dest="start",
@@ -181,10 +176,25 @@ if args.embedded_path:
     f = open( args.embedded_path + '/' + args.output_file , 'w')
     f.write(js)
     f.close()
-    print tag
+    
+    arg_filename = args.embedded_path +'/' +os.path.splitext(args.output_file)[0] + ".args"
+    with open(arg_filename, 'w') as arg_file:
+        keys = [str(x) for x in args.__dict__.keys()]
+        keys.append("script")
+        arg_file.write("#" + "\t".join(keys) + "\n")
+        values = args.__dict__.values()
+        for i in range(len(values)):
+            if type(values[i]) == list:
+                values[i] = ','.join([os.path.basename(v) for v in values[i]])
+            else:
+                values[i] = str(values[i])
+        values.append(tag.replace('\n', ' '))
+        arg_file.write("\t".join(values) + "\n")
+        
 else:
     if args.output_file.split('.')[-1] == "html":
         output_file(args.output_file)
         save(p)
     elif args.output_file.split('.')[-1] == "png":
+        from bokeh.io import export_png
         export_png(p, filename=args.output_file)

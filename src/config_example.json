@@ -1,0 +1,9 @@
+{
+	"accessKey": "",
+	"secretAccessKey": "",
+	"dynamoEndpoint" : "",
+	"region" : "",
+	"dynamoTable" : "",
+	"bucketName" : "sveee",
+	"folderName" : "js_test"
+}
