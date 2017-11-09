@@ -1,0 +1,3 @@
+#samtools view -T /Users/jon/Research/data/reference/hg19/hg19.fa -C -o NA12878.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20121211.cram NA12878.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20121211.bam
+samtools view -T /Users/jon/Research/data/reference/hg19/hg19.fa -C -o NA12889.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20130415.cram NA12889.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20130415.bam
+samtools view -T /Users/jon/Research/data/reference/hg19/hg19.fa -C -o NA12890.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20130415.cram NA12890.mapped.ILLUMINA.bwa.CEU.low_coverage.restricted_sv_regions.20130415.bam
