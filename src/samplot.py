@@ -256,7 +256,9 @@ if options.max_depth:
     all_pairs = sampled_plot_pairs
 
 matplotlib.rcParams.update({'font.size': 12})
-fig = matplotlib.pyplot.figure(figsize=(8,5),dpi=300)
+
+height = 1.1 + (1.33 * len(options.bams.split(',')))
+fig = matplotlib.pyplot.figure(figsize=(8,height),dpi=300)
 fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
 num_ax = len(options.bams.split(','))+1
