@@ -213,7 +213,7 @@ for bam_file_name in options.bams.split(','):
     max_plot_depth = max(max_plot_depth,max([x[1] for x in plot_depths]))
     all_plot_depths.append(plot_depths)
 
-bam_file.close()
+
 range_min = min(mapping_positions) if len(mapping_positions)>0 else int(options.start) - window - 500
 range_max = max(mapping_positions) if len(mapping_positions)>0 else int(options.end) + window + 500
 
@@ -224,12 +224,15 @@ if options.max_depth:
 
     for plot_pairs in all_pairs:
         sampled_plot_pair = []
+
         plus_minus_pairs = []
+
         for pair in plot_pairs:
             if pair[0][2] == True and pair[1][2] == False:
                 plus_minus_pairs.append(pair)
             else:
                 sampled_plot_pair.append(pair)
+
     if len(plus_minus_pairs) > max_depth:
         lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
         mean = statistics.mean(lens)
@@ -247,7 +250,9 @@ if options.max_depth:
             sampled_plot_pair += inside_norm
     else:
         sampled_plot_pair+=plus_minus_pairs
-    sampled_plot_pairs.append(sampled_plot_pair)
+
+        sampled_plot_pairs.append(sampled_plot_pair)
+
     all_pairs = sampled_plot_pairs
 
 matplotlib.rcParams.update({'font.size': 12})
@@ -269,8 +274,10 @@ if options.transcript_file:
     ratios += [2]
 
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
+
 for plot_pairs in all_pairs:
     ax =  matplotlib.pyplot.subplot(gs[ax_i])
+    bam_file.close()
 
     c = 0
     min_insert_size=3000000
