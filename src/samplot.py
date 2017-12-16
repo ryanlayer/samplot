@@ -221,10 +221,9 @@ range_max = max(mapping_positions) if len(mapping_positions)>0 else int(options.
 if options.max_depth:
     max_depth=options.max_depth
     sampled_plot_pairs = [] 
-
+    
     for plot_pairs in all_pairs:
         sampled_plot_pair = []
-
         plus_minus_pairs = []
 
         for pair in plot_pairs:
@@ -233,26 +232,24 @@ if options.max_depth:
             else:
                 sampled_plot_pair.append(pair)
 
-    if len(plus_minus_pairs) > max_depth:
-        lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
-        mean = statistics.mean(lens)
-        stdev = statistics.stdev(lens)
+        if len(plus_minus_pairs) > max_depth:
+            lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
+            mean = statistics.mean(lens)
+            stdev = statistics.stdev(lens)
 
-        outside_norm = [pair for pair in plus_minus_pairs \
-                    if pair[1][1] - pair[0][0] >= (mean + 4*stdev)]
-        inside_norm = [pair for pair in plus_minus_pairs \
-                    if pair[1][1] - pair[0][0] < (mean + 2*stdev)]
+            outside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] >= (mean + 4*stdev)]
+            inside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] < (mean + 2*stdev)]
 
-        sampled_plot_pair += outside_norm
-        if len(inside_norm) > max_depth:
-            sampled_plot_pair += random.sample(inside_norm, max_depth)
+            sampled_plot_pair += outside_norm
+            if len(inside_norm) > max_depth:
+                sampled_plot_pair += random.sample(inside_norm, max_depth)
+            else:
+                sampled_plot_pair += inside_norm
         else:
-            sampled_plot_pair += inside_norm
-    else:
-        sampled_plot_pair+=plus_minus_pairs
-
+            sampled_plot_pair+=plus_minus_pairs
         sampled_plot_pairs.append(sampled_plot_pair)
-
     all_pairs = sampled_plot_pairs
 
 matplotlib.rcParams.update({'font.size': 12})
