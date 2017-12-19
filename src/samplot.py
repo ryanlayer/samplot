@@ -91,10 +91,10 @@ parser.add_option("-T",
                   help="GFF of transcripts")
 
 parser.add_option("-a",
-                  dest="print_args",
+                  dest="output_args",
                   action="store_true",
                   default=False,
-                  help="Print commandline arguments")
+                  help="Write commandline arguments to a .json file (named after output_file")
 
 
 (options, args) = parser.parse_args()
@@ -574,7 +574,7 @@ if len(options.bams.split(',')) > 3:
     matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
-if options.print_args:
+if options.output_args:
     import json
     metadata = {
             "bams":     options.bams,
