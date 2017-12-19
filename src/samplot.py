@@ -256,7 +256,7 @@ matplotlib.rcParams.update({'font.size': 12})
 
 height = 1.1 + (1.33 * len(options.bams.split(',')))
 fig = matplotlib.pyplot.figure(figsize=(8,height),dpi=300)
-fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
+fig.subplots_adjust( left=0.075, right=.85, bottom=.15, top=0.9)
 
 num_ax = len(options.bams.split(','))+1
 
@@ -473,7 +473,7 @@ legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
             linestyle='-',
             lw=1)]
 
-ax.legend( legend_elements ,
+fig.legend( legend_elements ,
             ["Deletion/Normal",\
              "Duplication", \
              "Inversion", \
@@ -570,7 +570,8 @@ if options.transcript_file:
     ax.set_xticklabels(labels, fontsize=6)
     ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
 
-matplotlib.pyplot.tight_layout()
+if len(options.bams.split(',')) > 3:
+    matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
 
