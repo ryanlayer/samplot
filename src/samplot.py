@@ -574,27 +574,15 @@ if len(options.bams.split(',')) > 3:
     matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
-
 if options.print_args:
-    print ('#' + '\t'.join([ 'titles',
-                            'reference',
-                            'bams',
-                            'output_file',
-                            'start',
-                            'end',
-                            'chrom',
-                            'window',
-                            'max_depth',
-                            'sv_type',
-                            'transcript_file']))
-    print ('\t'.join([ options.titles if options.titles else 'None',
-                      options.reference if options.reference else 'None',
-                      options.bams,
-                      options.output_file,
-                      options.start,
-                      options.end,
-                      options.chrom,
-                      str(options.window),
-                      str(options.max_depth) if options.max_depth else 'None',
-                      options.sv_type,
-                      options.transcript_file if options.transcript_file else 'None']))
+    import json
+    metadata = {
+            "bams":     options.bams,
+            "chr":      options.chrom,
+            "start":    options.start,
+            "end":      options.end,
+            "svtype":   options.sv_type
+    }
+    meta_file = open(os.path.splitext(options.output_file)[0] + ".json", 'w')
+    meta_file.write(json.dumps(metadata))
+    meta_file.close()
