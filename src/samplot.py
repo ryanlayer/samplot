@@ -52,6 +52,11 @@ parser.add_option("-r",
                   dest="reference",
                   help="Reference file for CRAM");
 
+parser.add_option("-z",
+                  dest="z",
+                  type=int,
+                  default=4,
+                  help="Number of stdevs from the mean (default 4)");
 
 parser.add_option("-b",
                   dest="bams",
@@ -239,9 +244,9 @@ if options.max_depth:
 		stdev = statistics.stdev(lens)
 
 		outside_norm = [pair for pair in plus_minus_pairs \
-				    if pair[1][1] - pair[0][0] >= (mean + 4*stdev)]
+				    if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
 		inside_norm = [pair for pair in plus_minus_pairs \
-				    if pair[1][1] - pair[0][0] < (mean + 2*stdev)]
+				    if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
 
 		sampled_plot_pair += outside_norm
 		if len(inside_norm) > max_depth:
