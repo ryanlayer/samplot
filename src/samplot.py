@@ -52,15 +52,12 @@ parser.add_option("-r",
                   dest="reference",
                   help="Reference file for CRAM");
 
-<<<<<<< HEAD
 parser.add_option("-z",
                   dest="z",
                   type=int,
                   default=4,
                   help="Number of stdevs from the mean (default 4)");
 
-=======
->>>>>>> 107f1d9499412811763835a15416c0eb05c4d7d9
 parser.add_option("-b",
                   dest="bams",
                   help="Bam file names (CSV)")
