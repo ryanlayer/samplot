@@ -52,12 +52,15 @@ parser.add_option("-r",
                   dest="reference",
                   help="Reference file for CRAM");
 
+<<<<<<< HEAD
 parser.add_option("-z",
                   dest="z",
                   type=int,
                   default=4,
                   help="Number of stdevs from the mean (default 4)");
 
+=======
+>>>>>>> 107f1d9499412811763835a15416c0eb05c4d7d9
 parser.add_option("-b",
                   dest="bams",
                   help="Bam file names (CSV)")
@@ -81,7 +84,7 @@ parser.add_option("-c",
 parser.add_option("-w",
                   dest="window",
                   type=int,
-                  help="Window, default(0.5 * len)")
+                  help="Window size (count of bases to include), default(0.5 * len)")
 
 parser.add_option("-d",
                   dest="max_depth",
@@ -107,9 +110,9 @@ parser.add_option("-a",
 if not options.output_file:
     parser.error('Output file not given')
 
-window = (int(options.end) - int(options.start))/2
+window = int((int(options.end) - int(options.start))/2)
 if options.window:
-	window = options.window
+    window = options.window
 
 mapping_positions = []
 all_pairs = []
@@ -211,6 +214,7 @@ for bam_file_name in options.bams.split(','):
 
 
     a = [x[0] for x in plot_depths]
+
     alld = set(range( int(options.start) - window - 500,int(options.end) + window + 500))
     rem = alld - set(a)
     plot_depths.extend([r, 0] for r in rem)
@@ -238,23 +242,23 @@ if options.max_depth:
             else:
                 sampled_plot_pair.append(pair)
 
-	if len(plus_minus_pairs) > max_depth:
-		lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
-		mean = statistics.mean(lens)
-		stdev = statistics.stdev(lens)
+    if len(plus_minus_pairs) > max_depth:
+        lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
+        mean = statistics.mean(lens)
+        stdev = statistics.stdev(lens)
 
-		outside_norm = [pair for pair in plus_minus_pairs \
-				    if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
-		inside_norm = [pair for pair in plus_minus_pairs \
-				    if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
+        outside_norm = [pair for pair in plus_minus_pairs \
+                    if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
+        inside_norm = [pair for pair in plus_minus_pairs \
+                    if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
 
-		sampled_plot_pair += outside_norm
-		if len(inside_norm) > max_depth:
-		    sampled_plot_pair += random.sample(inside_norm, max_depth)
-		else:
-		    sampled_plot_pair += inside_norm
-	else:
-		sampled_plot_pair+=plus_minus_pairs
+        sampled_plot_pair += outside_norm
+        if len(inside_norm) > max_depth:
+            sampled_plot_pair += random.sample(inside_norm, max_depth)
+        else:
+            sampled_plot_pair += inside_norm
+    else:
+        sampled_plot_pair+=plus_minus_pairs
 
         sampled_plot_pairs.append(sampled_plot_pair)
 
@@ -357,9 +361,9 @@ for plot_pairs in all_pairs:
 
 
     if max_insert_size-min_insert_size != 0: 
-	    ax.yaxis.set_ticks(np.arange(min_insert_size, \
-					 max_insert_size, \
-					 max(2,(max_insert_size-min_insert_size)/4)))
+        ax.yaxis.set_ticks(np.arange(min_insert_size, \
+                     max_insert_size, \
+                     max(2,(max_insert_size-min_insert_size)/4)))
 
     if options.titles and \
             len(options.titles.split(',')) == len(options.bams.split(',')):
@@ -549,15 +553,15 @@ if options.transcript_file:
 
             ax.text(r[0],t_i + 0.02,gene,fontsize=6,color='cornflowerblue')
 
-		
+        
             if transcript in cdss:
                 for cds in cdss[transcript]:
-		    for exon in cdss[transcript][cds]:
+                    for exon in cdss[transcript][cds]:
                         e_start = max(range_min,exon[1])
-			e_end = min(range_max,exon[2])
-			r=[float(e_start - range_min)/float(range_max - range_min), \
-			   float(e_end - range_min)/float(range_max - range_min)]
-			ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
+                        e_end = min(range_max,exon[2])
+                        r=[float(e_start - range_min)/float(range_max - range_min), \
+                            float(e_end - range_min)/float(range_max - range_min)]
+                        ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
 
                 t_i += 1
 
@@ -581,7 +585,7 @@ matplotlib.pyplot.savefig(options.output_file)
 
 
 if options.print_args:
-    print '#' + '\t'.join([ 'titles',
+    print ('#' + '\t'.join([ 'titles',
                             'reference',
                             'bams',
                             'output_file',
@@ -591,8 +595,8 @@ if options.print_args:
                             'window',
                             'max_depth',
                             'sv_type',
-                            'transcript_file'])
-    print '\t'.join([ options.titles if options.titles else 'None',
+                            'transcript_file']))
+    print ('\t'.join([ options.titles if options.titles else 'None',
                       options.reference if options.reference else 'None',
                       options.bams,
                       options.output_file,
@@ -602,4 +606,4 @@ if options.print_args:
                       str(options.window),
                       str(options.max_depth) if options.max_depth else 'None',
                       options.sv_type,
-                      options.transcript_file if options.transcript_file else 'None'])
+                      options.transcript_file if options.transcript_file else 'None']))
