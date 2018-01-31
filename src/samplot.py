@@ -230,32 +230,32 @@ if options.max_depth:
 
     for plot_pairs in all_pairs:
         sampled_plot_pair = []
-
         plus_minus_pairs = []
 
         for pair in plot_pairs:
+
             if pair[0][2] == True and pair[1][2] == False:
                 plus_minus_pairs.append(pair)
             else:
                 sampled_plot_pair.append(pair)
 
-    if len(plus_minus_pairs) > max_depth:
-        lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
-        mean = statistics.mean(lens)
-        stdev = statistics.stdev(lens)
+        if len(plus_minus_pairs) > max_depth:
+            lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
+            mean = statistics.mean(lens)
+            stdev = statistics.stdev(lens)
 
-        outside_norm = [pair for pair in plus_minus_pairs \
-                    if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
-        inside_norm = [pair for pair in plus_minus_pairs \
-                    if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
+            outside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
+            inside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
 
-        sampled_plot_pair += outside_norm
-        if len(inside_norm) > max_depth:
-            sampled_plot_pair += random.sample(inside_norm, max_depth)
+            sampled_plot_pair += outside_norm
+            if len(inside_norm) > max_depth:
+                sampled_plot_pair += random.sample(inside_norm, max_depth)
+            else:
+                sampled_plot_pair += inside_norm
         else:
-            sampled_plot_pair += inside_norm
-    else:
-        sampled_plot_pair+=plus_minus_pairs
+            sampled_plot_pair+=plus_minus_pairs
 
         sampled_plot_pairs.append(sampled_plot_pair)
 
