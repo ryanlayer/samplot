@@ -289,10 +289,11 @@ for plot_pairs in all_pairs:
 
     # Plot pairs
     for plot_pair in plot_pairs:
-        p = [float(plot_pair[0][1] - range_min)/float(range_max - range_min), \
-            float(plot_pair[1][0] - range_min)/float(range_max - range_min)]
+        p = [float(plot_pair[0][0] - range_min)/float(range_max - range_min), \
+            float(plot_pair[1][1] - range_min)/float(range_max - range_min)]
 
         insert_size = plot_pair[1][1] - plot_pair[0][0]
+
         min_insert_size = min(min_insert_size, insert_size)
         max_insert_size = max(max_insert_size, insert_size)
 
@@ -303,6 +304,7 @@ for plot_pairs in all_pairs:
                 (True, True): 'green',
                 }
         color = colors[(plot_pair[0][2], plot_pair[1][2])]
+
 
         ax.plot(p,\
                 [insert_size,insert_size],\
