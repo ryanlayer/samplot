@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SAMPLOT=`which samplot 2> /dev/null`
+SAMPLOT=`which samplot.py 2> /dev/null`
 BCFTOOLS=`which bcftools 2> /dev/null`
 outdir=$( pwd )
 vcf=
@@ -87,7 +87,7 @@ for sv in `$BCFTOOLS view -i 'SVTYPE="DEL" || SVTYPE="DUP" || SVTYPE="INV" || SV
         IFS=$' '
         arr=($sv)
 
-        $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.png  -b $bams -a \
+        $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.pdf  -b $bams -a \
         > ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.args
 
         echo ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.png
