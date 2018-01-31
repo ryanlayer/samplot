@@ -52,6 +52,12 @@ parser.add_option("-r",
                   dest="reference",
                   help="Reference file for CRAM");
 
+parser.add_option("-z",
+                  dest="z",
+                  type=int,
+                  default=4,
+                  help="Number of stdevs from the mean (default 4)");
+
 parser.add_option("-b",
                   dest="bams",
                   help="Bam file names (CSV)")
@@ -91,10 +97,10 @@ parser.add_option("-T",
                   help="GFF of transcripts")
 
 parser.add_option("-a",
-                  dest="output_args",
+                  dest="print_args",
                   action="store_true",
                   default=False,
-                  help="Write commandline arguments to a .json file (named after output_file")
+                  help="Print commandline arguments")
 
 
 (options, args) = parser.parse_args()
@@ -221,12 +227,13 @@ range_max = max(mapping_positions) if len(mapping_positions)>0 else int(options.
 if options.max_depth:
     max_depth=options.max_depth
     sampled_plot_pairs = [] 
-    
+
     for plot_pairs in all_pairs:
         sampled_plot_pair = []
         plus_minus_pairs = []
 
         for pair in plot_pairs:
+
             if pair[0][2] == True and pair[1][2] == False:
                 plus_minus_pairs.append(pair)
             else:
@@ -238,9 +245,9 @@ if options.max_depth:
             stdev = statistics.stdev(lens)
 
             outside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] >= (mean + 4*stdev)]
+                        if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
             inside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] < (mean + 2*stdev)]
+                        if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
 
             sampled_plot_pair += outside_norm
             if len(inside_norm) > max_depth:
@@ -249,14 +256,14 @@ if options.max_depth:
                 sampled_plot_pair += inside_norm
         else:
             sampled_plot_pair+=plus_minus_pairs
+
         sampled_plot_pairs.append(sampled_plot_pair)
+
     all_pairs = sampled_plot_pairs
 
 matplotlib.rcParams.update({'font.size': 12})
-
-height = 1.1 + (1.33 * len(options.bams.split(',')))
-fig = matplotlib.pyplot.figure(figsize=(8,height),dpi=300)
-fig.subplots_adjust( left=0.075, right=.85, bottom=.15, top=0.9)
+fig = matplotlib.pyplot.figure(figsize=(8,5),dpi=300)
+fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
 num_ax = len(options.bams.split(','))+1
 
@@ -473,7 +480,7 @@ legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
             linestyle='-',
             lw=1)]
 
-fig.legend( legend_elements ,
+ax.legend( legend_elements ,
             ["Deletion/Normal",\
              "Duplication", \
              "Inversion", \
@@ -570,19 +577,30 @@ if options.transcript_file:
     ax.set_xticklabels(labels, fontsize=6)
     ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
 
-if len(options.bams.split(',')) > 3:
-    matplotlib.pyplot.tight_layout()
+matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
-if options.output_args:
-    import json
-    metadata = {
-            "bams":     options.bams,
-            "chr":      options.chrom,
-            "start":    options.start,
-            "end":      options.end,
-            "svtype":   options.sv_type
-    }
-    meta_file = open(os.path.splitext(options.output_file)[0] + ".json", 'w')
-    meta_file.write(json.dumps(metadata))
-    meta_file.close()
+
+if options.print_args:
+    print ('#' + '\t'.join([ 'titles',
+                            'reference',
+                            'bams',
+                            'output_file',
+                            'start',
+                            'end',
+                            'chrom',
+                            'window',
+                            'max_depth',
+                            'sv_type',
+                            'transcript_file']))
+    print ('\t'.join([ options.titles if options.titles else 'None',
+                      options.reference if options.reference else 'None',
+                      options.bams,
+                      options.output_file,
+                      options.start,
+                      options.end,
+                      options.chrom,
+                      str(options.window),
+                      str(options.max_depth) if options.max_depth else 'None',
+                      options.sv_type,
+                      options.transcript_file if options.transcript_file else 'None']))
