@@ -119,6 +119,18 @@ if not options.output_file:
 
 if not options.bams:
     parser.error('BAMSs not given')
+    
+if not options.start:
+    parser.error('SV start not given')
+    
+if not options.end:
+    parser.error('SV end not given')
+
+if not options.chrom:
+    parser.error('SV chrom not given')
+
+if not options.sv_type:
+    parser.error('SV sv_type not given')
 
 plot_height = 5
 plot_width = 8
