@@ -102,10 +102,34 @@ parser.add_option("-a",
                   default=False,
                   help="Print commandline arguments")
 
+parser.add_option("-H",
+                  dest="plot_height",
+                  type=int,
+                  help="Plot height")
+
+parser.add_option("-W",
+                  dest="plot_width",
+                  type=int,
+                  help="Plot width")
+
 
 (options, args) = parser.parse_args()
 if not options.output_file:
     parser.error('Output file not given')
+
+if not options.bams:
+    parser.error('BAMSs not given')
+
+plot_height = 5
+plot_width = 8
+
+if options.plot_height:
+    plot_height = options.plot_height
+else:
+    plot_height = 2 + len(options.bams.split(','))
+
+if options.plot_width:
+    plot_width = options.plot_width
 
 window = int((int(options.end) - int(options.start))/2)
 if options.window:
@@ -262,7 +286,7 @@ if options.max_depth:
     all_pairs = sampled_plot_pairs
 
 matplotlib.rcParams.update({'font.size': 12})
-fig = matplotlib.pyplot.figure(figsize=(8,5),dpi=300)
+fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
 fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
 num_ax = len(options.bams.split(','))+1
