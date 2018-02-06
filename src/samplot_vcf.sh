@@ -1,9 +1,10 @@
 #!/bin/bash
 
-SAMPLOT=`which samplot 2> /dev/null`
+SAMPLOT=`which samplot.py 2> /dev/null`
 BCFTOOLS=`which bcftools 2> /dev/null`
 outdir=$( pwd )
 vcf=
+output_type="png"
 
 set -eu
 
@@ -15,6 +16,7 @@ usage()
     General options:
     -h      Show this message
     -o      Output directory ($outdir)
+    -O      Output type (default png)
 
     Path options:
     -B      BCFTOOLS path ($BCFTOOLS)
@@ -22,7 +24,7 @@ usage()
 EOF
 }
 
-while getopts "h o:B:S:v:" OPTION; do
+while getopts "h O:o:B:S:v:" OPTION; do
 case $OPTION in
     h)
         usage
@@ -30,6 +32,9 @@ case $OPTION in
         ;;
     o)
         outdir=$OPTARG
+        ;;
+    O)
+        output_type=$OPTARG
         ;;
     v)
         vcf=$OPTARG
@@ -87,10 +92,10 @@ for sv in `$BCFTOOLS view -i 'SVTYPE="DEL" || SVTYPE="DUP" || SVTYPE="INV" || SV
         IFS=$' '
         arr=($sv)
 
-        $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.png  -b $bams -a \
+        $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type  -b $bams -a \
         > ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.args
 
-        echo ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.png
+        echo ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type
 
         IFS=$'\n' 
 done
