@@ -618,27 +618,21 @@ if options.transcript_file:
 matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
-
 if options.print_args:
-    print ('#' + '\t'.join([ 'titles',
-                            'reference',
-                            'bams',
-                            'output_file',
-                            'start',
-                            'end',
-                            'chrom',
-                            'window',
-                            'max_depth',
-                            'sv_type',
-                            'transcript_file']))
-    print ('\t'.join([ options.titles if options.titles else 'None',
-                      options.reference if options.reference else 'None',
-                      options.bams,
-                      options.output_file,
-                      options.start,
-                      options.end,
-                      options.chrom,
-                      str(options.window),
-                      str(options.max_depth) if options.max_depth else 'None',
-                      options.sv_type,
-                      options.transcript_file if options.transcript_file else 'None']))
+    import json
+    args_filename = os.path.splitext(options.output_file)[0] + ".json"
+    args_info = {
+        'titles': options.titles if options.titles else 'None',
+        'reference': options.reference if options.reference else 'None',
+        'bams': options.bams.split(','),
+        'output_file': options.output_file,
+        'start': options.start, 
+        'end': options.end,
+        'chrom': options.chrom,
+        'window': options.window,
+        'max_depth': options.max_depth if options.max_depth else 'None',
+        'sv_type': options.sv_type,
+        'transcript_file': options.transcript_file if options.transcript_file else 'None'
+    }
+    with open(args_filename, 'w') as outfile:
+        json.dump(args_info, outfile)
