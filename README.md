@@ -23,7 +23,7 @@ We're  using data from NA12878, NA12889, and NA12890 in the [1000 Genomes Projec
 Let's say we have BAM files and want to see what the deletion in NA12878 at 4:115928726-115931880 looks like compared to the parents (NA12889, NA12890). 
 The following command will create an image of that region:
 ```
-python src/samplot.py -n NA12878,NA12889,NA12890 -b test/data/alignments/NA12878_restricted.bam,Samplot/test/data/alignments/NA12889_restricted.bam,Samplot/test/data/alignments/NA12890_restricted.bam -o 4_115928726_115931880.png -s 115928726 -e 115931880 -c chr4 -a -t DEL > 4_115928726_115931880.args
+python Samplot/src/samplot.py -n NA12878,NA12889,NA12890 -b Samplot/test/alignments/NA12878_restricted.bam,Samplot/test/alignments/NA12889_restricted.bam,Samplot/test/alignments/NA12890_restricted.bam -o 4_115928726_115931880.png -s 115928726 -e 115931880 -c chr4 -a -t DEL > 4_115928726_115931880.args
 ```
 
 <img src="/doc/imgs/4_115928726_115931880.png">
@@ -32,6 +32,6 @@ python src/samplot.py -n NA12878,NA12889,NA12890 -b test/data/alignments/NA12878
 Samplot also support CRAM input, which requires a reference fasta file for reading as noted above. Notice that the reference file is not included in this repository due to size.
 
 ```
-python src/samplot.py -n NA12878,NA12889,NA12890 -b test/data/alignments/NA12878_restricted.cram,Samplot/test/data/alignments/NA12889_restricted.cram,Samplot/test/data/alignments/NA12890_restricted.cram -o cramX_101055330_101067156.png -s 101055330 -e 101067156 -c chrX -a -t DUP -r ~/Research/data/reference/hg19/hg19.fa > cram_X_101055330_101067156.args
+python Samplot/src/samplot.py -n NA12878,NA12889,NA12890 -b Samplot/test/alignments/NA12878_restricted.cram,Samplot/test/alignments/NA12889_restricted.cram,Samplot/test/alignments/NA12890_restricted.cram -o cramX_101055330_101067156.png -s 101055330 -e 101067156 -c chrX -a -t DUP -r ~/Research/data/reference/hg19/hg19.fa > cram_X_101055330_101067156.args
 ```
 <img src="doc/imgs/cramX_101055330_101067156.png">
