@@ -93,7 +93,6 @@ for sv in `$BCFTOOLS view -i 'SVTYPE="DEL" || SVTYPE="DUP" || SVTYPE="INV" || SV
         arr=($sv)
 
         $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type  -b $bams -a \
-        > ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.args
 
         echo ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type
 
