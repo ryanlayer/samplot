@@ -479,7 +479,7 @@ sv_size_unit = 'bp'
 if sv_size > 1000000:
     sv_size = "{0:0.2f}".format(sv_size/1000000.0)
     sv_size_unit = 'mb'
-if sv_size > 1000:
+elif sv_size > 1000:
     sv_size = "{0:0.2f}".format(sv_size/1000.0)
     sv_size_unit = 'kb'
 
