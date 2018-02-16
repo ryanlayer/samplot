@@ -166,7 +166,7 @@ for bam_file_name in options.bams.split(','):
     plot_splits = []
 
     for read in bam_file.fetch(options.chrom,
-                               int(options.start) - window,
+                               max(0,int(options.start) - window),
                                int(options.end) + window):
 
         if not read.is_secondary and read.has_tag('SA'):
