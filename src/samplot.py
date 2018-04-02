@@ -542,7 +542,6 @@ if options.transcript_file:
                          int(options.start), \
                          int(options.end)):
         A = row.split()
-        if A[1] != 'ensembl_havana': continue
 
         if A[2] == 'gene':
             info =  dict([list(val.split('=')) for val in A[8].split(';')])
