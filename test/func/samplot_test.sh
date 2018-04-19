@@ -25,3 +25,14 @@ run basic_operation \
         -t $sv_type
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+
+sample_out_file_name="sample.jpg"
+run sampling_normal \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1,$bam_2,$bam_3 \
+        -o $sample_out_file_name \
+        -t $sv_type \
+        -d 10
+assert_exit_code 0
+assert_equal $sample_out_file_name $( ls $sample_out_file_name )
