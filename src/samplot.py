@@ -16,7 +16,8 @@ from optparse import OptionParser
 marker_size = 4
 
 def calc_query_pos_from_cigar(cigar, strand):
-    cigar_ops = [[int(op[0]),op[1]] for op in re.findall('(\d+)([A-Za-z])', cigar)]
+    cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', \
+                  cigar)]
 
     order_ops = cigar_ops
     if not strand: # - strand
@@ -41,6 +42,152 @@ def calc_query_pos_from_cigar(cigar, strand):
             q_len += op_len
 
     return qs_pos, qe_pos
+
+def get_depth(chrom, start, end, window, bam_files, reference):
+    all_plot_depths = []
+    max_plot_depth = 0 
+
+    #Get coverage
+    for bam_file_name in bam_files:
+        plot_depths = []
+        bam_file = None
+
+        if not reference:
+            bam_file = pysam.AlignmentFile(bam_file_name, "rb")
+        else:
+            bam_file = pysam.AlignmentFile(bam_file_name, \
+                                           "rc", \
+                                           reference_filename=reference)
+
+        for depth in bam_file.pileup(chrom,
+                                     int(start) - window - 500,
+                                     int(end) + window + 500):
+            plot_depths.append([depth.reference_pos,depth.nsegments])
+
+        a = [x[0] for x in plot_depths]
+
+        alld = set(range( int(start) - window - 500,
+                          int(end) + window + 500))
+        rem = alld - set(a)
+        plot_depths.extend([r, 0] for r in rem)
+
+        max_plot_depth = max(max_plot_depth,max([x[1] for x in plot_depths]))
+        all_plot_depths.append(plot_depths)
+
+    return max_plot_depth, all_plot_depths
+
+def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
+    mapping_positions = []
+    all_pairs = []
+    all_plot_splits = []
+
+    # Get pairs and split
+    for bam_file_name in bam_files:
+        bam_file = None
+        if not reference:
+            bam_file = pysam.AlignmentFile(bam_file_name, "rb")
+        else:
+            bam_file = pysam.AlignmentFile(bam_file_name, \
+                                           "rc", \
+                                           reference_filename=reference)
+        pairs = {}
+
+        plot_reads = []
+        plot_splits = []
+
+        for read in bam_file.fetch(chrom,
+                                   max(0,int(start) - window),
+                                   int(end) + window):
+
+            if not read.is_secondary and read.has_tag('SA'):
+                qs_pos, qe_pos = \
+                    calc_query_pos_from_cigar(read.cigarstring, \
+                                              (not read.is_reverse))
+
+                split=[[read.reference_end, not read.is_reverse, qs_pos]]
+
+                for sa in read.get_tag('SA').split(';'):
+                    if len(sa) == 0:
+                        continue
+                    pos = int(sa.split(',')[1])
+                    strand = sa.split(',')[2] == '+'
+                    qs_pos, qe_pos = \
+                            calc_query_pos_from_cigar(read.cigarstring, strand)
+                    split.append([pos,strand,qs_pos])
+
+                plot_splits.append(split)
+
+            if (read.is_paired):
+                if (read.reference_end) :
+                    if read.query_name not in pairs:
+                        pairs[read.query_name] = []
+                    pairs[read.query_name].append(read)
+            else:
+                if (read.reference_end) :
+                    plot_reads.append([read.reference_start,
+                                       read.reference_end])
+
+        plot_pairs = []
+        
+        for pair in pairs:
+            if len(pairs[pair]) == 2:
+                plot_pairs.append([[pairs[pair][0].reference_start,
+                                    pairs[pair][0].reference_end,
+                                    not(pairs[pair][0].is_reverse)],
+                                   [pairs[pair][1].reference_start,
+                                    pairs[pair][1].reference_end,
+                                    not(pairs[pair][1].is_reverse)]])
+
+                mapping_positions.append(pairs[pair][0].reference_start)
+                if pairs[pair][0].reference_end:
+                    mapping_positions.append(pairs[pair][0].reference_end)
+
+                mapping_positions.append(pairs[pair][1].reference_start)
+                if pairs[pair][1].reference_end:
+                    mapping_positions.append(pairs[pair][1].reference_end)
+
+        plot_pairs.sort(key=lambda x: x[1][1] - x[0][0])
+        all_pairs.append(plot_pairs)
+        all_plot_splits.append(plot_splits)
+
+    return [mapping_positions, all_pairs, all_plot_splits]
+
+def sample_normal(max_depth, all_pairs):
+    sampled_plot_pairs = [] 
+
+    for plot_pairs in all_pairs:
+        sampled_plot_pair = []
+        plus_minus_pairs = []
+
+        for pair in plot_pairs:
+
+            if pair[0][2] == True and pair[1][2] == False:
+                plus_minus_pairs.append(pair)
+            else:
+                sampled_plot_pair.append(pair)
+
+        if len(plus_minus_pairs) > max_depth:
+            lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
+            mean = statistics.mean(lens)
+            stdev = statistics.stdev(lens)
+
+            outside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
+            inside_norm = [pair for pair in plus_minus_pairs \
+                        if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
+
+            sampled_plot_pair += outside_norm
+            if len(inside_norm) > max_depth:
+                sampled_plot_pair += random.sample(inside_norm, max_depth)
+            else:
+                sampled_plot_pair += inside_norm
+        else:
+            sampled_plot_pair+=plus_minus_pairs
+
+        sampled_plot_pairs.append(sampled_plot_pair)
+
+    return sampled_plot_pairs
+
 
 parser = OptionParser()
 
@@ -96,6 +243,10 @@ parser.add_option("-T",
                   dest="transcript_file",
                   help="GFF of transcripts")
 
+parser.add_option("-A",
+                  dest="annotation_file",
+                  help="bed.gz tabixed file of transcripts")
+
 parser.add_option("-a",
                   dest="print_args",
                   action="store_true",
@@ -147,179 +298,100 @@ window = int((int(options.end) - int(options.start))/2)
 if options.window:
     window = options.window
 
-mapping_positions = []
-all_pairs = []
-all_plot_splits = []
+#get depths from each bam file
+max_plot_depth, all_plot_depths =  get_depth(options.chrom,
+                                             options.start,
+                                             options.end,
+                                             window,
+                                             options.bams.split(','),
+                                             options.reference)
 
-# Get pairs and split
-for bam_file_name in options.bams.split(','):
-    bam_file = None
-    if not options.reference:
-        bam_file = pysam.AlignmentFile(bam_file_name, "rb")
-    else:
-        bam_file = pysam.AlignmentFile(bam_file_name, \
-                                       "rc", \
-                                       reference_filename=options.reference)
-    pairs = {}
+#get pairs and split from each bam file
+mapping_positions, all_pairs, all_plot_splits = \
+        get_pairs_and_splits(options.chrom,
+                             options.start,
+                             options.end,
+                             window,
+                             options.bams.split(','),
+                             options.reference)
 
-    plot_reads = []
-    plot_splits = []
-
-    for read in bam_file.fetch(options.chrom,
-                               max(0,int(options.start) - window),
-                               int(options.end) + window):
-
-        if not read.is_secondary and read.has_tag('SA'):
-            qs_pos, qe_pos = calc_query_pos_from_cigar(read.cigarstring, \
-                                                       (not read.is_reverse))
-
-            split=[[read.reference_end, not read.is_reverse, qs_pos]]
-
-            for sa in read.get_tag('SA').split(';'):
-                if len(sa) == 0:
-                    continue
-
-
-                pos = int(sa.split(',')[1])
-                strand = sa.split(',')[2] == '+'
-                qs_pos, qe_pos = \
-                        calc_query_pos_from_cigar(read.cigarstring, strand)
-                split.append([pos,strand,qs_pos])
-
-            plot_splits.append(split)
-
-        if (read.is_paired):
-            if (read.reference_end) :
-                if read.query_name not in pairs:
-                    pairs[read.query_name] = []
-                pairs[read.query_name].append(read)
-        else:
-            if (read.reference_end) :
-                plot_reads.append([read.reference_start, read.reference_end])
-
-
-    plot_pairs = []
-    
-    for pair in pairs:
-        if len(pairs[pair]) == 2:
-            plot_pairs.append([[pairs[pair][0].reference_start,
-                                pairs[pair][0].reference_end,
-                                not(pairs[pair][0].is_reverse)],
-                               [pairs[pair][1].reference_start,
-                                pairs[pair][1].reference_end,
-                                not(pairs[pair][1].is_reverse)]])
-
-            mapping_positions.append(pairs[pair][0].reference_start)
-            if pairs[pair][0].reference_end:
-                mapping_positions.append(pairs[pair][0].reference_end)
-
-            mapping_positions.append(pairs[pair][1].reference_start)
-            if pairs[pair][1].reference_end:
-                mapping_positions.append(pairs[pair][1].reference_end)
-
-    plot_pairs.sort(key=lambda x: x[1][1] - x[0][0])
-    all_pairs.append(plot_pairs)
-    all_plot_splits.append(plot_splits)
-
-all_plot_depths = []
-max_plot_depth = 0 
-
-#Get coverage
-for bam_file_name in options.bams.split(','):
-    plot_depths = []
-    bam_file = None
-
-    if not options.reference:
-        bam_file = pysam.AlignmentFile(bam_file_name, "rb")
-    else:
-        bam_file = pysam.AlignmentFile(bam_file_name, \
-                                       "rc", \
-                                       reference_filename=options.reference)
-
-    for depth in bam_file.pileup(options.chrom,
-                               int(options.start) - window - 500,
-                               int(options.end) + window + 500):
-
-        #if depth.reference_pos > int(options.start) - window and \
-                #depth.reference_pos <  int(options.end) + window :
-
-            plot_depths.append([depth.reference_pos,depth.nsegments])
-
-
-    a = [x[0] for x in plot_depths]
-
-    alld = set(range( int(options.start) - window - 500,int(options.end) + window + 500))
-    rem = alld - set(a)
-    plot_depths.extend([r, 0] for r in rem)
-
-    max_plot_depth = max(max_plot_depth,max([x[1] for x in plot_depths]))
-    all_plot_depths.append(plot_depths)
-
-
-range_min = min(mapping_positions) if len(mapping_positions)>0 else int(options.start) - window - 500
-range_max = max(mapping_positions) if len(mapping_positions)>0 else int(options.end) + window + 500
+#get the x-axis range
+range_min = min(mapping_positions) \
+        if len(mapping_positions) > 0 \
+        else int(options.start) - window - 500
+range_max = max(mapping_positions) \
+        if len(mapping_positions) > 0 \
+        else int(options.end) + window + 500
 
 # Sample +/- pairs in the normal insert size range
 if options.max_depth:
-    max_depth=options.max_depth
-    sampled_plot_pairs = [] 
-
-    for plot_pairs in all_pairs:
-        sampled_plot_pair = []
-        plus_minus_pairs = []
-
-        for pair in plot_pairs:
-
-            if pair[0][2] == True and pair[1][2] == False:
-                plus_minus_pairs.append(pair)
-            else:
-                sampled_plot_pair.append(pair)
-
-        if len(plus_minus_pairs) > max_depth:
-            lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
-            mean = statistics.mean(lens)
-            stdev = statistics.stdev(lens)
-
-            outside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
-            inside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
-
-            sampled_plot_pair += outside_norm
-            if len(inside_norm) > max_depth:
-                sampled_plot_pair += random.sample(inside_norm, max_depth)
-            else:
-                sampled_plot_pair += inside_norm
-        else:
-            sampled_plot_pair+=plus_minus_pairs
-
-        sampled_plot_pairs.append(sampled_plot_pair)
-
-    all_pairs = sampled_plot_pairs
+    all_pairs = sample_normal(options.max_depth, all_pairs)
 
 matplotlib.rcParams.update({'font.size': 12})
 fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
 fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
+# give one axis to display the SV then one for each bam
 num_ax = len(options.bams.split(','))+1
 
+# add another if a annotation file is given
 if options.transcript_file:
     num_ax+=1
 
-ax_i = 1
+if options.annotation_file:
+    num_ax+=len(options.annotation_file.split(','))
 
+# set the relative sizes for each
 ratios = [1] + [10] * len(options.bams.split(','))
-
+if options.annotation_file:
+    ratios += [1]*len(options.annotation_file.split(','))
 if options.transcript_file:
     ratios += [2]
 
+
+# set the color of the pair based on the two strands
+colors = { (True, False): 'black', # DEL
+           (False, True): 'red',   # DUP
+           (False, False): 'blue', # INV
+           (True, True): 'green' } # INV
+
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
 
+# Plot the variant
+ax =  matplotlib.pyplot.subplot(gs[0])
+r=[float(int(options.start) - range_min)/float(range_max - range_min), \
+    float(int(options.end) - range_min)/float(range_max - range_min)]
+ax.plot(r,[0,0],'-',color='black',lw=3)
+ax.set_xlim([0,1])
+ax.spines['top'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.spines['right'].set_visible(False)
+matplotlib.pyplot.tick_params(axis='x',length=0)
+matplotlib.pyplot.tick_params(axis='y',length=0)
+ax.set_xticklabels([])
+ax.set_yticklabels([])
+
+# make SV title 
+sv_size = float(options.end) - float(options.start)
+sv_size_unit = 'bp'
+
+if sv_size > 1000000:
+    sv_size = "{0:0.2f}".format(sv_size/1000000.0)
+    sv_size_unit = 'mb'
+elif sv_size > 1000:
+    sv_size = "{0:0.2f}".format(sv_size/1000.0)
+    sv_size_unit = 'kb'
+
+sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + options.sv_type
+ax.set_title(sv_title, fontsize=8)
+
+sample_axs = []
+ax_i = 1
 for plot_pairs in all_pairs:
     ax =  matplotlib.pyplot.subplot(gs[ax_i])
-    bam_file.close()
+    sample_axs.append(ax)
 
-    c = 0
     min_insert_size=3000000
     max_insert_size=0
 
@@ -328,20 +400,16 @@ for plot_pairs in all_pairs:
         p = [float(plot_pair[0][0] - range_min)/float(range_max - range_min), \
             float(plot_pair[1][1] - range_min)/float(range_max - range_min)]
 
+        # y value is the insert size
         insert_size = plot_pair[1][1] - plot_pair[0][0]
 
+        # use this to scale the y-axis
         min_insert_size = min(min_insert_size, insert_size)
         max_insert_size = max(max_insert_size, insert_size)
 
-        colors = {
-                (True, False): 'black',
-                (False, True): 'red',
-                (False, False): 'blue',
-                (True, True): 'green',
-                }
         color = colors[(plot_pair[0][2], plot_pair[1][2])]
 
-
+        # plot the individual pair
         ax.plot(p,\
                 [insert_size,insert_size],\
                 '-',color=color, \
@@ -349,8 +417,6 @@ for plot_pairs in all_pairs:
                 lw=0.5, \
                 marker='s', \
                 markersize=marker_size)
-
-        c+=1
 
     # Plot splits
     for split in all_plot_splits[ax_i - 1]:
@@ -367,8 +433,9 @@ for plot_pairs in all_pairs:
         p = [float(start[0] - range_min)/float(range_max - range_min), \
              float(end[0] - range_min)/float(range_max - range_min)]
 
+        # For a given SV, the orientation of the pairs and split do not match
+        # so we cannot use the colors dict here
         color = 'black'
-
         if start[1] != end[1]: #INV
             if start[1] == '+': 
                 color = 'green'
@@ -383,8 +450,10 @@ for plot_pairs in all_pairs:
         elif start[1] == '-' and end[1] == '-' and start[2] < end[2]: #DUP
             color = 'red'
         
+        # y value is the insert size
         insert_size = end[0] - start[0]
 
+        # plot the individual split
         ax.plot(p,\
                 [insert_size,insert_size],\
                 ':',\
@@ -395,11 +464,15 @@ for plot_pairs in all_pairs:
                 markersize=marker_size)
 
 
+    # try to only have y-lables, which does work if there are too few 
+    # observed insert sizes
     if max_insert_size-min_insert_size != 0: 
         ax.yaxis.set_ticks(np.arange(min_insert_size, \
-                     max_insert_size, \
-                     max(2,(max_insert_size-min_insert_size)/4)))
+                                     max_insert_size, \
+                                     max(2,
+                                         (max_insert_size-min_insert_size)/4)))
 
+    # set the axis title to be either one passed in or filename
     if options.titles and \
             len(options.titles.split(',')) == len(options.bams.split(',')):
         ax.set_title(options.titles.split(',')[ax_i-1], \
@@ -407,9 +480,8 @@ for plot_pairs in all_pairs:
     else:
         ax.set_title(os.path.basename(options.bams.split(',')[ax_i-1]), \
                      fontsize=8, loc='left')
-
-
-    # Plot depth
+    
+    # set axis parameters
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -419,6 +491,7 @@ for plot_pairs in all_pairs:
     matplotlib.pyplot.tick_params(axis='x',length=0)
     matplotlib.pyplot.tick_params(axis='y',length=0)
 
+    # only set x-axis labels on the last sample
     if ax_i+1 < num_ax:
         ax.set_xticklabels([])
     else:
@@ -428,6 +501,7 @@ for plot_pairs in all_pairs:
         ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
     ax.set_ylabel('Insert size', fontsize=8)
 
+    # Plot depth
     cover_x = []
     cover_y = []
 
@@ -446,6 +520,7 @@ for plot_pairs in all_pairs:
                      color='grey',
                      alpha=0.25)
  
+    # set axis parameters
     ax2.set_ylabel('Coverage', fontsize=8)
     ax2.tick_params(axis='y', colors='grey', labelsize=6)
     ax2.spines['top'].set_visible(False)
@@ -456,39 +531,6 @@ for plot_pairs in all_pairs:
     matplotlib.pyplot.tick_params(axis='y',length=0)
 
     ax_i += 1
-
-# Plot the variant
-ax =  matplotlib.pyplot.subplot(gs[0])
-r=[float(int(options.start) - range_min)/float(range_max - range_min), \
-    float(int(options.end) - range_min)/float(range_max - range_min)]
-ax.plot(r,[0,0],'-',color='black',lw=3)
-ax.set_xlim([0,1])
-ax.spines['top'].set_visible(False)
-ax.spines['bottom'].set_visible(False)
-ax.spines['left'].set_visible(False)
-ax.spines['right'].set_visible(False)
-matplotlib.pyplot.tick_params(axis='x',length=0)
-matplotlib.pyplot.tick_params(axis='y',length=0)
-ax.set_xticklabels([])
-ax.set_yticklabels([])
-
-
-sv_size = float(options.end) - float(options.start)
-sv_size_unit = 'bp'
-
-if sv_size > 1000000:
-    sv_size = "{0:0.2f}".format(sv_size/1000000.0)
-    sv_size_unit = 'mb'
-elif sv_size > 1000:
-    sv_size = "{0:0.2f}".format(sv_size/1000.0)
-    sv_size_unit = 'kb'
-
-sv_title = str(sv_size) + ' ' + sv_size_unit
-
-if options.sv_type:
-    sv_title += ' ' + options.sv_type
-
-ax.set_title(sv_title, fontsize=8)
 
 
 marker_colors = ['black', 'red', 'blue', 'green']
@@ -530,6 +572,72 @@ ax.legend( legend_elements ,
             bbox_transform=matplotlib.pyplot.gcf().transFigure,
             frameon=False)
 
+if options.annotation_file:
+    a_i = 0
+    for annotation_file in options.annotation_file.split(','):
+        tbx = pysam.TabixFile(annotation_file)
+
+        # fetch and parse data from the tabixed gff file
+        itr = None
+        try:
+            itr = tbx.fetch(options.chrom, \
+                            int(options.start), \
+                            int(options.end))
+        except ValueError:
+            # try and account for chr/no chr prefix
+            chrom = options.chrom
+            if chrom[:3] == 'chr':
+                chrom = chrom[3:]
+            else:
+                chrom = 'chr' + chrom
+
+            try:
+                itr = tbx.fetch(chrom,
+                                int(options.start), \
+                                int(options.end))
+            except ValueError:
+                sys.exit('Error: Could not fetch ' + \
+                        options.chrom + ':' + options.start + '-' + \
+                        options.end + \
+                        'from ' + options.annotation_file)
+         
+        ax =  matplotlib.pyplot.subplot(gs[
+                1 + len(options.bams.split(',')) + a_i])
+
+        for row in itr:
+            A = row.rstrip().split()
+            t_start = max(range_min, int(A[1]))
+            t_end = min(range_max, int(A[2]))
+
+            r=[float(t_start - range_min)/float(range_max - range_min), \
+               float(t_end - range_min)/float(range_max - range_min)]
+
+            if len(A) > 3 :
+                try:
+                    v = float(A[3])
+                    ax.plot(r,[0,0],'-',color=str(1-v),lw=5)
+                except ValueError:
+                    ax.plot(r,[0,0],'-',color='black',lw=5)
+                    ax.text(r[0],0 + 0.1,A[3],fontsize=6,color='black')
+            else:
+                ax.plot(r,[0,0],'-',color='black',lw=5)
+
+        # set axis parameters
+        ax.set_xlim([0,1])
+        ax.spines['top'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_title(os.path.basename(annotation_file), \
+                         fontsize=8, loc='left')
+
+        matplotlib.pyplot.tick_params(axis='x',length=0)
+        matplotlib.pyplot.tick_params(axis='y',length=0)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        a_i+=1
+
+
 # Plot sorted/bgziped/tabixed transcript file
 if options.transcript_file:
     tbx = pysam.TabixFile(options.transcript_file)
@@ -538,9 +646,30 @@ if options.transcript_file:
     transcripts = {}
     cdss = {}
 
-    for row in tbx.fetch(options.chrom, \
-                         int(options.start), \
-                         int(options.end)):
+    # fetch and parse data from the tabixed gff file
+    itr = None
+    try:
+        itr = tbx.fetch(options.chrom, \
+                        int(options.start), \
+                        int(options.end))
+    except ValueError:
+        # try and account for chr/no chr prefix
+        chrom = options.chrom
+        if chrom[:3] == 'chr':
+            chrom = chrom[3:]
+        else:
+            chrom = 'chr' + chrom
+
+        try:
+            itr = tbx.fetch(chrom,
+                            int(options.start), \
+                            int(options.end))
+        except ValueError:
+            sys.exit('Error: Could not fetch ' + \
+                    options.chrom + ':' + options.start + '-' + options.end + \
+                    'from ' + options.transcript_file)
+     
+    for row in itr:
         A = row.split()
 
         if A[2] == 'gene':
@@ -571,8 +700,7 @@ if options.transcript_file:
                                                      int(A[3]), \
                                                      int(A[4]), \
                                                      info])
-
-    ax =  matplotlib.pyplot.subplot(gs[num_ax-1])
+    ax =  matplotlib.pyplot.subplot(gs[-1])
 
     t_i = 0
     for gene in genes:
@@ -599,6 +727,7 @@ if options.transcript_file:
 
                 t_i += 1
 
+    # set axis parameters
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -613,10 +742,14 @@ if options.transcript_file:
             for l in ax.xaxis.get_majorticklocs()]
     ax.set_xticklabels(labels, fontsize=6)
     ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
+    ax.set_title(os.path.basename(options.transcript_file), \
+                         fontsize=8, loc='left')
 
+# save
 matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
+# give sv-plaudit output
 if options.print_args:
     import json
     args_filename = os.path.splitext(options.output_file)[0] + ".json"
