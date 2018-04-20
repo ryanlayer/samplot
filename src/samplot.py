@@ -59,10 +59,17 @@ def get_depth(chrom, start, end, window, bam_files, reference):
                                            "rc", \
                                            reference_filename=reference)
 
+        last = None
         for depth in bam_file.pileup(chrom,
                                      int(start) - window - 500,
                                      int(end) + window + 500):
+            if last != None:
+                if depth.reference_pos > last +1 :
+                    for i in range(last + 1, depth.reference_pos - 1):
+                        plot_depths.append([i,0])
+
             plot_depths.append([depth.reference_pos,depth.nsegments])
+            last = depth.reference_pos
 
         a = [x[0] for x in plot_depths]
 
