@@ -87,6 +87,7 @@ def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
     mapping_positions = []
     all_pairs = []
     all_plot_splits = []
+    max_insert_size = 0
 
     # Get pairs and split
     for bam_file_name in bam_files:
@@ -99,8 +100,8 @@ def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
                                            reference_filename=reference)
         pairs = {}
 
-        plot_reads = []
         plot_splits = []
+
 
         for read in bam_file.fetch(chrom,
                                    max(0,int(start) - window),
@@ -129,21 +130,18 @@ def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
                     if read.query_name not in pairs:
                         pairs[read.query_name] = []
                     pairs[read.query_name].append(read)
-            else:
-                if (read.reference_end) :
-                    plot_reads.append([read.reference_start,
-                                       read.reference_end])
 
         plot_pairs = []
         
         for pair in pairs:
             if len(pairs[pair]) == 2:
-                plot_pairs.append([[pairs[pair][0].reference_start,
+                plot_pair = [[pairs[pair][0].reference_start,
                                     pairs[pair][0].reference_end,
                                     not(pairs[pair][0].is_reverse)],
                                    [pairs[pair][1].reference_start,
                                     pairs[pair][1].reference_end,
-                                    not(pairs[pair][1].is_reverse)]])
+                                    not(pairs[pair][1].is_reverse)]]
+                plot_pairs.append(plot_pair)
 
                 mapping_positions.append(pairs[pair][0].reference_start)
                 if pairs[pair][0].reference_end:
@@ -157,7 +155,30 @@ def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
         all_pairs.append(plot_pairs)
         all_plot_splits.append(plot_splits)
 
-    return [mapping_positions, all_pairs, all_plot_splits]
+    insert_sizes = []
+    for plot_pairs in all_pairs:
+        for plot_pair in plot_pairs:
+            insert_size = plot_pair[1][1] - plot_pair[0][0]
+            insert_sizes.append(insert_size)
+
+    for plot_splits in all_plot_splits:
+        for plot_split in plot_splits:
+            start = plot_split[0]
+            end = plot_split[1]
+            if start[0] > end[0]:
+                end = plot_split[0]
+                start = plot_split[1]
+            insert_size = end[0] - start[0]
+            insert_sizes.append(insert_size)
+
+    min_insert_size = min(insert_sizes)
+    max_insert_size = max(insert_sizes)
+
+    return [min_insert_size, \
+            max_insert_size,  \
+            mapping_positions,  \
+            all_pairs,  \
+            all_plot_splits]
 
 def sample_normal(max_depth, all_pairs):
     sampled_plot_pairs = [] 
@@ -270,6 +291,11 @@ parser.add_option("-W",
                   type=int,
                   help="Plot width")
 
+parser.add_option("--common_insert_size",
+                  dest="common_insert_size",
+                  action="store_true",
+                  default=False,
+                  help="Set common insert size for all plots")
 
 (options, args) = parser.parse_args()
 if not options.output_file:
@@ -314,13 +340,16 @@ max_plot_depth, all_plot_depths =  get_depth(options.chrom,
                                              options.reference)
 
 #get pairs and split from each bam file
-mapping_positions, all_pairs, all_plot_splits = \
-        get_pairs_and_splits(options.chrom,
-                             options.start,
-                             options.end,
-                             window,
-                             options.bams.split(','),
-                             options.reference)
+min_insert_size, \
+max_insert_size, \
+mapping_positions,  \
+all_pairs, \
+all_plot_splits = get_pairs_and_splits(options.chrom,
+                                       options.start,
+                                       options.end,
+                                       window,
+                                       options.bams.split(','),
+                                       options.reference)
 
 #get the x-axis range
 range_min = min(mapping_positions) \
@@ -399,8 +428,8 @@ for plot_pairs in all_pairs:
     ax =  matplotlib.pyplot.subplot(gs[ax_i])
     sample_axs.append(ax)
 
-    min_insert_size=3000000
-    max_insert_size=0
+    curr_min_insert_size=3000000
+    curr_max_insert_size=0
 
     # Plot pairs
     for plot_pair in plot_pairs:
@@ -411,8 +440,8 @@ for plot_pairs in all_pairs:
         insert_size = plot_pair[1][1] - plot_pair[0][0]
 
         # use this to scale the y-axis
-        min_insert_size = min(min_insert_size, insert_size)
-        max_insert_size = max(max_insert_size, insert_size)
+        curr_min_insert_size = min(curr_min_insert_size, insert_size)
+        curr_max_insert_size = max(curr_max_insert_size, insert_size)
 
         color = colors[(plot_pair[0][2], plot_pair[1][2])]
 
@@ -473,11 +502,18 @@ for plot_pairs in all_pairs:
 
     # try to only have y-lables, which does work if there are too few 
     # observed insert sizes
-    if max_insert_size-min_insert_size != 0: 
+    if options.common_insert_size:
         ax.yaxis.set_ticks(np.arange(min_insert_size, \
                                      max_insert_size, \
                                      max(2,
                                          (max_insert_size-min_insert_size)/4)))
+    else:
+        if max_insert_size-min_insert_size != 0: 
+            ax.yaxis.set_ticks(np.arange(curr_min_insert_size, \
+                                         curr_max_insert_size, \
+                                         max(2,
+                                             (curr_max_insert_size-curr_min_insert_size)/4)))
+
 
     # set the axis title to be either one passed in or filename
     if options.titles and \
