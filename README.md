@@ -19,7 +19,7 @@ Options:
   -c CHROM              Chromosome range
   -w WINDOW             Window size (count of bases to include), default(0.5 *
                         len)
-  -d MAX_DEPTH          Sampling depth(100 per 1kb)
+  -d MAX_DEPTH          Max number of normal pairs to plot
   -t SV_TYPE            SV type
   -T TRANSCRIPT_FILE    GFF of transcripts
   -A ANNOTATION_FILE    bed.gz tabixed file of transcripts

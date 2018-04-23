@@ -261,7 +261,7 @@ parser.add_option("-w",
 parser.add_option("-d",
                   dest="max_depth",
                   type=int,
-                  help="Sampling depth(100 per 1kb)")
+                  help="Max number of normal pairs to plot")
 
 parser.add_option("-t",
                   dest="sv_type",
