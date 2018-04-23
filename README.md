@@ -1,8 +1,35 @@
-# samplot
+`samplot` is a command line tool for rapid, multi-sample structural variant
+visualization. `samplot` takes SV coordinates and bam files and produces
+high-quality images that highlight any alignment and depth signals that
+substantiate the SV.
 
-Creates image views of genomic intervals from read alignment files, optimized for structural variant viewing.
+## Usage
+```
+Usage: samplot.py [options]
 
-Samplot workflow is simple. Clone this repository and make sure you have the following python libraries:
+Options:
+  -h, --help            show this help message and exit
+  -n TITLES             Plot title (CSV)
+  -r REFERENCE          Reference file for CRAM
+  -z Z                  Number of stdevs from the mean (default 4)
+  -b BAMS               Bam file names (CSV)
+  -o OUTPUT_FILE        Output file name
+  -s START              Start range
+  -e END                End range
+  -c CHROM              Chromosome range
+  -w WINDOW             Window size (count of bases to include), default(0.5 *
+                        len)
+  -d MAX_DEPTH          Sampling depth(100 per 1kb)
+  -t SV_TYPE            SV type
+  -T TRANSCRIPT_FILE    GFF of transcripts
+  -A ANNOTATION_FILE    bed.gz tabixed file of transcripts
+  -a                    Print commandline arguments
+  -H PLOT_HEIGHT        Plot height
+  -W PLOT_WIDTH         Plot width
+  --common_insert_size  Set common insert size for all plots
+```
+
+## Dependencies
 
 * numpy
 * matplotlib
@@ -12,18 +39,33 @@ Samplot workflow is simple. Clone this repository and make sure you have the fol
 
 All of these are available from [pip](https://pypi.python.org/pypi/pip).
 
-Samplot requires either BAM files or CRAM files as primary input (if you use CRAM, you'll also need a reference genome like one used the the 1000 Genomes Project (ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/human_g1k_v37.fasta.gz). Follow the usage examples below to format your commands.
+## Examples: 
 
-## Usage Examples: 
-
+Samplot requires either BAM files or CRAM files as primary input. If you use
+CRAM, you'll also need a reference genome like one used the the 1000 Genomes
+Project
+(ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/human_g1k_v37.fasta.gz).
 
 ### Basic use case
-We're  using data from NA12878, NA12889, and NA12890 in the [1000 Genomes Project](http://www.internationalgenome.org/about). 
+Using data from NA12878, NA12889, and NA12890 in the 
+[1000 Genomes Project](http://www.internationalgenome.org/about), we will
+inspect a possible deletion in NA12878 at 4:115928726-115931880 with respect
+to that same region in two unrelated samples NA12889 and NA12890.
 
-Let's say we have BAM files and want to see what the deletion in NA12878 at 4:115928726-115931880 looks like compared to two other samples (NA12889, NA12890). 
 The following command will create an image of that region:
 ```
-python Samplot/src/samplot.py -n NA12878,NA12889,NA12890 -b Samplot/test/data/NA12878_restricted.bam,Samplot/test/data/NA12889_restricted.bam,Samplot/test/data/NA12890_restricted.bam -o 4_115928726_115931880.png -s 115928726 -e 115931880 -c chr4 -t DEL
+time samplot/src/samplot.py \
+    -n NA12878,NA12889,NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -o 4_115928726_115931880.png \
+    -c chr4 \
+    -s 115928726 \
+    -e 115931880 \
+    -t DEL
+
+real    0m9.450s
+user    0m9.199s
+sys     0m0.217s
 ```
 
 The arguments used above are:
@@ -34,11 +76,11 @@ The arguments used above are:
 
 `-o` The name of the output file containing the plot
 
+`-c` The chromosome of the region of interest
+
 `-s` The start location of the region of interest
 
 `-e` The end location of the region of interest
-
-`-c` The chromosome of the region of interest
 
 `-t` The type of the variant of interest
 
@@ -46,13 +88,101 @@ This will create an image file named `4_115928726_115931880.png`, shown below:
 
 <img src="/doc/imgs/4_115928726_115931880.png">
 
-### Generating images from a VCF file
-To plot images from all structural variants in a VCF file, use samplot's `samplot_vcf.sh` script. This accepts a VCF file and the BAM files of samples you wish to plot, outputing images and related metadata to a directory of your choosing.
+### Downsampling "normal" pairs
 
-This script is especially useful as part of the [SV-plaudit pipeline](https://github.com/jbelyeu/SV-plaudit) and creates metadata files for all images which SV-plaudit requires.
+The runtime of `samplot` can be reduced by only plotting a portion of the concordant 
+pair-end reads (+/- strand orientation, within z s.d. of the mean insert size where z 
+is a command line option the defaults to 4). If we rerun the prior example, but only plot
+a random sampling of 100 normal pairs we get a similar result 3.6X faster.
 
 ```
-bash Samplot/src/samplot_vcf.sh -o output_dir -B /Users/jon/anaconda/bin/bcftools -S Samplot/src/samplot.py -v Samplot/test/data/NA12878.trio.svt.subset.vcf Samplot/test/data/NA12878_restricted.bam Samplot/test/data/NA12889_restricted.bam Samplot/test/data/NA12890_restricted.bam
+time samplot/src/samplot.py \
+    -n NA12878,NA12889,NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -o 4_115928726_115931880.d100.png \
+    -c chr4 \
+    -s 115928726 \
+    -e 115931880 \
+    -t DEL \
+    -d 100
+
+real    0m2.621s
+user    0m2.466s
+sys     0m0.124s
+```
+
+<img src="/doc/imgs/4_115928726_115931880.d100.png">
+
+
+### Gene and other genomic feature annotations
+
+Gene annotations (tabixed, gff3 file) and genome features (tabixed, bgzipped, bed file) can be 
+included in the plots.
+
+Get the gene annotations:
+```
+wget ftp://ftp.ensembl.org/pub/grch37/release-84/gff3/homo_sapiens/Homo_sapiens.GRCh37.82.gff3.gz
+bedtools sort -i Homo_sapiens.GRCh37.82.gff3.gz \
+| bgzip -c > Homo_sapiens.GRCh37.82.sort.gff3.gz
+tabix Homo_sapiens.GRCh37.82.sort.gff3.gz
+```
+
+Get genome annotations, in this case Repeat Masker tracks and a mappability track:
+```
+wget http://hgdownload.cse.ucsc.edu/goldenpath/hg19/encodeDCC/wgEncodeMapability/wgEncodeDukeMapabilityUniqueness35bp.bigWig
+bigWigToBedGraph wgEncodeDukeMapabilityUniqueness35bp.bigWig wgEncodeDukeMapabilityUniqueness35bp.bed
+bgzip wgEncodeDukeMapabilityUniqueness35bp.bed
+tabix wgEncodeDukeMapabilityUniqueness35bp.bed.gz
+
+curl http://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz \
+| bgzip -d -c \
+| cut -f 6,7,8,13 \
+| bedtools sort -i stdin \
+| bgzip -c > rmsk.bed.gz
+tabix rmsk.bed.gz
+```
+
+Plot:
+```
+samplot/src/samplot.py \
+    -n NA12878,NA12889,NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -o 4_115928726_115931880.d100.genes_reps_map.png \
+    -c chr4 \
+    -s 115928726 \
+    -e 115931880 \
+    -t DEL \
+    -d 100 \
+    -T Homo_sapiens.GRCh37.82.sort.gff3.gz \
+    -A rmsk.bed.gz,wgEncodeDukeMapabilityUniqueness35bp.bed.gz
+
+real    0m2.784s
+user    0m2.633s
+sys 0m0.129s
+```
+
+<img src="/doc/imgs/4_115928726_115931880.d100.genes_reps_map.png">
+
+### Generating images from a VCF file
+To plot images from all structural variants in a VCF file, use samplot's
+`samplot_vcf.sh` script. This accepts a VCF file and the BAM files of samples
+you wish to plot, outputting images and related metadata to a directory of your
+choosing.
+
+This script is especially useful as part of the 
+[SV-plaudit pipeline](https://github.com/jbelyeu/SV-plaudit) and creates
+metadata files for
+all images which SV-plaudit requires.
+
+```
+samplot/src/samplot_vcf.sh \
+    -o output_dir \
+    -B $HOME/bin/bcftools \
+    -S samplot/src/samplot.py \
+    -v samplot/test/data/NA12878.trio.svt.subset.vcf \
+    samplot/test/data/NA12878_restricted.bam \
+    samplot/test/data/NA12889_restricted.bam \
+    samplot/test/data/NA12890_restricted.bam
 ```
 The arguments used above are:
 
@@ -66,16 +196,23 @@ The arguments used above are:
 
 
 #### CRAM inputs
-Samplot also support CRAM input, which requires a reference fasta file for reading as noted above. Notice that the reference file is not included in this repository due to size. This time we'll plot an interesting duplication at X:101055330-101067156.
+Samplot also support CRAM input, which requires a reference fasta file for
+reading as noted above. Notice that the reference file is not included in this
+repository due to size. This time we'll plot an interesting duplication at
+X:101055330-101067156.
 
 ```
-python Samplot/src/samplot.py -n NA12878,NA12889,NA12890 -b Samplot/test/data/NA12878_restricted.cram,Samplot/test/data/NA12889_restricted.cram,Samplot/test/data/NA12890_restricted.cram -o cramX_101055330_101067156.png -s 101055330 -e 101067156 -c chrX -t DUP -r ~/Research/data/reference/hg19/hg19.fa
+samplot/src/samplot.py \
+    -n NA12878,NA12889,NA12890 \
+    -b samplot/test/data/NA12878_restricted.cram,samplot/test/data/NA12889_restricted.cram,samplot/test/data/NA12890_restricted.cram \
+    -o cramX_101055330_101067156.png 
+    -c chrX \
+    -s 101055330 \
+    -e 101067156 \
+    -t DUP \
+    -r hg19.fa
 ```
 
 The arguments used above are the same as those used for the basic use case, with the addition of the following:
 
 `-r` The reference file used for reading CRAM files
-
-
-And the image is again below:
-<img src="doc/imgs/cramX_101055330_101067156.png">
