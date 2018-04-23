@@ -5,6 +5,8 @@ BCFTOOLS=`which bcftools 2> /dev/null`
 outdir=$( pwd )
 vcf=
 output_type="png"
+TRANSCRIPT=
+ANNOTATIONS=
 
 set -eu
 
@@ -15,6 +17,8 @@ usage()
 
     General options:
     -h      Show this message
+    -T      Sorted and indexed transcript GFF file
+    -A      CSV of sorted and indexed genome annotation BED files
     -o      Output directory ($outdir)
     -O      Output type (default png)
 
@@ -24,7 +28,7 @@ usage()
 EOF
 }
 
-while getopts "h O:o:B:S:v:" OPTION; do
+while getopts "h O:o:B:S:v:T:A:" OPTION; do
 case $OPTION in
     h)
         usage
@@ -44,6 +48,12 @@ case $OPTION in
         ;;
     S)
         SAMPLOT=$OPTARG
+        ;;
+    T)
+        TRANSCRIPT=$OPTARG
+        ;;
+    A)
+        ANNOTATIONS=$OPTARG
         ;;
     ?)
         usage
@@ -87,12 +97,28 @@ if [ -z "$bams" ]; then
     exit 1
 fi
 
+if [ ! -z "$TRANSCRIPT" ]; then
+    SAMPLOT="${SAMPLOT} -T $TRANSCRIPT"
+fi
+
+if [ ! -z "$ANNOTATIONS" ]; then
+    SAMPLOT="${SAMPLOT} -A $ANNOTATIONS"
+fi
+
 IFS=$'\n' 
 for sv in `$BCFTOOLS view -i 'SVTYPE="DEL" || SVTYPE="DUP" || SVTYPE="INV" || SVTYPE="INS"' $vcf | $BCFTOOLS query -f "%CHROM %POS %INFO/END %INFO/SVTYPE\n"`; do
         IFS=$' '
         arr=($sv)
 
-        $SAMPLOT -c ${arr[0]} -s ${arr[1]} -e ${arr[2]} -t ${arr[3]} -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type  -b $bams -a \
+        $SAMPLOT \
+            -c ${arr[0]} \
+            -s ${arr[1]} \
+            -e ${arr[2]} \
+            -t ${arr[3]} \
+            -o ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type  \
+            -b $bams \
+            -a 
+
 
         echo ${outdir}/${arr[3]}\_${arr[0]}\_${arr[1]}\-${arr[2]}\.$output_type
 
