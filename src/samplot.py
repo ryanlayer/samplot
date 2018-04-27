@@ -378,7 +378,7 @@ if options.annotation_file:
     num_ax+=len(options.annotation_file.split(','))
 
 # set the relative sizes for each
-ratios = [1] + [10] * len(options.bams.split(','))
+ratios = [4] + [10] * len(options.bams.split(','))
 if options.annotation_file:
     ratios += [1]*len(options.annotation_file.split(','))
 if options.transcript_file:
@@ -394,7 +394,7 @@ colors = { (True, False): 'black', # DEL
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
 
 # Plot the variant
-ax =  matplotlib.pyplot.subplot(gs[0])
+ax = matplotlib.pyplot.subplot(gs[0])
 r=[float(int(options.start) - range_min)/float(range_max - range_min), \
     float(int(options.end) - range_min)/float(range_max - range_min)]
 ax.plot(r,[0,0],'-',color='black',lw=3)
@@ -407,6 +407,7 @@ matplotlib.pyplot.tick_params(axis='x',length=0)
 matplotlib.pyplot.tick_params(axis='y',length=0)
 ax.set_xticklabels([])
 ax.set_yticklabels([])
+
 
 # make SV title 
 sv_size = float(options.end) - float(options.start)
@@ -421,6 +422,44 @@ elif sv_size > 1000:
 
 sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + options.sv_type
 ax.set_title(sv_title, fontsize=8)
+
+marker_colors = ['black', 'red', 'blue', 'green']
+legend_elements = []
+
+for color in marker_colors:
+    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+            color=color,
+            linestyle='-',
+            lw=1)]
+
+legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+            markerfacecolor="None",
+            markeredgecolor='grey',
+            color='grey',
+            marker='o', \
+            markersize=marker_size,
+            linestyle=':',
+            lw=1)]
+
+legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+            markerfacecolor="None",
+            markeredgecolor='grey',
+            color='grey',
+            marker='s', \
+            markersize=marker_size,
+            linestyle='-',
+            lw=1)]
+
+fig.legend( legend_elements ,
+            ["Deletion/Normal",\
+             "Duplication", \
+             "Inversion", \
+             "Inversion", \
+             "Split-read", \
+             "Paired-end read"], \
+            loc=1,
+            fontsize = 6,
+            frameon=False)
 
 sample_axs = []
 ax_i = 1
@@ -574,46 +613,6 @@ for plot_pairs in all_pairs:
     matplotlib.pyplot.tick_params(axis='y',length=0)
 
     ax_i += 1
-
-
-marker_colors = ['black', 'red', 'blue', 'green']
-legend_elements = []
-
-for color in marker_colors:
-    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-            color=color,
-            linestyle='-',
-            lw=1)]
-
-legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-            markerfacecolor="None",
-            markeredgecolor='grey',
-            color='grey',
-            marker='o', \
-            markersize=marker_size,
-            linestyle=':',
-            lw=1)]
-
-legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-            markerfacecolor="None",
-            markeredgecolor='grey',
-            color='grey',
-            marker='s', \
-            markersize=marker_size,
-            linestyle='-',
-            lw=1)]
-
-ax.legend( legend_elements ,
-            ["Deletion/Normal",\
-             "Duplication", \
-             "Inversion", \
-             "Inversion", \
-             "Split-read", \
-             "Pair-end read"], \
-            fontsize = 6,
-            bbox_to_anchor=(1, 1),
-            bbox_transform=matplotlib.pyplot.gcf().transFigure,
-            frameon=False)
 
 if options.annotation_file:
     a_i = 0
