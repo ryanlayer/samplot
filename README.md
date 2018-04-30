@@ -33,7 +33,6 @@ Options:
 
 * numpy
 * matplotlib
-* pylab
 * pysam
 * statistics
 
