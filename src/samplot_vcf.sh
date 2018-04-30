@@ -7,6 +7,7 @@ vcf=
 output_type="png"
 TRANSCRIPT=
 ANNOTATIONS=
+MAXDEPTH=
 
 set -eu
 
@@ -21,6 +22,7 @@ usage()
     -A      CSV of sorted and indexed genome annotation BED files
     -o      Output directory ($outdir)
     -O      Output type (default png)
+    -d      Max number of normal reads to plot
 
     Path options:
     -B      BCFTOOLS path ($BCFTOOLS)
@@ -28,7 +30,7 @@ usage()
 EOF
 }
 
-while getopts "h O:o:B:S:v:T:A:" OPTION; do
+while getopts "h O:o:B:S:v:T:A:d:" OPTION; do
 case $OPTION in
     h)
         usage
@@ -54,6 +56,9 @@ case $OPTION in
         ;;
     A)
         ANNOTATIONS=$OPTARG
+        ;;
+    d)
+        MAXDEPTH=$OPTARG
         ;;
     ?)
         usage
@@ -103,6 +108,10 @@ fi
 
 if [ ! -z "$ANNOTATIONS" ]; then
     SAMPLOT="${SAMPLOT} -A $ANNOTATIONS"
+fi
+
+if [ ! -z "$MAXDEPTH" ]; then
+    SAMPLOT="${SAMPLOT} -d $MAXDEPTH"
 fi
 
 IFS=$'\n' 

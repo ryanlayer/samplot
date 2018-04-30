@@ -54,3 +54,17 @@ run common_insert_size_scale \
         --common_insert_size
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+
+rm -rf img/
+mkdir img
+vcf_file=../data/NA12878.trio.svt.subset.vcf
+run from_vcf \
+    ../../src/samplot_vcf.sh \
+    -d 10 \
+    -o img \
+    -v $vcf_file \
+    $bam_1 $bam_2 $bam_3
+assert_in_stdout "img/DEL_chr4_115928726-115931880.png"
+assert_in_stdout "img/DUP_chrX_101055330-101067156.png"
+assert_no_stderr
+assert_exit_code 0
