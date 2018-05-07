@@ -215,3 +215,8 @@ samplot/src/samplot.py \
 The arguments used above are the same as those used for the basic use case, with the addition of the following:
 
 `-r` The reference file used for reading CRAM files
+
+#### Plotting without the SV 
+Samplot can also plot genomic regions that are unrelated to an SV. If you do
+not pass the SV type option (`-t`) then the top SV bar will go away and only
+the region that is given by `-c` `-s` and `-e` will be displayed.
