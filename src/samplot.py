@@ -15,6 +15,7 @@ from optparse import OptionParser
 
 marker_size = 4
 
+#{{{def calc_query_pos_from_cigar(cigar, strand):
 def calc_query_pos_from_cigar(cigar, strand):
     cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', \
                   cigar)]
@@ -42,181 +43,123 @@ def calc_query_pos_from_cigar(cigar, strand):
             q_len += op_len
 
     return qs_pos, qe_pos
+#}}}
 
-def get_depth(chrom, start, end, window, bam_files, reference):
-    all_plot_depths = []
-    max_plot_depth = 0 
+#{{{ def sample_normal(max_depth, all_pairs):
+def sample_normal(max_depth, all_pairs, z):
+    all_sampled_pairs = [] 
 
-    #Get coverage
-    for bam_file_name in bam_files:
-        plot_depths = []
-        bam_file = None
+    for pairs in all_pairs:
+        sampled_pairs = {}
+        plus_minus_pairs = {}
 
-        if not reference:
-            bam_file = pysam.AlignmentFile(bam_file_name, "rb")
-        else:
-            bam_file = pysam.AlignmentFile(bam_file_name, \
-                                           "rc", \
-                                           reference_filename=reference)
-
-        last = None
-        for depth in bam_file.pileup(chrom,
-                                     int(start) - window - 500,
-                                     int(end) + window + 500):
-            if last != None:
-                if depth.reference_pos > last +1 :
-                    for i in range(last + 1, depth.reference_pos - 1):
-                        plot_depths.append([i,0])
-
-            plot_depths.append([depth.reference_pos,depth.nsegments])
-            last = depth.reference_pos
-
-        a = [x[0] for x in plot_depths]
-
-        alld = set(range( int(start) - window - 500,
-                          int(end) + window + 500))
-        rem = alld - set(a)
-        plot_depths.extend([r, 0] for r in rem)
-
-        max_plot_depth = max(max_plot_depth,max([x[1] for x in plot_depths]))
-        all_plot_depths.append(plot_depths)
-
-    return max_plot_depth, all_plot_depths
-
-def get_pairs_and_splits(chrom, start, end, window, bam_files, reference):
-    mapping_positions = []
-    all_pairs = []
-    all_plot_splits = []
-    max_insert_size = 0
-
-    # Get pairs and split
-    for bam_file_name in bam_files:
-        bam_file = None
-        if not reference:
-            bam_file = pysam.AlignmentFile(bam_file_name, "rb")
-        else:
-            bam_file = pysam.AlignmentFile(bam_file_name, \
-                                           "rc", \
-                                           reference_filename=reference)
-        pairs = {}
-
-        plot_splits = []
-
-
-        for read in bam_file.fetch(chrom,
-                                   max(0,int(start) - window),
-                                   int(end) + window):
-
-            if not read.is_secondary and read.has_tag('SA'):
-                qs_pos, qe_pos = \
-                    calc_query_pos_from_cigar(read.cigarstring, \
-                                              (not read.is_reverse))
-
-                split=[[read.reference_end, not read.is_reverse, qs_pos]]
-
-                for sa in read.get_tag('SA').split(';'):
-                    if len(sa) == 0:
-                        continue
-                    pos = int(sa.split(',')[1])
-                    strand = sa.split(',')[2] == '+'
-                    qs_pos, qe_pos = \
-                            calc_query_pos_from_cigar(read.cigarstring, strand)
-                    split.append([pos,strand,qs_pos])
-
-                plot_splits.append(split)
-
-            if (read.is_paired):
-                if (read.reference_end) :
-                    if read.query_name not in pairs:
-                        pairs[read.query_name] = []
-                    pairs[read.query_name].append(read)
-
-        plot_pairs = []
-        
-        for pair in pairs:
-            if len(pairs[pair]) == 2:
-                plot_pair = [[pairs[pair][0].reference_start,
-                                    pairs[pair][0].reference_end,
-                                    not(pairs[pair][0].is_reverse)],
-                                   [pairs[pair][1].reference_start,
-                                    pairs[pair][1].reference_end,
-                                    not(pairs[pair][1].is_reverse)]]
-                plot_pairs.append(plot_pair)
-
-                mapping_positions.append(pairs[pair][0].reference_start)
-                if pairs[pair][0].reference_end:
-                    mapping_positions.append(pairs[pair][0].reference_end)
-
-                mapping_positions.append(pairs[pair][1].reference_start)
-                if pairs[pair][1].reference_end:
-                    mapping_positions.append(pairs[pair][1].reference_end)
-
-        plot_pairs.sort(key=lambda x: x[1][1] - x[0][0])
-        all_pairs.append(plot_pairs)
-        all_plot_splits.append(plot_splits)
-
-    insert_sizes = []
-    for plot_pairs in all_pairs:
-        for plot_pair in plot_pairs:
-            insert_size = plot_pair[1][1] - plot_pair[0][0]
-            insert_sizes.append(insert_size)
-
-    for plot_splits in all_plot_splits:
-        for plot_split in plot_splits:
-            start = plot_split[0]
-            end = plot_split[1]
-            if start[0] > end[0]:
-                end = plot_split[0]
-                start = plot_split[1]
-            insert_size = end[0] - start[0]
-            insert_sizes.append(insert_size)
-
-    min_insert_size = min(insert_sizes)
-    max_insert_size = max(insert_sizes)
-
-    return [min_insert_size, \
-            max_insert_size,  \
-            mapping_positions,  \
-            all_pairs,  \
-            all_plot_splits]
-
-def sample_normal(max_depth, all_pairs):
-    sampled_plot_pairs = [] 
-
-    for plot_pairs in all_pairs:
-        sampled_plot_pair = []
-        plus_minus_pairs = []
-
-        for pair in plot_pairs:
-
+        for read_name in pairs:
+            pair = pairs[read_name]
+            if len(pair) != 2: 
+                continue
             if pair[0][2] == True and pair[1][2] == False:
-                plus_minus_pairs.append(pair)
+                plus_minus_pairs[read_name] = pair
             else:
-                sampled_plot_pair.append(pair)
+                sampled_pairs[read_name] = pair
 
         if len(plus_minus_pairs) > max_depth:
-            lens = [pair[1][1] - pair[0][0] for pair in plus_minus_pairs]
+            lens = [pair[1][1] - pair[0][0] \
+                    for pair in plus_minus_pairs.values()]
             mean = statistics.mean(lens)
             stdev = statistics.stdev(lens)
 
-            outside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] >= (mean + options.z*stdev)]
-            inside_norm = [pair for pair in plus_minus_pairs \
-                        if pair[1][1] - pair[0][0] < (mean + options.z*stdev)]
+            inside_norm = {}
 
-            sampled_plot_pair += outside_norm
+            for read_name in pairs:
+                pair = pairs[read_name]
+                if len(pair) != 2: 
+                    continue
+                if pair[1][1] - pair[0][0] >= mean + options.z*stdev:
+                    sampled_pairs[read_name] = pair 
+                else:
+                    inside_norm[read_name] = pair 
+
             if len(inside_norm) > max_depth:
-                sampled_plot_pair += random.sample(inside_norm, max_depth)
+                for read_name in random.sample(inside_norm.keys(), max_depth):
+                    sampled_pairs[read_name] = inside_norm[read_name]
             else:
-                sampled_plot_pair += inside_norm
+                for read_name in inside_norm:
+                    sampled_pairs[read_name] = inside_norm[read_name]
         else:
-            sampled_plot_pair+=plus_minus_pairs
+            for read_name in plus_minus_pairs:
+                sampled_pairs[read_name] = plus_minus_pairs[read_name]
 
-        sampled_plot_pairs.append(sampled_plot_pair)
+        all_sampled_pairs.append(sampled_pairs)
 
-    return sampled_plot_pairs
+    return all_sampled_pairs
+#}}}
+
+#{{{ def add_coverage(read, coverage):
+def add_coverage(read, coverage):
+    curr_pos = read.reference_start
+    if not read.cigartuples: return
+
+    for op,length in read.cigartuples:
+        if op == 0:
+            for pos in range(curr_pos, curr_pos+length+1):
+                if pos not in coverage:
+                    coverage[pos] = 0
+                coverage[pos] += 1
+            curr_pos += length
+        elif op == 1:
+            curr_pos = curr_pos
+        elif op == 2:
+            curr_pos += length
+        elif op == 3:
+            curr_pos = length
+        elif op == 4:
+            curr_pos = curr_pos
+        elif op == 5:
+            curr_pos = curr_pos
+        else:
+            curr_pos += length
+#}}}
+
+#{{{def add_pair(read, pairs):
+def add_pair(read, pairs):
+    if read.is_unmapped: return
+    if not (read.is_paired): return
+    if read.is_secondary: return
+    if read.is_supplementary: return
+
+    if read.query_name not in pairs:
+        pairs[read.query_name] = []
+
+    pairs[read.query_name].append( [read.reference_start, \
+                                    read.reference_end, \
+                                    not(read.is_reverse)] )
+#}}}
+
+#{{{def add_split(read, splits):
+def add_split(read, splits):
+    if not read.is_secondary and read.has_tag('SA'):
+        qs_pos, qe_pos = \
+            calc_query_pos_from_cigar(read.cigarstring, \
+                                      (not read.is_reverse))
+
+        splits[read.query_name]=[[read.reference_end, \
+                                 not read.is_reverse, \
+                                 qs_pos]]
 
 
+        for sa in read.get_tag('SA').split(';'):
+            if len(sa) == 0:
+                continue
+            pos = int(sa.split(',')[1])
+            strand = sa.split(',')[2] == '+'
+            qs_pos, qe_pos = \
+                    calc_query_pos_from_cigar(read.cigarstring, strand)
+            splits[read.query_name].append([pos,strand,qs_pos])
+
+        print splits[read.query_name]
+#}}}
+
+#{{{parser = OptionParser()
 parser = OptionParser()
 
 parser.add_option("-n",
@@ -313,9 +256,6 @@ if not options.end:
 if not options.chrom:
     parser.error('SV chrom not given')
 
-if not options.sv_type:
-    parser.error('SV sv_type not given')
-
 plot_height = 5
 plot_width = 8
 
@@ -327,48 +267,91 @@ else:
 if options.plot_width:
     plot_width = options.plot_width
 
-window = int((int(options.end) - int(options.start))/2)
+# if an SV type is given, thn exapand the window around its bounds
+if options.sv_type:
+    window = int((int(options.end) - int(options.start))/2)
+else:
+    window = 0
 if options.window:
     window = options.window
+#}}}
 
-#get depths from each bam file
-max_plot_depth, all_plot_depths =  get_depth(options.chrom,
-                                             options.start,
-                                             options.end,
-                                             window,
-                                             options.bams.split(','),
-                                             options.reference)
+all_pairs = []
+all_splits = []
+all_coverages = []
+all_long_reads = []
 
-#get pairs and split from each bam file
-min_insert_size, \
-max_insert_size, \
-mapping_positions,  \
-all_pairs, \
-all_plot_splits = get_pairs_and_splits(options.chrom,
-                                       options.start,
-                                       options.end,
-                                       window,
-                                       options.bams.split(','),
-                                       options.reference)
+max_plot_depth = 0
 
-#get the x-axis range
-range_min = min(mapping_positions) \
-        if len(mapping_positions) > 0 \
-        else int(options.start) - window - 500
-range_max = max(mapping_positions) \
-        if len(mapping_positions) > 0 \
-        else int(options.end) + window + 500
+range_min = None
+range_max = None
+
+min_insert_size = None
+max_insert_size = None
+
+bam_files = options.bams.split(',')
+
+for bam_file_name in bam_files:
+    bam_file = None
+    if not options.reference:
+        bam_file = pysam.AlignmentFile(bam_file_name, "rb")
+    else:
+        bam_file = pysam.AlignmentFile(bam_file_name, \
+                                       "rc", \
+                                       reference_filename=options.reference)
+
+    pairs = {}
+    splits = {}
+    long_reads = {}
+    coverage = {}
+
+    for read in bam_file.fetch(options.chrom,
+                               max(0,int(options.start) - window),
+                               int(options.end) + window):
+
+        if not range_min or read.reference_start < range_min:
+            range_min = read.reference_start
+
+        if not range_max or read.reference_end > range_min:
+            range_max = read.reference_end
+
+        add_pair(read, pairs)
+        add_split(read, splits)
+        add_coverage(read, coverage)
+        # add long read
+
+    pair_insert_sizes = [x[1][1]-x[0][0] for x in pairs.values() if len(x)==2]
+
+    if not min_insert_size:
+        min_insert_size = min(pair_insert_sizes)
+    else: 
+        min_insert_size = min(min(pair_insert_sizes), min_insert_size)
+
+    if not max_insert_size:
+        max_insert_size = max(pair_insert_sizes)
+    else: 
+        max_insert_size = max(max(pair_insert_sizes), min_insert_size)
+
+    max_plot_depth = max(max_plot_depth, max(coverage.values()))
+    all_coverages.append(coverage)
+    all_pairs.append(pairs)
+    all_splits.append(splits)
 
 # Sample +/- pairs in the normal insert size range
 if options.max_depth:
-    all_pairs = sample_normal(options.max_depth, all_pairs)
+    all_pairs = sample_normal(options.max_depth, all_pairs, options.z)
 
+#{{{ set up sub plots
 matplotlib.rcParams.update({'font.size': 12})
 fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
 fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
-# give one axis to display the SV then one for each bam
-num_ax = len(options.bams.split(','))+1
+# give one axis to display each sample
+num_ax = len(options.bams.split(','))
+
+# add another if we are displaying the SV
+if options.sv_type:
+    num_ax+=1
 
 # add another if a annotation file is given
 if options.transcript_file:
@@ -378,51 +361,60 @@ if options.annotation_file:
     num_ax+=len(options.annotation_file.split(','))
 
 # set the relative sizes for each
-ratios = [4] + [10] * len(options.bams.split(','))
+if options.sv_type:
+    ratios = [4] + [10] * len(options.bams.split(','))
+else:
+    ratios = [10] * len(options.bams.split(','))
+
 if options.annotation_file:
     ratios += [1]*len(options.annotation_file.split(','))
 if options.transcript_file:
     ratios += [2]
 
-
-# set the color of the pair based on the two strands
+## set the color of the pair based on the two strands
 colors = { (True, False): 'black', # DEL
            (False, True): 'red',   # DUP
            (False, False): 'blue', # INV
            (True, True): 'green' } # INV
 
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
+#}}}
 
-# Plot the variant
-ax = matplotlib.pyplot.subplot(gs[0])
-r=[float(int(options.start) - range_min)/float(range_max - range_min), \
-    float(int(options.end) - range_min)/float(range_max - range_min)]
-ax.plot(r,[0,0],'-',color='black',lw=3)
-ax.set_xlim([0,1])
-ax.spines['top'].set_visible(False)
-ax.spines['bottom'].set_visible(False)
-ax.spines['left'].set_visible(False)
-ax.spines['right'].set_visible(False)
-matplotlib.pyplot.tick_params(axis='x',length=0)
-matplotlib.pyplot.tick_params(axis='y',length=0)
-ax.set_xticklabels([])
-ax.set_yticklabels([])
+ax_i = 0
 
+#{{{ Plot the variant
+if options.sv_type:
+    ax = matplotlib.pyplot.subplot(gs[ax_i])
+    r=[float(int(options.start) - range_min)/float(range_max - range_min), \
+        float(int(options.end) - range_min)/float(range_max - range_min)]
+    ax.plot(r,[0,0],'-',color='black',lw=3)
+    ax.set_xlim([0,1])
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    matplotlib.pyplot.tick_params(axis='x',length=0)
+    matplotlib.pyplot.tick_params(axis='y',length=0)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
 
-# make SV title 
-sv_size = float(options.end) - float(options.start)
-sv_size_unit = 'bp'
+    ## make SV title 
+    sv_size = float(options.end) - float(options.start)
+    sv_size_unit = 'bp'
 
-if sv_size > 1000000:
-    sv_size = "{0:0.2f}".format(sv_size/1000000.0)
-    sv_size_unit = 'mb'
-elif sv_size > 1000:
-    sv_size = "{0:0.2f}".format(sv_size/1000.0)
-    sv_size_unit = 'kb'
+    if sv_size > 1000000:
+        sv_size = "{0:0.2f}".format(sv_size/1000000.0)
+        sv_size_unit = 'mb'
+    elif sv_size > 1000:
+        sv_size = "{0:0.2f}".format(sv_size/1000.0)
+        sv_size_unit = 'kb'
 
-sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + options.sv_type
-ax.set_title(sv_title, fontsize=8)
+    sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + options.sv_type
+    ax.set_title(sv_title, fontsize=8)
+    ax_i += 1
+#}}}
 
+#{{{ legend
 marker_colors = ['black', 'red', 'blue', 'green']
 legend_elements = []
 
@@ -460,29 +452,32 @@ fig.legend( legend_elements ,
             loc=1,
             fontsize = 6,
             frameon=False)
+#}}}
 
-sample_axs = []
-ax_i = 1
-for plot_pairs in all_pairs:
+# Plot each sample
+for i in range(len(bam_files)):
     ax =  matplotlib.pyplot.subplot(gs[ax_i])
-    sample_axs.append(ax)
 
-    curr_min_insert_size=3000000
-    curr_max_insert_size=0
+    curr_min_insert_size = None
+    curr_max_insert_size = None
+    
+    #{{{ Plot pairs
+    for read_name in all_pairs[i]:
+        pair = all_pairs[i][read_name]
 
-    # Plot pairs
-    for plot_pair in plot_pairs:
-        p = [float(plot_pair[0][0] - range_min)/float(range_max - range_min), \
-            float(plot_pair[1][1] - range_min)/float(range_max - range_min)]
+        if len(pair) != 2: continue
+        p = [float(pair[0][0] - range_min)/float(range_max - range_min), \
+             float(pair[1][1] - range_min)/float(range_max - range_min)]
 
         # y value is the insert size
-        insert_size = plot_pair[1][1] - plot_pair[0][0]
-
+        insert_size = pair[1][1] - pair[0][0]
         # use this to scale the y-axis
-        curr_min_insert_size = min(curr_min_insert_size, insert_size)
-        curr_max_insert_size = max(curr_max_insert_size, insert_size)
+        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+            curr_min_insert_size = insert_size
+        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+            curr_max_insert_size = insert_size
 
-        color = colors[(plot_pair[0][2], plot_pair[1][2])]
+        color = colors[(pair[0][2], pair[1][2])]
 
         # plot the individual pair
         ax.plot(p,\
@@ -492,9 +487,11 @@ for plot_pairs in all_pairs:
                 lw=0.5, \
                 marker='s', \
                 markersize=marker_size)
+    #}}}
 
-    # Plot splits
-    for split in all_plot_splits[ax_i - 1]:
+    #{{{ Plot splits
+    for read_name in all_splits[i]:
+        split = all_splits[i][read_name]
         start = split[0]
         end = split[1]
         if start[0] > end[0]:
@@ -537,9 +534,9 @@ for plot_pairs in all_pairs:
                 lw=1, \
                 marker='o',
                 markersize=marker_size)
+    #}}}
 
-
-    # try to only have y-lables, which does work if there are too few 
+    #{{{ try to only have y-lables, which does work if there are too few 
     # observed insert sizes
     if options.common_insert_size:
         ax.yaxis.set_ticks(np.arange(min_insert_size, \
@@ -553,8 +550,9 @@ for plot_pairs in all_pairs:
                                          max(2,
                                              (curr_max_insert_size-curr_min_insert_size)/4)))
 
+    #}}}
 
-    # set the axis title to be either one passed in or filename
+    #{{{ set the axis title to be either one passed in or filename
     if options.titles and \
             len(options.titles.split(',')) == len(options.bams.split(',')):
         ax.set_title(options.titles.split(',')[ax_i-1], \
@@ -562,8 +560,9 @@ for plot_pairs in all_pairs:
     else:
         ax.set_title(os.path.basename(options.bams.split(',')[ax_i-1]), \
                      fontsize=8, loc='left')
+    #}}}
     
-    # set axis parameters
+    #{{{ set axis parameters
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -582,16 +581,23 @@ for plot_pairs in all_pairs:
         ax.set_xticklabels(labels, fontsize=6)
         ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
     ax.set_ylabel('Insert size', fontsize=8)
+    #}}}
 
-    # Plot depth
+    #{{{ Plot coverage
     cover_x = []
     cover_y = []
 
-    if max([d[1] for d in all_plot_depths[ax_i-1]]) == 0: continue
+    #if max([d[1] for d in all_depths[i]]) == 0: continue
 
-    for d in all_plot_depths[ax_i - 1]:
-        cover_x.append(float(d[0] - range_min)/float(range_max - range_min))
-        cover_y.append(d[1])
+    coverage = all_coverages[i]
+
+    for pos in range(range_min,range_max+1):
+        if pos in coverage:
+            cover_x.append(float(pos-range_min)/float(range_max - range_min))
+            cover_y.append(coverage[pos])
+        else:
+            cover_x.append(float(pos-range_min)/float(range_max - range_min))
+            cover_y.append(0)
 
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
@@ -611,9 +617,11 @@ for plot_pairs in all_pairs:
     ax2.spines['right'].set_visible(False)
     matplotlib.pyplot.tick_params(axis='x',length=0)
     matplotlib.pyplot.tick_params(axis='y',length=0)
+    #}}}
 
     ax_i += 1
 
+#{{{ Plot annoation files
 if options.annotation_file:
     a_i = 0
     for annotation_file in options.annotation_file.split(','):
@@ -643,8 +651,10 @@ if options.annotation_file:
                         options.end + \
                         'from ' + options.annotation_file)
          
-        ax =  matplotlib.pyplot.subplot(gs[
-                1 + len(options.bams.split(',')) + a_i])
+        #ax =  matplotlib.pyplot.subplot(gs[
+                #1 + len(options.bams.split(',')) + a_i])
+        ax =  matplotlib.pyplot.subplot(gs[a_i])
+        a_i += 1
 
         for row in itr:
             A = row.rstrip().split()
@@ -678,9 +688,9 @@ if options.annotation_file:
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         a_i+=1
+#}}}
 
-
-# Plot sorted/bgziped/tabixed transcript file
+#{{{ Plot sorted/bgziped/tabixed transcript file
 if options.transcript_file:
     tbx = pysam.TabixFile(options.transcript_file)
 
@@ -786,12 +796,13 @@ if options.transcript_file:
     ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
     ax.set_title(os.path.basename(options.transcript_file), \
                          fontsize=8, loc='left')
+#}}}
 
 # save
 matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
-# give sv-plaudit output
+#{{{ give sv-plaudit output
 if options.print_args:
     import json
     args_filename = os.path.splitext(options.output_file)[0] + ".json"
@@ -810,3 +821,4 @@ if options.print_args:
     }
     with open(args_filename, 'w') as outfile:
         json.dump(args_info, outfile)
+#}}}
