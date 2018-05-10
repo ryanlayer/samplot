@@ -55,6 +55,22 @@ run common_insert_size_scale \
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
 
+out_file_name="no_sv_type.png"
+rm -f $out_file_name
+
+run common_insert_size_scale \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1,$bam_2,$bam_3 \
+        -o $out_file_name \
+        -d 10 \
+        --common_insert_size
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+
+
+
+
 rm -rf img/
 mkdir img
 vcf_file=../data/NA12878.trio.svt.subset.vcf
