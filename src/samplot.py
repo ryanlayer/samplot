@@ -11,6 +11,8 @@ import os
 import re
 import statistics
 import random
+import matplotlib.path as mpath
+import matplotlib.patches as mpatches
 from optparse import OptionParser
 
 marker_size = 4
@@ -136,27 +138,448 @@ def add_pair(read, pairs):
 #}}}
 
 #{{{def add_split(read, splits):
-def add_split(read, splits):
-    if not read.is_secondary and read.has_tag('SA'):
+def add_split(read, splits, bam_file):
+    if not read.is_secondary and not read.is_supplementary and read.has_tag('SA'):
         qs_pos, qe_pos = \
             calc_query_pos_from_cigar(read.cigarstring, \
                                       (not read.is_reverse))
 
-        splits[read.query_name]=[[read.reference_end, \
-                                 not read.is_reverse, \
-                                 qs_pos]]
-
+        splits[read.query_name]=[[read.reference_start,
+                                  read.reference_end, \
+                                  not read.is_reverse, \
+                                  qs_pos]]
 
         for sa in read.get_tag('SA').split(';'):
             if len(sa) == 0:
                 continue
+            chrm = sa.split(',')[0]
+            if chrm != bam_file.get_reference_name(read.reference_id):
+                continue
+
             pos = int(sa.split(',')[1])
             strand = sa.split(',')[2] == '+'
+            cigar = sa.split(',')[3]
             qs_pos, qe_pos = \
-                    calc_query_pos_from_cigar(read.cigarstring, strand)
-            splits[read.query_name].append([pos,strand,qs_pos])
+                    calc_query_pos_from_cigar(cigar, strand)
+            splits[read.query_name].append([pos,pos+qe_pos,strand,qs_pos])
 
-        print splits[read.query_name]
+        if len(splits[read.query_name]) == 1:
+            del splits[read.query_name]
+        else:
+            splits[read.query_name].sort(key=lambda x:x[2])
+#}}}
+
+#{{{class Alignment:
+class Alignment:
+    def __init__(self,start,end,strand,query_position):
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.query_position = query_position
+    def __str__(self):
+        return ','.join([str(x) for x in [self.start, 
+                                          self.end, 
+                                          self.strand, 
+                                          self.query_position]])
+#}}}
+
+#{{{class LongRead:
+class LongRead:
+    def __init__(self,start,end,alignments):
+        self.start = start
+        self.end = end
+        self.alignments = alignments
+    def __str__(self):
+        return ','.join([str(x) for x in [self.start, 
+                                          self.end, 
+                                          len(self.alignments)]])
+#}}}
+    
+#{{{def get_alignments_from_cigar(curr_pos, cigartuples, reverse=False):
+def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
+    alignments = []
+    q_pos = 0
+    if reverse:
+        cigartuples = cigartuples[::-1]
+    for op,length in cigartuples:
+        if op == 0: #M
+            alignments.append(Alignment(curr_pos,
+                                        curr_pos+length,
+                                        strand,
+                                        q_pos))
+            curr_pos += length
+            q_pos += length
+        elif op == 1: #I
+            q_pos += length
+        elif op == 2: #D
+            curr_pos += length
+        elif op == 3: #N
+            curr_pos += length
+        elif op == 4: #S
+            q_pos += length
+    return alignments
+#}}}
+
+#{{{def get_cigartuples_from_string(cigarstring):
+def get_cigartuples_from_string(cigarstring):
+    cigartuples = []
+
+    #pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
+    #M   BAM_CMATCH  0
+    #I   BAM_CINS    1
+    #D   BAM_CDEL    2
+    #N   BAM_CREF_SKIP   3
+    #S   BAM_CSOFT_CLIP  4
+    #H   BAM_CHARD_CLIP  5
+    #P   BAM_CPAD    6
+    #=   BAM_CEQUAL  7
+    #X   BAM_CDIFF   8
+    #B   BAM_CBACK   9
+
+    cigar_map = { 'M' : 0,
+                  'I' : 1,
+                  'D' : 2,
+                  'N' : 3,
+                  'S' : 4,
+                  'H' : 5,
+                  'P' : 6,
+                  '=' : 7,
+                  'X' : 8,
+                  'B' : 9}
+
+    for match in re.findall(r'(\d+)([A-Z]{1})', cigarstring):
+        l = int(match[0])
+        o = match[1]
+        cigartuples.append((cigar_map[o], l))
+    
+    return cigartuples
+#}}}
+
+#{{{def merge_alignments(min_gap, alignments):
+def merge_alignments(min_gap, alignments):
+
+    merged_alignments = []
+
+    for alignment in alignments:
+        if len(merged_alignments) == 0:
+            merged_alignments.append(alignment)
+        else:
+            if alignment.start < merged_alignments[-1].end + min_gap:
+                merged_alignments[-1].end = alignment.start
+            else:
+                merged_alignments.append(alignment)
+    return merged_alignments
+#}}}
+
+#{{{def add_long_reads(read, long_reads, range_min, range_max):
+def add_long_reads(read, long_reads, range_min, range_max):
+
+    if read.is_supplementary or read.is_secondary: return
+
+    alignments = get_alignments_from_cigar(read.pos,
+                                           not read.is_reverse,
+                                           read.cigartuples)
+    min_gap = 100
+    merged_alignments = merge_alignments(min_gap, alignments)
+
+    read_strand = not read.is_reverse
+    read_chrom = read.reference_name
+
+    if read.has_tag('SA'):
+        for sa in read.get_tag('SA').split(';'):
+            if len(sa) == 0: continue
+            rname,pos,strand,cigar,mapq,nm = sa.split(',')
+            if rname != read_chrom: continue
+            sa_pos = int(pos)
+            sa_strand = strand == '+'
+            strand_match = read_strand != sa_strand
+            sa_cigartuples = get_cigartuples_from_string(cigar)
+            sa_alignments = get_alignments_from_cigar(sa_pos, \
+                                                      sa_strand, \
+                                                      sa_cigartuples, \
+                                                      reverse=strand_match)
+            sa_merged_alignments =  merge_alignments(min_gap, sa_alignments)
+            if (len(sa_merged_alignments) > 0):
+                merged_alignments += sa_merged_alignments
+
+
+    if read.query_name not in long_reads:
+        long_reads[read.query_name] = []
+
+    long_reads[read.query_name].append(LongRead(read.reference_start,
+                                                read.reference_end,
+                                                merged_alignments))
+#}}}
+
+#{{{def get_long_read_plan(read_name, long_reads, splits):
+def get_long_read_plan(read_name, long_reads, range_min, range_max):
+    alignments = []
+
+    for long_read in long_reads[read_name]:
+        for alignment in long_read.alignments:
+            alignments.append(alignment)
+
+    alignments.sort(key=lambda x: x.query_position)
+
+    gaps = []
+
+    curr = alignments[0]
+
+    primary_strand = alignments[0].strand
+
+    steps = []
+    steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+
+    for i in range(1,len(alignments)):
+        last = alignments[i-1]
+        curr = alignments[i]
+
+        # figure out what the event is
+
+        # INV
+        if (curr.strand != last.strand):
+            gap = abs(curr.end - last.end)
+
+            if (curr.strand != primary_strand):
+                steps.append( [ [curr.end,last.end], 'INVIN' ] )
+            else:
+                steps.append( [ [curr.start,last.start], 'INVOUT' ] )
+
+            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+        # DUP
+        elif (curr.start  < last.end):
+            gap = abs(last.end - curr.start)
+
+            steps.append( [ [last.end,curr.start], 'DUP' ] )
+            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+
+        # DEL
+        else:
+            gap = abs(curr.start - last.end)
+
+            steps.append( [ [last.end,curr.start], 'DEL' ] )
+            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+
+        if not (min(curr.start,last.end) < range_min or \
+                max(curr.start,last.end) > range_max ):
+            gaps.append(gap)
+
+
+    max_gap = 0
+    if len(gaps) > 0:
+        max_gap = max(gaps)
+
+    plan = [max_gap, steps]
+
+    return plan 
+#}}}
+
+#{{{def get_long_read_max_gap(read_name, long_reads):
+def get_long_read_max_gap(read_name, long_reads):
+    alignments = []
+    for long_read in long_reads[read_name]:
+        for alignment in long_read.alignments:
+            alignments.append(alignment)
+    alignments.sort(key=lambda x: x.query_position)
+
+    #find biggest gap
+    max_gap = 0
+    for i in range(1,len(alignments)):
+        curr_gap = abs(alignments[i].start - alignments[i-1].end)
+        max_gap = max(max_gap,curr_gap)
+    return max_gap
+#}}}
+
+#{{{def plot_variant(start, end, sv_type, ax, range_min, range_max):
+def plot_variant(start, end, sv_type, ax, range_min, range_max):
+    r=[float(int(start) - range_min)/float(range_max - range_min), \
+        float(int(end) - range_min)/float(range_max - range_min)]
+    ax.plot(r,[0,0],'-',color='black',lw=3)
+    ax.set_xlim([0,1])
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    matplotlib.pyplot.tick_params(axis='x',length=0)
+    matplotlib.pyplot.tick_params(axis='y',length=0)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+
+    ## make SV title 
+    sv_size = float(end) - float(start)
+    sv_size_unit = 'bp'
+
+    if sv_size > 1000000:
+        sv_size = "{0:0.2f}".format(sv_size/1000000.0)
+        sv_size_unit = 'mb'
+    elif sv_size > 1000:
+        sv_size = "{0:0.2f}".format(sv_size/1000.0)
+        sv_size_unit = 'kb'
+
+    sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + sv_type
+    ax.set_title(sv_title, fontsize=8)
+#}}}
+
+#{{{ def plot_pairs(all_pairs
+def plot_pairs(pairs,
+               ax,
+               range_min,
+               range_max,
+               curr_min_insert_size,
+               curr_max_insert_size):
+
+    ## set the color of the pair based on the two strands
+    colors = { (True, False): 'black', # DEL
+               (False, True): 'red',   # DUP
+               (False, False): 'blue', # INV
+               (True, True): 'green' } # INV
+
+    for read_name in pairs:
+        pair = pairs[read_name]
+
+        if len(pair) != 2: continue
+        p = [float(pair[0][0] - range_min)/float(range_max - range_min), \
+             float(pair[1][1] - range_min)/float(range_max - range_min)]
+
+        # y value is the insert size
+        insert_size = pair[1][1] - pair[0][0]
+        # use this to scale the y-axis
+        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+            curr_min_insert_size = insert_size
+        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+            curr_max_insert_size = insert_size
+
+        color = colors[(pair[0][2], pair[1][2])]
+
+        # plot the individual pair
+        ax.plot(p,\
+                [insert_size,insert_size],\
+                '-',color=color, \
+                alpha=0.25, \
+                lw=0.5, \
+                marker='s', \
+                markersize=marker_size)
+    return [curr_min_insert_size, curr_max_insert_size]
+#}}}
+
+#{{{ def plot_splits(all_splits,
+def plot_splits(splits,
+                ax,
+                range_min,
+                range_max,
+                curr_min_insert_size,
+                curr_max_insert_size):
+
+    for read_name in splits:
+        split = splits[read_name]
+        start = split[0]
+        end = split[1]
+        if start[0] > end[0]:
+            end = split[0]
+            start = split[1]
+
+        # Do not plot pairs that extend beyond the current range
+        if range_min > start[1] or range_max < end[0]:
+            continue
+            
+        p = [float(start[1] - range_min)/float(range_max - range_min), \
+             float(end[0] - range_min)/float(range_max - range_min)]
+
+        # For a given SV, the orientation of the pairs and split do not match
+        # so we cannot use the colors dict here
+        color = 'black'
+        if start[2] != end[2]: #INV
+            if start[2] == '+': 
+                color = 'green'
+            else:
+                color = 'blue'
+        elif start[2] == True and end[2] == True and start[3] < end[3]: #DEL
+            color = 'black'
+        elif start[2] == False and end[2] == False and start[3] > end[3]: #DEL
+            color = 'black'
+        elif start[2] == True and end[2] == True and start[3] > end[3]: #DUP
+            color = 'red'
+        elif start[2] == False and end[2] == False and start[3] < end[3]: #DUP
+            color = 'red'
+
+        # y value is the insert size
+        insert_size = abs(end[0] - start[1] - 1)
+        if read_name in gap_registry:
+            insert_size = gap_registry[read_name]
+
+        # use this to scale the y-axis
+        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+            curr_min_insert_size = insert_size
+        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+            curr_max_insert_size = insert_size
+
+        ax.plot(p,\
+                [insert_size,insert_size],\
+                ':',\
+                color=color, \
+                alpha=0.25, \
+                lw=1, \
+                marker='o',
+                markersize=marker_size)
+    return [curr_min_insert_size, curr_max_insert_size]
+#}}}
+
+#{{{ def plot_long_reads(all_long_reads,
+def plot_long_reads(long_reads,
+                    ax,
+                    range_min,
+                    range_max,
+                    curr_min_insert_size,
+                    curr_max_insert_size):
+
+    Path = mpath.Path
+
+    colors = { 'ALIGN' : 'orange',
+               'DEL' : 'black',
+               'INVIN' : 'green',
+               'INVOUT' : 'blue',
+               'DUP' : 'red' }
+
+    for read_name in long_reads:
+        long_read_plan = get_long_read_plan(read_name,
+                                            long_reads,
+                                            range_min,
+                                            range_max)
+        max_gap = long_read_plan[0]
+        steps = long_read_plan[1]
+        for step in steps:
+            step_cords = step[0]
+            step_type = step[1]
+
+            p = [float(step_cords[0]-range_min)/float(range_max - range_min),
+                 float(step_cords[1]-range_min)/float(range_max - range_min)]
+
+
+            if step_type == 'ALIGN':
+                ax.plot(p,
+                        [max_gap,max_gap],
+                        '-', 
+                        color=colors[step_type],
+                        alpha=0.25,
+                        lw=1)
+            else:
+                x1 = float(step_cords[0]-range_min)/float(range_max-range_min)
+                x2 = float(step_cords[1]-range_min)/float(range_max-range_min)
+
+                pp = mpatches.PathPatch(
+                        Path([ (x1, max_gap),
+                               (x1, max_gap*1.1),
+                               (x2, max_gap*1.1),
+                               (x2, max_gap)],
+                        [ Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]),
+                        fc="none",
+                        color=colors[step_type],
+                        alpha=0.25,
+                        lw=1,
+                        ls=':')
+                ax.add_patch(pp)
+
+    return [curr_min_insert_size, curr_max_insert_size]
 #}}}
 
 #{{{parser = OptionParser()
@@ -234,6 +657,12 @@ parser.add_option("-W",
                   type=int,
                   help="Plot width")
 
+parser.add_option("--long_read",
+                  dest="long_read",
+                  type=int,
+                  default=1000,
+                  help="Min length of a read to be a long-read (default 1000)")
+
 parser.add_option("--common_insert_size",
                   dest="common_insert_size",
                   action="store_true",
@@ -283,14 +712,14 @@ all_long_reads = []
 
 max_plot_depth = 0
 
-range_min = None
-range_max = None
-
+range_min = max(0,int(options.start) - window)
+range_max = int(options.end) + window
 min_insert_size = None
 max_insert_size = None
 
 bam_files = options.bams.split(',')
 
+#{{{ read data from bams/crams
 for bam_file_name in bam_files:
     bam_file = None
     if not options.reference:
@@ -306,36 +735,50 @@ for bam_file_name in bam_files:
     coverage = {}
 
     for read in bam_file.fetch(options.chrom,
-                               max(0,int(options.start) - window),
-                               int(options.end) + window):
-
-        if not range_min or read.reference_start < range_min:
-            range_min = read.reference_start
-
-        if not range_max or read.reference_end > range_min:
-            range_max = read.reference_end
-
-        add_pair(read, pairs)
-        add_split(read, splits)
+                               range_min, 
+                               range_max):
+        if read.query_length >= options.long_read:
+            add_long_reads(read, long_reads, range_min, range_max)
+        else:
+            add_pair(read, pairs)
+            add_split(read, splits, bam_file)
         add_coverage(read, coverage)
-        # add long read
 
     pair_insert_sizes = [x[1][1]-x[0][0] for x in pairs.values() if len(x)==2]
 
+    split_insert_sizes = [] 
+    for read_name in splits:
+        last = splits[read_name][0][0]
+        for i in range(1, len(splits[read_name])):
+            curr = splits[read_name][i][0]
+            if curr >= range_min and curr <= range_max and \
+                last >= range_min and last <= range_max:
+                split_insert_sizes.append(abs(curr - last))
+            last = curr
+
+    long_read_gap_sizes = [] 
+    for read_name in long_reads:
+        long_read_gap_sizes.append(get_long_read_max_gap(read_name, long_reads))
+
+    insert_sizes = pair_insert_sizes + split_insert_sizes + long_read_gap_sizes
+
     if not min_insert_size:
-        min_insert_size = min(pair_insert_sizes)
+        min_insert_size = min(insert_sizes)
     else: 
-        min_insert_size = min(min(pair_insert_sizes), min_insert_size)
+        min_insert_size = min(min(insert_sizes), min_insert_size)
 
     if not max_insert_size:
-        max_insert_size = max(pair_insert_sizes)
+        max_insert_size = max(insert_sizes)
     else: 
-        max_insert_size = max(max(pair_insert_sizes), min_insert_size)
+        max_insert_size = max(max(insert_sizes), min_insert_size)
 
     max_plot_depth = max(max_plot_depth, max(coverage.values()))
     all_coverages.append(coverage)
     all_pairs.append(pairs)
     all_splits.append(splits)
+    all_long_reads.append(long_reads)
+#}}}
+
 
 # Sample +/- pairs in the normal insert size range
 if options.max_depth:
@@ -371,51 +814,18 @@ if options.annotation_file:
 if options.transcript_file:
     ratios += [2]
 
-## set the color of the pair based on the two strands
-colors = { (True, False): 'black', # DEL
-           (False, True): 'red',   # DUP
-           (False, False): 'blue', # INV
-           (True, True): 'green' } # INV
-
 gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
 #}}}
 
 ax_i = 0
 
-#{{{ Plot the variant
 if options.sv_type:
     ax = matplotlib.pyplot.subplot(gs[ax_i])
-    r=[float(int(options.start) - range_min)/float(range_max - range_min), \
-        float(int(options.end) - range_min)/float(range_max - range_min)]
-    ax.plot(r,[0,0],'-',color='black',lw=3)
-    ax.set_xlim([0,1])
-    ax.spines['top'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    matplotlib.pyplot.tick_params(axis='x',length=0)
-    matplotlib.pyplot.tick_params(axis='y',length=0)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-
-    ## make SV title 
-    sv_size = float(options.end) - float(options.start)
-    sv_size_unit = 'bp'
-
-    if sv_size > 1000000:
-        sv_size = "{0:0.2f}".format(sv_size/1000000.0)
-        sv_size_unit = 'mb'
-    elif sv_size > 1000:
-        sv_size = "{0:0.2f}".format(sv_size/1000.0)
-        sv_size_unit = 'kb'
-
-    sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + options.sv_type
-    ax.set_title(sv_title, fontsize=8)
+    plot_variant(options.start, options.end, options.sv_type, ax, range_min, range_max)
     ax_i += 1
-#}}}
 
 #{{{ legend
-marker_colors = ['black', 'red', 'blue', 'green']
+marker_colors = ['black', 'red', 'blue', 'green', 'orange']
 legend_elements = []
 
 for color in marker_colors:
@@ -447,6 +857,7 @@ fig.legend( legend_elements ,
              "Duplication", \
              "Inversion", \
              "Inversion", \
+             "Aligned long read", \
              "Split-read", \
              "Paired-end read"], \
             loc=1,
@@ -454,103 +865,52 @@ fig.legend( legend_elements ,
             frameon=False)
 #}}}
 
+gap_registry = {}
+
 # Plot each sample
 for i in range(len(bam_files)):
     ax =  matplotlib.pyplot.subplot(gs[ax_i])
 
     curr_min_insert_size = None
     curr_max_insert_size = None
-    
-    #{{{ Plot pairs
-    for read_name in all_pairs[i]:
-        pair = all_pairs[i][read_name]
 
-        if len(pair) != 2: continue
-        p = [float(pair[0][0] - range_min)/float(range_max - range_min), \
-             float(pair[1][1] - range_min)/float(range_max - range_min)]
+    curr_min_insert_size, 
+    curr_max_insert_size = plot_long_reads(all_long_reads[i],
+                                           ax,
+                                           range_min,
+                                           range_max,
+                                           curr_min_insert_size,
+                                           curr_max_insert_size)
+    curr_min_insert_size, 
+    curr_max_insert_size = plot_pairs(all_pairs[i],
+                                      ax,
+                                      range_min,
+                                      range_max,
+                                      curr_min_insert_size,
+                                      curr_max_insert_size)
 
-        # y value is the insert size
-        insert_size = pair[1][1] - pair[0][0]
-        # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
-            curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
-            curr_max_insert_size = insert_size
-
-        color = colors[(pair[0][2], pair[1][2])]
-
-        # plot the individual pair
-        ax.plot(p,\
-                [insert_size,insert_size],\
-                '-',color=color, \
-                alpha=0.25, \
-                lw=0.5, \
-                marker='s', \
-                markersize=marker_size)
-    #}}}
-
-    #{{{ Plot splits
-    for read_name in all_splits[i]:
-        split = all_splits[i][read_name]
-        start = split[0]
-        end = split[1]
-        if start[0] > end[0]:
-            end = split[0]
-            start = split[1]
-
-        # Do not plot pairs that extend beyond the current range
-        if range_min > start[0] or range_max < end[0]:
-            continue
-            
-        p = [float(start[0] - range_min)/float(range_max - range_min), \
-             float(end[0] - range_min)/float(range_max - range_min)]
-
-        # For a given SV, the orientation of the pairs and split do not match
-        # so we cannot use the colors dict here
-        color = 'black'
-        if start[1] != end[1]: #INV
-            if start[1] == '+': 
-                color = 'green'
-            else:
-                color = 'blue'
-        elif start[1] == '+' and end[1] == '+' and start[2] < end[2]: #DEL
-            color = 'black'
-        elif start[1] == '-' and end[1] == '-' and start[2] > end[2]: #DEL
-            color = 'black'
-        elif start[1] == '+' and end[1] == '+' and start[2] > start[2]: #DUP
-            color = 'red'
-        elif start[1] == '-' and end[1] == '-' and start[2] < end[2]: #DUP
-            color = 'red'
-        
-        # y value is the insert size
-        insert_size = end[0] - start[0]
-
-        # plot the individual split
-        ax.plot(p,\
-                [insert_size,insert_size],\
-                ':',\
-                color=color, \
-                alpha=0.25, \
-                lw=1, \
-                marker='o',
-                markersize=marker_size)
-    #}}}
+    curr_min_insert_size, 
+    curr_max_insert_size = plot_splits(all_splits[i],
+                                       ax,
+                                       range_min,
+                                       range_max,
+                                       curr_min_insert_size,
+                                       curr_max_insert_size)
 
     #{{{ try to only have y-lables, which does work if there are too few 
     # observed insert sizes
-    if options.common_insert_size:
-        ax.yaxis.set_ticks(np.arange(min_insert_size, \
-                                     max_insert_size, \
-                                     max(2,
-                                         (max_insert_size-min_insert_size)/4)))
-    else:
-        if max_insert_size-min_insert_size != 0: 
-            ax.yaxis.set_ticks(np.arange(curr_min_insert_size, \
-                                         curr_max_insert_size, \
-                                         max(2,
-                                             (curr_max_insert_size-curr_min_insert_size)/4)))
-
-    #}}}
+#    if options.common_insert_size:
+#        ax.yaxis.set_ticks(np.arange(min_insert_size, \
+#                                     max_insert_size, \
+#                                     max(2,
+#                                         (max_insert_size-min_insert_size)/4)))
+#    else:
+#        if max_insert_size-min_insert_size != 0: 
+#            ax.yaxis.set_ticks(np.arange(curr_min_insert_size, \
+#                                         curr_max_insert_size, \
+#                                         max(2,
+#                                             (curr_max_insert_size-curr_min_insert_size)/4)))
+#    #}}}
 
     #{{{ set the axis title to be either one passed in or filename
     if options.titles and \
@@ -799,6 +1159,7 @@ if options.transcript_file:
 #}}}
 
 # save
+matplotlib.rcParams['agg.path.chunksize'] = 100000
 matplotlib.pyplot.tight_layout()
 matplotlib.pyplot.savefig(options.output_file)
 
