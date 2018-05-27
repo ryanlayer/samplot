@@ -1,6 +1,6 @@
 <center><img src="/doc/imgs/samplot_logo_v5.png" width="300"/></center>
 
-<center><img src="/doc/imgs/montage.jpg" width="75%"/></center>
+<center><img src="/doc/imgs/montage.jpg" width="100%"/></center>
 
 `samplot` is a command line tool for rapid, multi-sample structural variant
 visualization. `samplot` takes SV coordinates and bam files and produces
