@@ -152,4 +152,19 @@ run longread_inv \
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
 
-
+sv_chrm=1
+sv_start=89475845
+sv_end=89478561
+sv_type=DEL
+out_file_name="linkedread_del.png"
+bam=../data/HG002_1_89475845-89478561_DEL.tenx.bam
+rm -f $out_file_name
+run longread_inv \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10 
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )

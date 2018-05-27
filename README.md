@@ -1,3 +1,5 @@
+<center><img src="/doc/imgs/samplot_logo_v5.png" width="300"/></center>
+
 `samplot` is a command line tool for rapid, multi-sample structural variant
 visualization. `samplot` takes SV coordinates and bam files and produces
 high-quality images that highlight any alignment and depth signals that
@@ -220,3 +222,14 @@ The arguments used above are the same as those used for the basic use case, with
 Samplot can also plot genomic regions that are unrelated to an SV. If you do
 not pass the SV type option (`-t`) then the top SV bar will go away and only
 the region that is given by `-c` `-s` and `-e` will be displayed.
+
+#### Long read (Oxford nanopore and PacBio) and linked read support
+Any alignment that is longer than 1000 bp are treated as a longread, and
+the plot design will focus on aligned regions and gaps. Aligned regions are in orange, and gaps follow the same DEL/DUP/INV color code used for short reads. The height of the alignment is based on the size of its largest gap.
+
+<img src="/doc/imgs/longread_del.png">
+
+If the bam file has an MI tag, then the reads will be treated as linked reads.
+The plots will be similar to short read plots, but all alignments with the same MI is plotted at the same height according to alignment with the largest gap in the group. A green line connects all alignments in a group.
+
+<img src="/doc/imgs/linkedread_del.png">
