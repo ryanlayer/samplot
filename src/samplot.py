@@ -1229,8 +1229,7 @@ for i in range(len(bam_files)):
         if hp in all_coverages[i]:
             curr_coverage = all_coverages[i][hp]
 
-        curr_min_insert_size, 
-        curr_max_insert_size = plot_linked_reads(curr_pairs,
+        curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
                                                  curr_splits,
                                                  curr_linked_reads,
                                                  curr_ax,
@@ -1239,23 +1238,20 @@ for i in range(len(bam_files)):
                                                  curr_min_insert_size,
                                                  curr_max_insert_size)
 
-        curr_min_insert_size, 
-        curr_max_insert_size = plot_long_reads(curr_long_reads,
+        curr_min_insert_size,curr_max_insert_size = plot_long_reads(curr_long_reads,
                                                curr_ax,
                                                range_min,
                                                range_max,
                                                curr_min_insert_size,
                                                curr_max_insert_size)
-        curr_min_insert_size, 
-        curr_max_insert_size = plot_pairs(curr_pairs,
+        curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
                                           curr_ax,
                                           range_min,
                                           range_max,
                                           curr_min_insert_size,
                                           curr_max_insert_size)
 
-        curr_min_insert_size, 
-        curr_max_insert_size = plot_splits(curr_splits,
+        curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
                                            curr_ax,
                                            range_min,
                                            range_max,
