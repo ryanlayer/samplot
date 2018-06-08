@@ -13,6 +13,8 @@ Usage: samplot.py [options]
 
 Options:
   -h, --help            show this help message and exit
+  --marker_size=MARKER_SIZE
+                        Size of marks on pairs and splits (default 3)
   -n TITLES             Plot title (CSV)
   -r REFERENCE          Reference file for CRAM
   -z Z                  Number of stdevs from the mean (default 4)
@@ -30,6 +32,9 @@ Options:
   -a                    Print commandline arguments
   -H PLOT_HEIGHT        Plot height
   -W PLOT_WIDTH         Plot width
+  -j                    Create only the json file, not the image plot
+  --long_read=LONG_READ
+                        Min length of a read to be a long-read (default 1000)
   --common_insert_size  Set common insert size for all plots
 ```
 
