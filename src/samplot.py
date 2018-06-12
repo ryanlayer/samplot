@@ -510,6 +510,10 @@ def plot_pair(pair, y, ax, range_min, range_max):
     p = [float(pair[0].start - range_min)/float(range_max - range_min), \
          float(pair[1].end - range_min)/float(range_max - range_min)]
 
+    # some points are far outside of the printable area, so we ignore
+    # them 
+    if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+        return
 
     color = colors[(pair[0].strand, pair[1].strand)]
 
@@ -634,6 +638,9 @@ def plot_linked_reads(pairs,
         p = [float(start - range_min)/float(range_max - range_min), \
              float(end - range_min)/float(range_max - range_min)]
 
+        if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+            continue
+
         ax.plot(p,
                 [insert_size,insert_size],\
                 '-',color='green', \
@@ -681,6 +688,9 @@ def plot_split(split, y, ax, range_min, range_max):
          
     p = [float(start.end - range_min)/float(range_max - range_min), \
          float(end.start - range_min)/float(range_max - range_min)]
+
+    if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+        return
        
     # For a given SV, the orientation of the pairs and split do not match
     # so we cannot use the colors dict here
