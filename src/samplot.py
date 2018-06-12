@@ -779,6 +779,10 @@ def plot_long_reads(long_reads,
             p = [float(step_cords[0]-range_min)/float(range_max - range_min),
                  float(step_cords[1]-range_min)/float(range_max - range_min)]
 
+            # some points are far outside of the printable area, so we ignore
+            # them 
+            if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+                continue
 
             if step_type == 'ALIGN':
                 ax.plot(p,
