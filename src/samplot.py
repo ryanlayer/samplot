@@ -1029,7 +1029,12 @@ if not options.json_only:
     if options.plot_height:
         plot_height = options.plot_height
     else:
-        plot_height = 2 + len(options.bams.split(','))
+        num_subplots = len(options.bams.split(','))
+        if options.annotation_file:
+            num_subplots += len(options.annotation_file.split(','))
+        if options.transcript_file:
+            num_subplots += 1
+        plot_height = 2 + num_subplots
 
     if options.plot_width:
         plot_width = options.plot_width
