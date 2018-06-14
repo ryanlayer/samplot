@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import sys
 import numpy as np
 import matplotlib
@@ -1095,6 +1096,11 @@ if not options.json_only:
         insert_sizes = pair_insert_sizes + \
                        split_insert_sizes + \
                        long_read_gap_sizes
+        if not insert_sizes or len(insert_sizes) == 0:
+            sys.exit('Error: Could not fetch ' + \
+                    options.chrom + ':' + options.start + '-' + \
+                    options.end + \
+                    ' from ' + bam_file_name)
 
         if not min_insert_size:
             min_insert_size = min(insert_sizes)
@@ -1374,7 +1380,7 @@ if not options.json_only:
                     sys.exit('Error: Could not fetch ' + \
                             options.chrom + ':' + options.start + '-' + \
                             options.end + \
-                            'from ' + options.annotation_file)
+                            ' from ' + options.annotation_file)
              
             ax =  matplotlib.pyplot.subplot(gs[ax_i])
             ax_i += 1
