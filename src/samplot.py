@@ -1361,9 +1361,9 @@ if not options.json_only:
             # fetch and parse data from the tabixed gff file
             itr = None
             try:
-                itr = tbx.fetch(options.chrom, \
-                                int(options.start), \
-                                int(options.end))
+                itr = tbx.fetch(options.chrom, 
+                                max(0,range_min-1000), 
+                                range_max+1000)
             except ValueError:
                 # try and account for chr/no chr prefix
                 chrom = options.chrom
@@ -1374,8 +1374,8 @@ if not options.json_only:
 
                 try:
                     itr = tbx.fetch(chrom,
-                                    int(options.start), \
-                                    int(options.end))
+                                    max(0,range_min-1000), 
+                                    range_max+1000)
                 except ValueError:
                     sys.exit('Error: Could not fetch ' + \
                             options.chrom + ':' + options.start + '-' + \
@@ -1396,7 +1396,7 @@ if not options.json_only:
                 if len(A) > 3 :
                     try:
                         v = float(A[3])
-                        ax.plot(r,[0,0],'-',color=str(1-v),lw=5)
+                        ax.plot(r,[0,0],'-',color=str(v),lw=5)
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
                         ax.text(r[0],0 + 0.1,A[3],fontsize=6,color='black')
