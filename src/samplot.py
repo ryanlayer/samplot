@@ -988,6 +988,11 @@ parser.add_option("-W",
                   type=int,
                   help="Plot width")
 
+parser.add_option("-q",
+                  dest="min_mqual",
+                  type=int,
+                  help="Min mapping quality of reads to be included in plot")
+
 parser.add_option("-j",
                   dest="json_only",
                   action="store_true",
@@ -1081,6 +1086,9 @@ if not options.json_only:
         for read in bam_file.fetch(options.chrom,
                                    max(0,range_min-1000), 
                                    range_max+1000):
+            if options.min_mqual and int(read.mapping_quality) < options.min_mqual:
+                continue
+
             if read.query_length >= options.long_read:
                 add_long_reads(read, long_reads, range_min, range_max)
             else:
