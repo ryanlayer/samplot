@@ -988,6 +988,11 @@ parser.add_option("-W",
                   type=int,
                   help="Plot width")
 
+parser.add_option("-q",
+                  dest="min_mqual",
+                  type=int,
+                  help="Min mapping quality of reads to be included in plot")
+
 parser.add_option("-j",
                   dest="json_only",
                   action="store_true",
@@ -1081,6 +1086,9 @@ if not options.json_only:
         for read in bam_file.fetch(options.chrom,
                                    max(0,range_min-1000), 
                                    range_max+1000):
+            if options.min_mqual and int(read.mapping_quality) < options.min_mqual:
+                continue
+
             if read.query_length >= options.long_read:
                 add_long_reads(read, long_reads, range_min, range_max)
             else:
@@ -1361,9 +1369,9 @@ if not options.json_only:
             # fetch and parse data from the tabixed gff file
             itr = None
             try:
-                itr = tbx.fetch(options.chrom, \
-                                int(options.start), \
-                                int(options.end))
+                itr = tbx.fetch(options.chrom, 
+                                max(0,range_min-1000), 
+                                range_max+1000)
             except ValueError:
                 # try and account for chr/no chr prefix
                 chrom = options.chrom
@@ -1374,8 +1382,8 @@ if not options.json_only:
 
                 try:
                     itr = tbx.fetch(chrom,
-                                    int(options.start), \
-                                    int(options.end))
+                                    max(0,range_min-1000), 
+                                    range_max+1000)
                 except ValueError:
                     sys.exit('Error: Could not fetch ' + \
                             options.chrom + ':' + options.start + '-' + \
@@ -1396,7 +1404,7 @@ if not options.json_only:
                 if len(A) > 3 :
                     try:
                         v = float(A[3])
-                        ax.plot(r,[0,0],'-',color=str(1-v),lw=5)
+                        ax.plot(r,[0,0],'-',color=str(v),lw=5)
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
                         ax.text(r[0],0 + 0.1,A[3],fontsize=6,color='black')
