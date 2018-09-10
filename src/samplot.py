@@ -352,7 +352,7 @@ def add_long_reads(read, long_reads, range_min, range_max):
     alignments = get_alignments_from_cigar(read.pos,
                                            not read.is_reverse,
                                            read.cigartuples)
-    min_gap = 100
+    min_gap = options.min_event_size
     merged_alignments = merge_alignments(min_gap, alignments)
 
     read_strand = not read.is_reverse
@@ -852,7 +852,7 @@ def plot_coverage(coverage,
  
     # set axis parameters
     #ax2.set_ylabel('Coverage', fontsize=8)
-    ax2.tick_params(axis='y', colors='grey', labelsize=6)
+    ax2.tick_params(axis='y', colors='grey', labelsize=options.yaxis_label_fontsize)
     ax2.spines['top'].set_visible(False)
     ax2.spines['bottom'].set_visible(False)
     ax2.spines['left'].set_visible(False)
@@ -1004,6 +1004,30 @@ parser.add_option("--long_read",
                   type=int,
                   default=1000,
                   help="Min length of a read to be a long-read (default 1000)")
+
+parser.add_option("--min_event_size",
+                  dest="min_event_size",
+                  type=int,
+                  default=100,
+                  help="Min size of an event in long-read CIGAR to consder when plotting (default 100)")
+
+parser.add_option("--xaxis_label_fontsize",
+                  dest="xaxis_label_fontsize",
+                  type=int,
+                  default=6,
+                  help="Font size for X-axis labels (default 6)")
+
+parser.add_option("--yaxis_label_fontsize",
+                  dest="yaxis_label_fontsize",
+                  type=int,
+                  default=6,
+                  help="Font size for Y-axis labels (default 6)")
+
+parser.add_option("--legend_fontsize",
+                  dest="legend_fontsize",
+                  type=int,
+                  default=6,
+                  help="Font size for legend labels (default 6)")
 
 parser.add_option("--common_insert_size",
                   dest="common_insert_size",
@@ -1224,20 +1248,22 @@ if not options.json_only:
                  "Split-read", \
                  "Paired-end read"], \
                 loc=1,
-                fontsize = 6,
+                fontsize = options.legend_fontsize,
                 frameon=False)
     #}}}
 
     # Plot each sample
     for i in range(len(bam_files)):
         ax =  matplotlib.pyplot.subplot(gs[ax_i])
-        inner_axs = gridspec.GridSpecFromSubplotSpec(len(all_coverages[i]), 
+        hps = sorted(all_coverages[i].keys(), reverse=True)
+        if 0 not in hps:
+            hps.append(0)
+
+        inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
                                                      subplot_spec=gs[ax_i],
                                                      wspace=0.0,
-                                                     hspace=0.2)
-
-        hps = sorted(all_coverages[i].keys(), reverse=True)
+                                                     hspace=0.5)
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
@@ -1340,15 +1366,21 @@ if not options.json_only:
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)
             curr_ax.spines['right'].set_visible(False)
-            curr_ax.tick_params(axis='y', labelsize=6)
+            curr_ax.tick_params(axis='y', labelsize=options.yaxis_label_fontsize)
             curr_ax.tick_params(axis='both', length=0)
             curr_ax.set_xticklabels([])
 
-        if ax_i == num_ax - 1:
+        last_sample_num = num_ax - 1
+        if options.annotation_file:
+            last_sample_num -= len(options.annotation_file.split(","))
+        if options.transcript_file:
+            last_sample_num -= 1
+        
+        if (ax_i == last_sample_num):
             curr_ax = axs[ hps[-1] ]
             labels = [int(range_min + l*(range_max-range_min)) \
                     for l in curr_ax.xaxis.get_majorticklocs()]
-            curr_ax.set_xticklabels(labels, fontsize=6)
+            curr_ax.set_xticklabels(labels, fontsize=options.xaxis_label_fontsize)
             curr_ax.set_xlabel('Chromosomal position on ' + \
                     options.chrom, fontsize=8)
 
@@ -1407,7 +1439,7 @@ if not options.json_only:
                         ax.plot(r,[0,0],'-',color=str(v),lw=5)
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
-                        ax.text(r[0],0 + 0.1,A[3],fontsize=6,color='black')
+                        ax.text(r[0],0 + 0.1,A[3],color='black')
                 else:
                     ax.plot(r,[0,0],'-',color='black',lw=5)
 
@@ -1504,7 +1536,7 @@ if not options.json_only:
                    float(t_end - range_min)/float(range_max - range_min)]
                 ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=1)
 
-                ax.text(r[0],t_i + 0.02,gene,fontsize=6,color='cornflowerblue')
+                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue')
 
             
                 if transcript in cdss:
@@ -1533,7 +1565,7 @@ if not options.json_only:
         ax.set_yticklabels([])
         labels = [int(range_min + l*(range_max-range_min)) \
                 for l in ax.xaxis.get_majorticklocs()]
-        ax.set_xticklabels(labels, fontsize=6)
+        ax.set_xticklabels(labels, fontsize=options.xaxis_label_fontsize)
         ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
         ax.set_title(os.path.basename(options.transcript_file), \
                              fontsize=8, loc='left')
