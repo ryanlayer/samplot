@@ -1035,6 +1035,13 @@ parser.add_option("--common_insert_size",
                   default=False,
                   help="Set common insert size for all plots")
 
+parser.add_option("--hide_annotation_labels",
+                  dest="hide_annotation_labels",
+                  action="store_true",
+                  default=False,
+                  help="Hide the label (fourth column text) from annotation files, useful for region with many annotations")
+
+
 (options, args) = parser.parse_args()
 if not options.output_file:
     parser.error('Output file not given')
@@ -1439,7 +1446,8 @@ if not options.json_only:
                         ax.plot(r,[0,0],'-',color=str(v),lw=5)
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
-                        ax.text(r[0],0 + 0.1,A[3],color='black')
+                        if not options.hide_annotation_labels:
+                            ax.text(r[0],0 + 0.1,A[3],color='black')
                 else:
                     ax.plot(r,[0,0],'-',color='black',lw=5)
 
