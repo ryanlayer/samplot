@@ -6,6 +6,7 @@ outdir=$( pwd )
 vcf=
 output_type="png"
 TRANSCRIPT=
+fasta=
 ANNOTATIONS=
 MAXDEPTH=
 
@@ -23,6 +24,7 @@ usage()
     -o      Output directory ($outdir)
     -O      Output type (default png)
     -d      Max number of normal reads to plot
+    -r      path to reference fasta file for CRAM
 
     Path options:
     -B      BCFTOOLS path ($BCFTOOLS)
@@ -30,7 +32,7 @@ usage()
 EOF
 }
 
-while getopts "h O:o:B:S:v:T:A:d:" OPTION; do
+while getopts "h O:r:o:B:S:v:T:A:d:" OPTION; do
 case $OPTION in
     h)
         usage
@@ -38,6 +40,9 @@ case $OPTION in
         ;;
     o)
         outdir=$OPTARG
+        ;;
+    r)
+        fasta=$OPTARG
         ;;
     O)
         output_type=$OPTARG
@@ -112,6 +117,10 @@ fi
 
 if [ ! -z "$MAXDEPTH" ]; then
     SAMPLOT="${SAMPLOT} -d $MAXDEPTH"
+fi
+
+if [ ! -z "$fasta" ]; then
+    SAMPLOT="${SAMPLOT} -r $fasta"
 fi
 
 IFS=$'\n' 
