@@ -839,14 +839,18 @@ def plot_coverage(coverage,
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
             cover_y.append(0)
+    cover_y = np.array(cover_y)
 
-    max_plot_depth = max(cover_y)
+    if cover_y.max() > 3 * cover_y.mean():
+        max_plot_depth = np.percentile(cover_y, 99.5)
+    else:
+        max_plot_depth = cover_y.max()
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     ax2.set_ylim([0,max_plot_depth])
     ax2.fill_between(cover_x, \
                      cover_y, \
-                     [0] * len(cover_y),
+                     np.zeros(len(cover_y)),
                      color='grey',
                      alpha=0.25)
  
