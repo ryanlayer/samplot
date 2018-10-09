@@ -851,6 +851,9 @@ def plot_coverage(coverage,
         max_plot_depth = cover_y.max()
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
+    
+    if 0 == max_plot_depth:
+        max_plot_depth = 0.01
     ax2.set_ylim([0,max_plot_depth])
     ax2.fill_between(cover_x, \
                      cover_y, \
@@ -1271,12 +1274,14 @@ if not options.json_only:
     for i in range(len(bam_files)):
         ax =  matplotlib.pyplot.subplot(gs[ax_i])
         hps = sorted(all_coverages[i].keys(), reverse=True)
-        if 0 not in hps:
-            hps.append(0)
-        if 1 not in hps:
-            hps.append(1)
-        if 2 not in hps:
-            hps.append(2)
+        #if there are multiple haplotypes, must have 0,1,2
+        if len(hps) > 1:
+            if 0 not in hps:
+                hps.append(0)
+            if 1 not in hps:
+                hps.append(1)
+            if 2 not in hps:
+                hps.append(2)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
                                                      subplot_spec=gs[ax_i],
