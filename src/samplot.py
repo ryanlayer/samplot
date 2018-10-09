@@ -1273,7 +1273,10 @@ if not options.json_only:
         hps = sorted(all_coverages[i].keys(), reverse=True)
         if 0 not in hps:
             hps.append(0)
-
+        if 1 not in hps:
+            hps.append(1)
+        if 2 not in hps:
+            hps.append(2)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
                                                      subplot_spec=gs[ax_i],
@@ -1287,6 +1290,7 @@ if not options.json_only:
         curr_max_insert_size = None
 
         cover_axs = {}
+        curr_axs = ''
         for hp in hps:
             curr_ax = axs[hp]
 
@@ -1348,6 +1352,7 @@ if not options.json_only:
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
+
         if options.titles and \
                 len(options.titles.split(',')) == len(options.bams.split(',')):
             curr_ax.set_title(options.titles.split(',')[ax_i-1], \
