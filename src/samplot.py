@@ -394,6 +394,8 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
         for alignment in long_read.alignments:
             alignments.append(alignment)
 
+    if len(alignments) <= 0:
+        return None
     alignments.sort(key=lambda x: x.query_position)
 
     gaps = []
@@ -781,6 +783,8 @@ def plot_long_reads(long_reads,
                                             long_reads,
                                             range_min,
                                             range_max)
+        if long_read_plan is None:
+            continue
         max_gap = long_read_plan[0]
         steps = long_read_plan[1]
         for step in steps:
