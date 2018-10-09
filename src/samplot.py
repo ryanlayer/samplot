@@ -1040,6 +1040,12 @@ parser.add_option("--legend_fontsize",
                   default=6,
                   help="Font size for legend labels (default 6)")
 
+parser.add_option("--annotation_fontsize",
+                  dest="annotation_fontsize",
+                  type=int,
+                  default=6,
+                  help="Font size for annotation labels (default 6)")
+
 parser.add_option("--common_insert_size",
                   dest="common_insert_size",
                   action="store_true",
@@ -1562,7 +1568,7 @@ if not options.json_only:
                    float(t_end - range_min)/float(range_max - range_min)]
                 ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=1)
 
-                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue')
+                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue', fontsize=options.annotation_fontsize)
 
             
                 if transcript in cdss:
