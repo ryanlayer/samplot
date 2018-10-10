@@ -1258,13 +1258,14 @@ if not options.json_only:
         ax =  matplotlib.pyplot.subplot(gs[ax_i])
         hps = sorted(all_coverages[i].keys(), reverse=True)
         #if there are multiple haplotypes, must have 0,1,2
-        if len(hps) > 1:
+        if len(hps) > 1 or (len(hps) == 1 and hps[0] != 0):
             if 0 not in hps:
                 hps.append(0)
             if 1 not in hps:
                 hps.append(1)
             if 2 not in hps:
                 hps.append(2)
+        hps.sort(reverse=True)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
                                                      subplot_spec=gs[ax_i],
