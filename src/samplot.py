@@ -17,6 +17,16 @@ import matplotlib.patches as mpatches
 from optparse import OptionParser
 from matplotlib.offsetbox import AnchoredText
 
+read_types_used = {
+    "Deletion/Normal":False,
+    "Duplication":False,
+    "Inversion":False,
+    "Aligned long read": False,
+    "Linked read": False,
+    "Split-read": False,
+    "Paired-end read": False
+}
+
 #{{{def calc_query_pos_from_cigar(cigar, strand):
 def calc_query_pos_from_cigar(cigar, strand):
     cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', \
@@ -148,7 +158,7 @@ def add_pair_end(read, pairs, linked_reads):
     if not (read.is_paired): return
     if read.is_secondary: return
     if read.is_supplementary: return
-
+    
     pe = PairEnd(read) 
 
     if pe.HP not in pairs:
@@ -158,6 +168,7 @@ def add_pair_end(read, pairs, linked_reads):
         pairs[pe.HP][read.query_name] = []
 
     if pe.MI:
+        read_types_used["Linked read"] = True
         if pe.HP not in linked_reads:
             linked_reads[pe.HP] = {}
 
@@ -189,6 +200,7 @@ class SplitRead:
 
 #{{{def add_split(read, splits):
 def add_split(read, splits, bam_file, linked_reads):
+    read_types_used["Split-read"] = True
     if not read.is_secondary and \
        not read.is_supplementary and \
        read.has_tag('SA'):
@@ -341,6 +353,7 @@ def merge_alignments(min_gap, alignments):
 
 #{{{def add_long_reads(read, long_reads, range_min, range_max):
 def add_long_reads(read, long_reads, range_min, range_max):
+    read_types_used["Aligned long read"] = True
 
     if read.is_supplementary or read.is_secondary: return
 
@@ -505,7 +518,6 @@ def plot_pair(pair, y, ax, range_min, range_max):
                (False, True): 'red',   # DUP
                (False, False): 'blue', # INV
                (True, True): 'blue' } # INV
-               #(True, True): 'green' } # INV
 
     if pair[0].end < range_min  or pair[1].start > range_max:
         return
@@ -519,6 +531,13 @@ def plot_pair(pair, y, ax, range_min, range_max):
         return
 
     color = colors[(pair[0].strand, pair[1].strand)]
+    
+    if color == "black":
+        read_types_used["Deletion/Normal"] = True
+    elif color == "red":
+        read_types_used["Duplication"] = True
+    elif color == "blue":
+        read_types_used["Inversion"] = True
 
     # plot the individual pair
     ax.plot(p,\
@@ -1234,48 +1253,6 @@ if not options.json_only:
         ax_i += 1
     #}}}
 
-    #{{{ plot legend
-    #marker_colors = ['black', 'red', 'blue', 'green', 'orange', 'purple']
-    marker_colors = ['black', 'red', 'blue', 'orange', 'green']
-    legend_elements = []
-
-    for color in marker_colors:
-        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                color=color,
-                linestyle='-',
-                lw=1)]
-
-    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                markerfacecolor="None",
-                markeredgecolor='grey',
-                color='grey',
-                marker='o', \
-                markersize=marker_size,
-                linestyle=':',
-                lw=1)]
-
-    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                markerfacecolor="None",
-                markeredgecolor='grey',
-                color='grey',
-                marker='s', \
-                markersize=marker_size,
-                linestyle='-',
-                lw=1)]
-
-    fig.legend( legend_elements ,
-                ["Deletion/Normal",\
-                 "Duplication", \
-                 "Inversion", \
-                 "Aligned long read", \
-                 "Linked read", \
-                 "Split-read", \
-                 "Paired-end read"], \
-                loc=1,
-                fontsize = options.legend_fontsize,
-                frameon=False)
-    #}}}
-
     # Plot each sample
     for i in range(len(bam_files)):
         ax =  matplotlib.pyplot.subplot(gs[ax_i])
@@ -1422,6 +1399,65 @@ if not options.json_only:
         #}}}
 
         ax_i += 1
+
+    #{{{ plot legend
+    marker_colors = []
+    marker_labels = []
+    read_colors = {
+        "Deletion/Normal":'black', 
+        "Duplication":'red', 
+        "Inversion":'blue', 
+        "Aligned long read":'orange', 
+        "Linked read":'green'
+    }
+
+    for read_type in read_types_used:
+        if read_type in read_colors:
+            color = read_colors[read_type]
+            flag = read_types_used[read_type]
+            if flag:
+                marker_colors.append(color)
+                marker_labels.append(read_type)
+    #marker_colors = ['black', 'red', 'blue', 'orange', 'green']
+    legend_elements = []
+
+    for color in marker_colors:
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                color=color,
+                linestyle='-',
+                lw=1)]
+    if read_types_used["Split-read"]:
+        marker_labels.append("Split read")
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                    markerfacecolor="None",
+                    markeredgecolor='grey',
+                    color='grey',
+                    marker='o', \
+                    markersize=marker_size,
+                    linestyle=':',
+                    lw=1)]
+    
+    if read_types_used["Paired-end read"] \
+            or read_types_used["Deletion/Normal"] \
+            or read_types_used["Inversion"]:
+        marker_labels.append("Paired-end read")
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                    markerfacecolor="None",
+                    markeredgecolor='grey',
+                    color='grey',
+                    marker='s', \
+                    markersize=marker_size,
+                    linestyle='-',
+                    lw=1)]
+
+    fig.legend( legend_elements ,
+                marker_labels, 
+                loc=1,
+                fontsize = options.legend_fontsize,
+                frameon=False)
+    #}}}
+
+
 
     #{{{ Plot annoation files
     if options.annotation_file:
