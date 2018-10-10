@@ -1508,7 +1508,7 @@ if not options.json_only:
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
                         if not options.hide_annotation_labels:
-                            ax.text(r[0],0 + 0.1,A[3],color='black')
+                            ax.text(r[0],0 + 0.1,A[3],color='black', fontsize=options.annotation_fontsize)
                 else:
                     ax.plot(r,[0,0],'-',color='black',lw=5)
 
