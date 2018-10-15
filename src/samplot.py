@@ -17,6 +17,16 @@ import matplotlib.patches as mpatches
 from optparse import OptionParser
 from matplotlib.offsetbox import AnchoredText
 
+read_types_used = {
+    "Deletion/Normal":False,
+    "Duplication":False,
+    "Inversion":False,
+    "Aligned long read": False,
+    "Linked read": False,
+    "Split-read": False,
+    "Paired-end read": False
+}
+
 #{{{def calc_query_pos_from_cigar(cigar, strand):
 def calc_query_pos_from_cigar(cigar, strand):
     cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', \
@@ -148,7 +158,7 @@ def add_pair_end(read, pairs, linked_reads):
     if not (read.is_paired): return
     if read.is_secondary: return
     if read.is_supplementary: return
-
+    
     pe = PairEnd(read) 
 
     if pe.HP not in pairs:
@@ -158,6 +168,7 @@ def add_pair_end(read, pairs, linked_reads):
         pairs[pe.HP][read.query_name] = []
 
     if pe.MI:
+        read_types_used["Linked read"] = True
         if pe.HP not in linked_reads:
             linked_reads[pe.HP] = {}
 
@@ -189,6 +200,7 @@ class SplitRead:
 
 #{{{def add_split(read, splits):
 def add_split(read, splits, bam_file, linked_reads):
+    read_types_used["Split-read"] = True
     if not read.is_secondary and \
        not read.is_supplementary and \
        read.has_tag('SA'):
@@ -341,6 +353,7 @@ def merge_alignments(min_gap, alignments):
 
 #{{{def add_long_reads(read, long_reads, range_min, range_max):
 def add_long_reads(read, long_reads, range_min, range_max):
+    read_types_used["Aligned long read"] = True
 
     if read.is_supplementary or read.is_secondary: return
 
@@ -394,6 +407,8 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
         for alignment in long_read.alignments:
             alignments.append(alignment)
 
+    if len(alignments) <= 0:
+        return None
     alignments.sort(key=lambda x: x.query_position)
 
     gaps = []
@@ -503,7 +518,6 @@ def plot_pair(pair, y, ax, range_min, range_max):
                (False, True): 'red',   # DUP
                (False, False): 'blue', # INV
                (True, True): 'blue' } # INV
-               #(True, True): 'green' } # INV
 
     if pair[0].end < range_min  or pair[1].start > range_max:
         return
@@ -517,6 +531,13 @@ def plot_pair(pair, y, ax, range_min, range_max):
         return
 
     color = colors[(pair[0].strand, pair[1].strand)]
+    
+    if color == "black":
+        read_types_used["Deletion/Normal"] = True
+    elif color == "red":
+        read_types_used["Duplication"] = True
+    elif color == "blue":
+        read_types_used["Inversion"] = True
 
     # plot the individual pair
     ax.plot(p,\
@@ -781,6 +802,8 @@ def plot_long_reads(long_reads,
                                             long_reads,
                                             range_min,
                                             range_max)
+        if long_read_plan is None:
+            continue
         max_gap = long_read_plan[0]
         steps = long_read_plan[1]
         for step in steps:
@@ -847,6 +870,9 @@ def plot_coverage(coverage,
         max_plot_depth = cover_y.max()
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
+    
+    if 0 == max_plot_depth:
+        max_plot_depth = 0.01
     ax2.set_ylim([0,max_plot_depth])
     ax2.fill_between(cover_x, \
                      cover_y, \
@@ -1033,11 +1059,24 @@ parser.add_option("--legend_fontsize",
                   default=6,
                   help="Font size for legend labels (default 6)")
 
+parser.add_option("--annotation_fontsize",
+                  dest="annotation_fontsize",
+                  type=int,
+                  default=6,
+                  help="Font size for annotation labels (default 6)")
+
 parser.add_option("--common_insert_size",
                   dest="common_insert_size",
                   action="store_true",
                   default=False,
                   help="Set common insert size for all plots")
+
+parser.add_option("--hide_annotation_labels",
+                  dest="hide_annotation_labels",
+                  action="store_true",
+                  default=False,
+                  help="Hide the label (fourth column text) from annotation files, useful for region with many annotations")
+
 
 (options, args) = parser.parse_args()
 if not options.output_file:
@@ -1214,55 +1253,19 @@ if not options.json_only:
         ax_i += 1
     #}}}
 
-    #{{{ plot legend
-    #marker_colors = ['black', 'red', 'blue', 'green', 'orange', 'purple']
-    marker_colors = ['black', 'red', 'blue', 'orange', 'green']
-    legend_elements = []
-
-    for color in marker_colors:
-        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                color=color,
-                linestyle='-',
-                lw=1)]
-
-    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                markerfacecolor="None",
-                markeredgecolor='grey',
-                color='grey',
-                marker='o', \
-                markersize=marker_size,
-                linestyle=':',
-                lw=1)]
-
-    legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
-                markerfacecolor="None",
-                markeredgecolor='grey',
-                color='grey',
-                marker='s', \
-                markersize=marker_size,
-                linestyle='-',
-                lw=1)]
-
-    fig.legend( legend_elements ,
-                ["Deletion/Normal",\
-                 "Duplication", \
-                 "Inversion", \
-                 "Aligned long read", \
-                 "Linked read", \
-                 "Split-read", \
-                 "Paired-end read"], \
-                loc=1,
-                fontsize = options.legend_fontsize,
-                frameon=False)
-    #}}}
-
     # Plot each sample
     for i in range(len(bam_files)):
         ax =  matplotlib.pyplot.subplot(gs[ax_i])
         hps = sorted(all_coverages[i].keys(), reverse=True)
-        if 0 not in hps:
-            hps.append(0)
-
+        #if there are multiple haplotypes, must have 0,1,2
+        if len(hps) > 1 or (len(hps) == 1 and hps[0] != 0):
+            if 0 not in hps:
+                hps.append(0)
+            if 1 not in hps:
+                hps.append(1)
+            if 2 not in hps:
+                hps.append(2)
+        hps.sort(reverse=True)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
                                                      subplot_spec=gs[ax_i],
@@ -1276,6 +1279,7 @@ if not options.json_only:
         curr_max_insert_size = None
 
         cover_axs = {}
+        curr_axs = ''
         for hp in hps:
             curr_ax = axs[hp]
 
@@ -1337,6 +1341,7 @@ if not options.json_only:
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
+
         if options.titles and \
                 len(options.titles.split(',')) == len(options.bams.split(',')):
             curr_ax.set_title(options.titles.split(',')[ax_i-1], \
@@ -1396,6 +1401,65 @@ if not options.json_only:
 
         ax_i += 1
 
+    #{{{ plot legend
+    marker_colors = []
+    marker_labels = []
+    read_colors = {
+        "Deletion/Normal":'black', 
+        "Duplication":'red', 
+        "Inversion":'blue', 
+        "Aligned long read":'orange', 
+        "Linked read":'green'
+    }
+
+    for read_type in read_types_used:
+        if read_type in read_colors:
+            color = read_colors[read_type]
+            flag = read_types_used[read_type]
+            if flag:
+                marker_colors.append(color)
+                marker_labels.append(read_type)
+    #marker_colors = ['black', 'red', 'blue', 'orange', 'green']
+    legend_elements = []
+
+    for color in marker_colors:
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                color=color,
+                linestyle='-',
+                lw=1)]
+    if read_types_used["Split-read"]:
+        marker_labels.append("Split read")
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                    markerfacecolor="None",
+                    markeredgecolor='grey',
+                    color='grey',
+                    marker='o', \
+                    markersize=marker_size,
+                    linestyle=':',
+                    lw=1)]
+    
+    if read_types_used["Paired-end read"] \
+            or read_types_used["Deletion/Normal"] \
+            or read_types_used["Inversion"]:
+        marker_labels.append("Paired-end read")
+        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
+                    markerfacecolor="None",
+                    markeredgecolor='grey',
+                    color='grey',
+                    marker='s', \
+                    markersize=marker_size,
+                    linestyle='-',
+                    lw=1)]
+
+    fig.legend( legend_elements ,
+                marker_labels, 
+                loc=1,
+                fontsize = options.legend_fontsize,
+                frameon=False)
+    #}}}
+
+
+
     #{{{ Plot annoation files
     if options.annotation_file:
         #a_i = 0
@@ -1443,7 +1507,8 @@ if not options.json_only:
                         ax.plot(r,[0,0],'-',color=str(v),lw=5)
                     except ValueError:
                         ax.plot(r,[0,0],'-',color='black',lw=5)
-                        ax.text(r[0],0 + 0.1,A[3],color='black')
+                        if not options.hide_annotation_labels:
+                            ax.text(r[0],0 + 0.1,A[3],color='black', fontsize=options.annotation_fontsize)
                 else:
                     ax.plot(r,[0,0],'-',color='black',lw=5)
 
@@ -1540,7 +1605,7 @@ if not options.json_only:
                    float(t_end - range_min)/float(range_max - range_min)]
                 ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=1)
 
-                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue')
+                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue', fontsize=options.annotation_fontsize)
 
             
                 if transcript in cdss:
