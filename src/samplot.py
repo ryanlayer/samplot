@@ -15,6 +15,7 @@ import random
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
 from optparse import OptionParser
+import argparse
 from matplotlib.offsetbox import AnchoredText
 
 read_types_used = {
@@ -484,7 +485,7 @@ def get_long_read_max_gap(read_name, long_reads):
 def plot_variant(start, end, sv_type, ax, range_min, range_max):
     r=[float(int(start) - range_min)/float(range_max - range_min), \
         float(int(end) - range_min)/float(range_max - range_min)]
-    ax.plot(r,[0,0],'-',color='black',lw=6, alpha=0.5)
+    ax.plot(r,[0,0],'-',color='black',lw=8, alpha=0.5)
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -512,14 +513,13 @@ def plot_variant(start, end, sv_type, ax, range_min, range_max):
 
 #{{{def plot_confidence_interval(start, end, sv_type, ax, range_min, range_max):
 def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
-    
     r=[float(int(breakpoint)-int(ci[0]) - range_min)/float(range_max - range_min), \
         float(int(breakpoint)+int(ci[1]) - range_min)/float(range_max - range_min)]
     
     
-    ax.plot(r,[0,0],'-',color='black',lw=2, alpha=1)
-    ax.axvline(r[0], color='black', lw=0.5,alpha=1, ymin=0.25, ymax=0.75)
-    ax.axvline(r[1], color='black', lw=0.5,alpha=1, ymin=0.25, ymax=0.75)
+    ax.plot(r,[0,0],'-',color='black',lw=.25, alpha=1)
+    ax.axvline(r[0], color='black', lw=0.25,alpha=1, ymin=0.40, ymax=0.60)
+    ax.axvline(r[1], color='black', lw=0.25,alpha=1, ymin=0.40, ymax=0.60)
 
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
@@ -957,192 +957,204 @@ def get_long_read_gap_sizes(long_reads):
     return long_read_gap_sizes
 #}}}
 
-#{{{parser = OptionParser()
-parser = OptionParser()
+class ReferenceAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        for bam in namespace.bams:
+            if "cram" in bam:
+                if namespace.reference == None:
+                    parser.error('Missing reference for CRAM')
+def pair(arg):
+    try:
+        parsed_arg = [int(x) for x in arg.split(',')]
+        if len(parsed_arg) == 2:
+            return parsed_arg
+        else:
+            parser.error('Invalid number of pair values')
+    except:
+        parser.error('Invalid pair values')
 
-parser.add_option("--marker_size",
-                  dest="marker_size",
+
+#{{{parser = ArgumentParser()
+parser = argparse.ArgumentParser(description="SAMPLOT creates images of genome regions from CRAM/SAM alignments, optimized for structural variant call review")
+parser.add_argument("--marker_size",
                   type=int,
                   default=3,
-                  help="Size of marks on pairs and splits (default 3) ");
+                  help="Size of marks on pairs and splits (default 3) ",
+                  required=False)
 
+parser.add_argument("-n",
+                  "--titles",
+                  help="Space-delimited list of plot titles. Use quote marks to include spaces (i.e. \"plot 1\" \"plot 2\")",
+                  type=str,
+                  nargs="+",
+                  required=False);
 
-parser.add_option("-n",
-                  dest="titles",
-                  help="Plot title (CSV) ");
+parser.add_argument("-r",
+                  "--reference",
+                  help="Reference file for CRAM, required if CRAM files used",
+                  type=str,
+                  action=ReferenceAction,
+                  required=False);
 
-parser.add_option("-r",
-                  dest="reference",
-                  help="Reference file for CRAM");
-
-parser.add_option("-z",
-                  dest="z",
+parser.add_argument("-z",
+                  "--z",
                   type=int,
                   default=4,
-                  help="Number of stdevs from the mean (default 4)");
+                  help="Number of stdevs from the mean (default 4)",
+                  required=False)
 
-parser.add_option("-b",
-                  dest="bams",
-                  help="Bam file names (CSV)")
+parser.add_argument("-b",
+                  "--bams",
+                  type=str,
+                  nargs="+",
+                  help="Space-delimited list of BAM/CRAM file names",
+                  required=True)
 
-parser.add_option("-o",
-                  dest="output_file",
-                  help="Output file name")
+parser.add_argument("-o",
+                  "--output_file",
+                  type=str,
+                  help="Output file name",
+                  required=True)
 
-parser.add_option("-s",
-                  dest="start",
-                  help="Start range")
-
-parser.add_option("-e",
-                  dest="end",
-                  help="End range")
-
-parser.add_option("-c",
-                  dest="chrom",
-                  help="Chromosome range")
-
-parser.add_option("-w",
-                  dest="window",
+parser.add_argument("-s",
+                  "--start",
                   type=int,
-                  help="Window size (count of bases to include), default(0.5 * len)")
+                  help="Start position of region/variant",
+                  required=True)
 
-parser.add_option("-d",
-                  dest="max_depth",
+parser.add_argument("-e",
+                  "--end",
                   type=int,
-                  help="Max number of normal pairs to plot")
+                  help="End position of region/variant",
+                  required=True)
 
-parser.add_option("-t",
-                  dest="sv_type",
-                  help="SV type")
+parser.add_argument("-c",
+                  "--chrom",
+                  type=str,
+                  help="Chromosome",
+                  required=True)
 
-parser.add_option("-T",
-                  dest="transcript_file",
-                  help="GFF of transcripts")
+parser.add_argument("-w",
+                  "--window",
+                  type=int,
+                  help="Window size (count of bases to include in view), default(0.5 * len)",
+                  required=False)
 
-parser.add_option("-A",
-                  dest="annotation_file",
-                  help="bed.gz tabixed file of transcripts")
+parser.add_argument("-d",
+                  "--max_depth",
+                  type=int,
+                  help="Max number of normal pairs to plot",
+                  required=False)
 
-parser.add_option("-a",
-                  dest="print_args",
+parser.add_argument("-t",
+                  "--sv_type",
+                  type=str,
+                  help="SV type. If omitted, plot is created without variant bar",
+                  required=False)
+
+parser.add_argument("-T",
+                  "--transcript_file",
+                  help="GFF of transcripts",
+                  required=False)
+
+parser.add_argument("-A",
+                  "--annotation_files",
+                  type=str,
+                  nargs="+",
+                  help="Space-delimited list of bed.gz tabixed files of annotations (such as repeats, mappability, etc.)",
+                  required=False)
+
+parser.add_argument("-a",
+                  "--print_args",
                   action="store_true",
                   default=False,
-                  help="Print commandline arguments")
+                  help="Print commandline arguments",
+                  required=False)
 
-parser.add_option("-H",
-                  dest="plot_height",
+parser.add_argument("-H",
+                  "--plot_height",
                   type=int,
-                  help="Plot height")
+                  help="Plot height",
+                  required=False)
 
-parser.add_option("-W",
-                  dest="plot_width",
+parser.add_argument("-W",
+                  "--plot_width",
                   type=int,
-                  help="Plot width")
+                  help="Plot width",
+                  required=False)
 
-parser.add_option("-q",
-                  dest="min_mqual",
+parser.add_argument("-q",
+                  "--min_mqual",
                   type=int,
-                  help="Min mapping quality of reads to be included in plot")
+                  help="Min mapping quality of reads to be included in plot",
+                  required=False)
 
-parser.add_option("-j",
-                  dest="json_only",
+parser.add_argument("-j",
+                  "--json_only",
                   action="store_true",
                   default=False,
-                  help="Create only the json file, not the image plot")
+                  help="Create only the json file, not the image plot",
+                  required=False)
 
-parser.add_option("--start_ci",
-                  dest="start_ci",
-                  help="confidence intervals of SV first breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20:40)")
+parser.add_argument("--start_ci",
+                  help="confidence intervals of SV first breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
+                  type=pair,
+                  required=False)
 
-parser.add_option("--end_ci",
-                  dest="end_ci",
-                  help="confidence intervals of SV end breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20:40)")
+parser.add_argument("--end_ci",
+                  help="confidence intervals of SV end breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
+                  type=pair,
+                  required=False)
 
-parser.add_option("--long_read",
-                  dest="long_read",
+parser.add_argument("--long_read",
                   type=int,
                   default=1000,
-                  help="Min length of a read to be a long-read (default 1000)")
+                  help="Min length of a read to be treated as a long-read (default 1000)",
+                  required=False)
 
-parser.add_option("--min_event_size",
-                  dest="min_event_size",
+parser.add_argument("--min_event_size",
                   type=int,
                   default=100,
-                  help="Min size of an event in long-read CIGAR to consder when plotting (default 100)")
+                  help="Min size of an event in long-read CIGAR to consder when plotting (default 100)",
+                  required=False)
 
-parser.add_option("--xaxis_label_fontsize",
-                  dest="xaxis_label_fontsize",
+parser.add_argument("--xaxis_label_fontsize",
                   type=int,
                   default=6,
-                  help="Font size for X-axis labels (default 6)")
+                  help="Font size for X-axis labels (default 6)",
+                  required=False)
 
-parser.add_option("--yaxis_label_fontsize",
-                  dest="yaxis_label_fontsize",
+parser.add_argument("--yaxis_label_fontsize",
                   type=int,
                   default=6,
-                  help="Font size for Y-axis labels (default 6)")
+                  help="Font size for Y-axis labels (default 6)",
+                  required=False)
 
-parser.add_option("--legend_fontsize",
-                  dest="legend_fontsize",
+parser.add_argument("--legend_fontsize",
                   type=int,
                   default=6,
-                  help="Font size for legend labels (default 6)")
+                  help="Font size for legend labels (default 6)",
+                  required=False)
 
-parser.add_option("--annotation_fontsize",
-                  dest="annotation_fontsize",
+parser.add_argument("--annotation_fontsize",
                   type=int,
                   default=6,
-                  help="Font size for annotation labels (default 6)")
+                  help="Font size for annotation labels (default 6)",
+                  required=False)
 
-parser.add_option("--common_insert_size",
-                  dest="common_insert_size",
+parser.add_argument("--common_insert_size",
                   action="store_true",
                   default=False,
-                  help="Set common insert size for all plots")
+                  help="Set common insert size for all plots",
+                  required=False)
 
-parser.add_option("--hide_annotation_labels",
-                  dest="hide_annotation_labels",
+parser.add_argument("--hide_annotation_labels",
                   action="store_true",
                   default=False,
-                  help="Hide the label (fourth column text) from annotation files, useful for region with many annotations")
+                  help="Hide the label (fourth column text) from annotation files, useful for region with many annotations",
+                  required=False)
 
-
-(options, args) = parser.parse_args()
-if not options.output_file:
-    parser.error('Output file not given')
-
-if not options.bams:
-    parser.error('BAMs not given')
-    
-if not options.start:
-    parser.error('SV start not given')
-    
-if not options.end:
-    parser.error('SV end not given')
-
-if not options.chrom:
-    parser.error('SV chrom not given')
-
-if options.start_ci:
-    try:
-        ci = options.start_ci.split(",")
-        for i in range(len(ci)):
-            ci[i] = int(ci[i])
-        options.start_ci = ci
-        if len(ci) != 2:
-            raise ValueError("Improper number of values for confidence interval")
-    except:
-        print("Error parsing start_ci input",file=sys.stderr)
-if options.end_ci:
-    try:
-        ci = options.end_ci.split(",")
-        for i in range(len(ci)):
-            ci[i] = int(ci[i])
-        options.end_ci = ci
-        if len(ci) != 2:
-            raise ValueError("Improper number of values for confidence interval")
-    except:
-        print("Error parsing end_ci input",file=sys.stderr)
+options = parser.parse_args()
 
 if not options.json_only:
     plot_height = 5
@@ -1152,9 +1164,9 @@ if not options.json_only:
     if options.plot_height:
         plot_height = options.plot_height
     else:
-        num_subplots = len(options.bams.split(','))
-        if options.annotation_file:
-            num_subplots += len(options.annotation_file.split(','))
+        num_subplots = len(options.bams)
+        if options.annotation_files:
+            num_subplots += len(options.annotation_files)
         if options.transcript_file:
             num_subplots += 1
         plot_height = 2 + num_subplots
@@ -1182,7 +1194,7 @@ if not options.json_only:
     min_insert_size = None
     max_insert_size = None
 
-    bam_files = options.bams.split(',')
+    bam_files = options.bams
 
     #{{{ read data from bams/crams
     for bam_file_name in bam_files:
@@ -1260,7 +1272,7 @@ if not options.json_only:
     fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
     # give one axis to display each sample
-    num_ax = len(options.bams.split(','))
+    num_ax = len(options.bams)
 
     # add another if we are displaying the SV
     if options.sv_type:
@@ -1270,19 +1282,19 @@ if not options.json_only:
     if options.transcript_file:
         num_ax+=1
 
-    if options.annotation_file:
-        num_ax+=len(options.annotation_file.split(','))
+    if options.annotation_files:
+        num_ax+=len(options.annotation_files)
 
     # set the relative sizes for each
     ratios = []
     if options.sv_type:
         ratios = [1] 
 
-    for i in range(len(options.bams.split(','))):
+    for i in range(len(options.bams)):
         ratios.append( len(all_coverages[i]) * 3 )
 
-    if options.annotation_file:
-        ratios += [1]*len(options.annotation_file.split(','))
+    if options.annotation_files:
+        ratios += [1]*len(options.annotation_files)
     if options.transcript_file:
         ratios += [2]
 
@@ -1406,11 +1418,11 @@ if not options.json_only:
         curr_ax = axs[hps[0]]
 
         if options.titles and \
-                len(options.titles.split(',')) == len(options.bams.split(',')):
-            curr_ax.set_title(options.titles.split(',')[ax_i-1], \
+                len(options.titles) == len(options.bams):
+            curr_ax.set_title(options.titles[ax_i-1], \
                          fontsize=8, loc='left')
         else:
-            curr_ax.set_title(os.path.basename(options.bams.split(',')[ax_i-1]), \
+            curr_ax.set_title(os.path.basename(options.bams[ax_i-1]), \
                          fontsize=8, loc='left')
 
 
@@ -1443,8 +1455,8 @@ if not options.json_only:
             curr_ax.set_xticklabels([])
 
         last_sample_num = num_ax - 1
-        if options.annotation_file:
-            last_sample_num -= len(options.annotation_file.split(","))
+        if options.annotation_files:
+            last_sample_num -= len(options.annotation_files)
         if options.transcript_file:
             last_sample_num -= 1
         
@@ -1524,9 +1536,9 @@ if not options.json_only:
 
 
     #{{{ Plot annoation files
-    if options.annotation_file:
+    if options.annotation_files:
         #a_i = 0
-        for annotation_file in options.annotation_file.split(','):
+        for annotation_file in options.annotation_files:
             tbx = pysam.TabixFile(annotation_file)
 
             # fetch and parse data from the tabixed gff file
@@ -1551,7 +1563,7 @@ if not options.json_only:
                     sys.exit('Error: Could not fetch ' + \
                             options.chrom + ':' + options.start + '-' + \
                             options.end + \
-                            ' from ' + options.annotation_file)
+                            ' from ' + annotation_file)
              
             ax =  matplotlib.pyplot.subplot(gs[ax_i])
             ax_i += 1
@@ -1715,7 +1727,7 @@ if options.print_args or options.json_only:
     args_info = {
         'titles': options.titles if options.titles else 'None',
         'reference': options.reference if options.reference else 'None',
-        'bams': options.bams.split(','),
+        'bams': options.bams,
         'output_file': options.output_file,
         'start': options.start, 
         'end': options.end,
