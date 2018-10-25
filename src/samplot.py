@@ -484,14 +484,12 @@ def get_long_read_max_gap(read_name, long_reads):
 def plot_variant(start, end, sv_type, ax, range_min, range_max):
     r=[float(int(start) - range_min)/float(range_max - range_min), \
         float(int(end) - range_min)/float(range_max - range_min)]
-    ax.plot(r,[0,0],'-',color='black',lw=3)
+    ax.plot(r,[0,0],'-',color='black',lw=6, alpha=0.5)
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     ax.spines['left'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    #matplotlib.pyplot.tick_params(axis='x',length=0)
-    #matplotlib.pyplot.tick_params(axis='y',length=0)
     ax.tick_params(axis='x',length=0)
     ax.tick_params(axis='y',length=0)
     ax.set_xticklabels([])
@@ -511,6 +509,29 @@ def plot_variant(start, end, sv_type, ax, range_min, range_max):
     sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + sv_type
     ax.set_title(sv_title, fontsize=8)
 #}}}
+
+#{{{def plot_confidence_interval(start, end, sv_type, ax, range_min, range_max):
+def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
+    
+    r=[float(int(breakpoint)-int(ci[0]) - range_min)/float(range_max - range_min), \
+        float(int(breakpoint)+int(ci[1]) - range_min)/float(range_max - range_min)]
+    
+    
+    ax.plot(r,[0,0],'-',color='black',lw=2, alpha=1)
+    ax.axvline(r[0], color='black', lw=0.5,alpha=1, ymin=0.25, ymax=0.75)
+    ax.axvline(r[1], color='black', lw=0.5,alpha=1, ymin=0.25, ymax=0.75)
+
+    ax.set_xlim([0,1])
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.tick_params(axis='x',length=0)
+    ax.tick_params(axis='y',length=0)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+#}}}
+
 
 #{{{ def plot_pair(pair, y, ax, range_min, range_max):
 def plot_pair(pair, y, ax, range_min, range_max):
@@ -1029,6 +1050,14 @@ parser.add_option("-j",
                   default=False,
                   help="Create only the json file, not the image plot")
 
+parser.add_option("--start_ci",
+                  dest="start_ci",
+                  help="confidence intervals of SV first breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20:40)")
+
+parser.add_option("--end_ci",
+                  dest="end_ci",
+                  help="confidence intervals of SV end breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20:40)")
+
 parser.add_option("--long_read",
                   dest="long_read",
                   type=int,
@@ -1093,6 +1122,27 @@ if not options.end:
 
 if not options.chrom:
     parser.error('SV chrom not given')
+
+if options.start_ci:
+    try:
+        ci = options.start_ci.split(",")
+        for i in range(len(ci)):
+            ci[i] = int(ci[i])
+        options.start_ci = ci
+        if len(ci) != 2:
+            raise ValueError("Improper number of values for confidence interval")
+    except:
+        print("Error parsing start_ci input",file=sys.stderr)
+if options.end_ci:
+    try:
+        ci = options.end_ci.split(",")
+        for i in range(len(ci)):
+            ci[i] = int(ci[i])
+        options.end_ci = ci
+        if len(ci) != 2:
+            raise ValueError("Improper number of values for confidence interval")
+    except:
+        print("Error parsing end_ci input",file=sys.stderr)
 
 if not options.json_only:
     plot_height = 5
@@ -1251,6 +1301,19 @@ if not options.json_only:
                      range_min,
                      range_max)
         ax_i += 1
+        #plot confidence intervals if provided
+        if options.start_ci and options.start_ci != None:
+            plot_confidence_interval(options.start,
+                     options.start_ci,
+                     ax,
+                     range_min,
+                     range_max)
+        if options.end_ci and options.end_ci != None:
+            plot_confidence_interval(options.end,
+                     options.end_ci,
+                     ax,
+                     range_min,
+                     range_max)
     #}}}
 
     # Plot each sample
