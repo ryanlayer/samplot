@@ -485,7 +485,7 @@ def get_long_read_max_gap(read_name, long_reads):
 def plot_variant(start, end, sv_type, ax, range_min, range_max):
     r=[float(int(start) - range_min)/float(range_max - range_min), \
         float(int(end) - range_min)/float(range_max - range_min)]
-    ax.plot(r,[0,0],'-',color='black',lw=8, alpha=0.5)
+    ax.plot(r,[0,0],'-',color='black',lw=8,solid_capstyle="butt",alpha=0.5)
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -517,9 +517,9 @@ def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
         float(int(breakpoint)+int(ci[1]) - range_min)/float(range_max - range_min)]
     
     
-    ax.plot(r,[0,0],'-',color='black',lw=.25, alpha=1)
-    ax.axvline(r[0], color='black', lw=0.25,alpha=1, ymin=0.40, ymax=0.60)
-    ax.axvline(r[1], color='black', lw=0.25,alpha=1, ymin=0.40, ymax=0.60)
+    ax.plot(r,[0,0],'-',color='black',lw=.5, alpha=1)
+    ax.axvline(r[0], color='black', lw=0.5,alpha=1, ymin=0.40, ymax=0.60)
+    ax.axvline(r[1], color='black', lw=0.5,alpha=1, ymin=0.40, ymax=0.60)
 
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
