@@ -116,7 +116,7 @@ def add_coverage(read, coverage):
     if not read.cigartuples: return
 
     for op,length in read.cigartuples:
-        if op == 0 or op == 8:
+        if op in [0,7,8]:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = 0
@@ -283,7 +283,7 @@ def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
     if reverse:
         cigartuples = cigartuples[::-1]
     for op,length in cigartuples:
-        if op == 0 or op == 8: #M
+        if op in [0,7,8]: #M, =, X
             alignments.append(Alignment(curr_pos,
                                         curr_pos+length,
                                         strand,
