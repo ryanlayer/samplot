@@ -1235,8 +1235,8 @@ if not options.json_only:
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
             sys.exit('Error: Could not fetch ' + \
-                    options.chrom + ':' + options.start + '-' + \
-                    options.end + \
+                    options.chrom + ':' + str(options.start) + '-' + \
+                    str(options.end) + \
                     ' from ' + bam_file_name)
 
         if not min_insert_size:
