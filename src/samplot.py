@@ -1234,10 +1234,13 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            sys.exit('Error: Could not fetch ' + \
+            #sys.exit('Error: Could not fetch ' + \
+            print('Error: Could not fetch ' + \
                     options.chrom + ':' + str(options.start) + '-' + \
                     str(options.end) + \
-                    ' from ' + bam_file_name)
+                    #' from ' + bam_file_name)
+                    ' from ' + bam_file_name, file=sys.stderr)
+            insert_sizes.append(0)
 
         if not min_insert_size:
             min_insert_size = min(insert_sizes)
@@ -1292,12 +1295,13 @@ if not options.json_only:
 
     for i in range(len(options.bams)):
         ratios.append( len(all_coverages[i]) * 3 )
-
+    if len(all_coverages) > 0:
+        ratios[-1] = 9
+    
     if options.annotation_files:
         ratios += [1]*len(options.annotation_files)
     if options.transcript_file:
         ratios += [2]
-
     gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
     #}}}
 
@@ -1340,6 +1344,8 @@ if not options.json_only:
                 hps.append(1)
             if 2 not in hps:
                 hps.append(2)
+        elif 0 not in hps:
+            hps.append(0)
         hps.sort(reverse=True)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
