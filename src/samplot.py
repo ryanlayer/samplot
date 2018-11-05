@@ -51,7 +51,7 @@ def calc_query_pos_from_cigar(cigar, strand):
             q_len += op_len
         elif op_type == 'H' or op_type == 'S':
             q_len += op_len
-        elif op_type == 'M' or op_type == 'I':
+        elif op_type == 'M' or op_type == 'I' or op_type == 'X':
             qe_pos += op_len
             q_len += op_len
 
@@ -116,7 +116,7 @@ def add_coverage(read, coverage):
     if not read.cigartuples: return
 
     for op,length in read.cigartuples:
-        if op == 0:
+        if op == 0 or op == 8:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = 0
@@ -283,7 +283,7 @@ def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
     if reverse:
         cigartuples = cigartuples[::-1]
     for op,length in cigartuples:
-        if op == 0: #M
+        if op == 0 or op == 8: #M
             alignments.append(Alignment(curr_pos,
                                         curr_pos+length,
                                         strand,
