@@ -871,7 +871,8 @@ def plot_long_reads(long_reads,
 def plot_coverage(coverage,
                   ax,
                   range_min,
-                  range_max):
+                  range_max,
+                  hp_count):
     cover_x = []
     cover_y = []
 
@@ -901,16 +902,18 @@ def plot_coverage(coverage,
                      np.zeros(len(cover_y)),
                      color='grey',
                      alpha=0.25)
- 
+    
+    #number of ticks should be 6 if there's one hp, 3 otherwise
+    tick_count = 5 if hp_count==1 else 2
+    tick_count = max(int(max_plot_depth/tick_count), 1)
+
     # set axis parameters
-    #ax2.set_ylabel('Coverage', fontsize=8)
+    ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis='y', colors='grey', labelsize=options.yaxis_label_fontsize)
     ax2.spines['top'].set_visible(False)
     ax2.spines['bottom'].set_visible(False)
     ax2.spines['left'].set_visible(False)
     ax2.spines['right'].set_visible(False)
-    #matplotlib.pyplot.tick_params(axis='x',length=0)
-    #matplotlib.pyplot.tick_params(axis='y',length=0)
     ax2.tick_params(axis='x',length=0)
     ax2.tick_params(axis='y',length=0)
 
@@ -1415,9 +1418,10 @@ if not options.json_only:
             cover_ax = plot_coverage(curr_coverage,
                                      curr_ax,
                                      range_min,
-                                     range_max)
+                                     range_max,
+                                     len(hps))
             cover_axs[hp] = cover_ax
-     
+
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
@@ -1456,6 +1460,9 @@ if not options.json_only:
             curr_ax.spines['left'].set_visible(False)
             curr_ax.spines['right'].set_visible(False)
             curr_ax.tick_params(axis='y', labelsize=options.yaxis_label_fontsize)
+            #if there's one hp, 6 ticks fit. Otherwise, do 3
+            tick_count = 6 if len(hps)==1 else 3
+            curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
             curr_ax.tick_params(axis='both', length=0)
             curr_ax.set_xticklabels([])
 
