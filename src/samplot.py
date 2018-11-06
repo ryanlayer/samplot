@@ -17,6 +17,7 @@ import matplotlib.patches as mpatches
 from optparse import OptionParser
 import argparse
 from matplotlib.offsetbox import AnchoredText
+import matplotlib.ticker as ticker
 
 read_types_used = {
     "Deletion/Normal":False,
@@ -1234,11 +1235,9 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            #sys.exit('Error: Could not fetch ' + \
-            print('Error: Could not fetch ' + \
+            print('Warning: No data returned from fetch in region  ' + \
                     options.chrom + ':' + str(options.start) + '-' + \
                     str(options.end) + \
-                    #' from ' + bam_file_name)
                     ' from ' + bam_file_name, file=sys.stderr)
             insert_sizes.append(0)
 
@@ -1292,11 +1291,11 @@ if not options.json_only:
     ratios = []
     if options.sv_type:
         ratios = [1] 
-
+    
     for i in range(len(options.bams)):
         ratios.append( len(all_coverages[i]) * 3 )
-    if len(all_coverages) > 0:
-        ratios[-1] = 9
+        if len(all_coverages) > 0:
+            ratios[-1] = 9
     
     if options.annotation_files:
         ratios += [1]*len(options.annotation_files)
@@ -1566,7 +1565,7 @@ if not options.json_only:
                                     max(0,range_min-1000), 
                                     range_max+1000)
                 except ValueError:
-                    sys.exit('Error: Could not fetch ' + \
+                    sys.exit('Warning: Could not fetch ' + \
                             options.chrom + ':' + options.start + '-' + \
                             options.end + \
                             ' from ' + annotation_file)
