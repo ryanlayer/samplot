@@ -51,7 +51,7 @@ def calc_query_pos_from_cigar(cigar, strand):
             q_len += op_len
         elif op_type == 'H' or op_type == 'S':
             q_len += op_len
-        elif op_type == 'M' or op_type == 'I':
+        elif op_type == 'M' or op_type == 'I' or op_type == 'X':
             qe_pos += op_len
             q_len += op_len
 
@@ -116,7 +116,7 @@ def add_coverage(read, coverage):
     if not read.cigartuples: return
 
     for op,length in read.cigartuples:
-        if op == 0:
+        if op in [0,7,8]:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = 0
@@ -283,7 +283,7 @@ def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
     if reverse:
         cigartuples = cigartuples[::-1]
     for op,length in cigartuples:
-        if op == 0: #M
+        if op in [0,7,8]: #M, =, X
             alignments.append(Alignment(curr_pos,
                                         curr_pos+length,
                                         strand,
@@ -1234,10 +1234,13 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            sys.exit('Error: Could not fetch ' + \
-                    options.chrom + ':' + options.start + '-' + \
-                    options.end + \
-                    ' from ' + bam_file_name)
+            #sys.exit('Error: Could not fetch ' + \
+            print('Error: Could not fetch ' + \
+                    options.chrom + ':' + str(options.start) + '-' + \
+                    str(options.end) + \
+                    #' from ' + bam_file_name)
+                    ' from ' + bam_file_name, file=sys.stderr)
+            insert_sizes.append(0)
 
         if not min_insert_size:
             min_insert_size = min(insert_sizes)
@@ -1292,12 +1295,13 @@ if not options.json_only:
 
     for i in range(len(options.bams)):
         ratios.append( len(all_coverages[i]) * 3 )
-
+    if len(all_coverages) > 0:
+        ratios[-1] = 9
+    
     if options.annotation_files:
         ratios += [1]*len(options.annotation_files)
     if options.transcript_file:
         ratios += [2]
-
     gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
     #}}}
 
@@ -1340,6 +1344,8 @@ if not options.json_only:
                 hps.append(1)
             if 2 not in hps:
                 hps.append(2)
+        elif 0 not in hps:
+            hps.append(0)
         hps.sort(reverse=True)
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
