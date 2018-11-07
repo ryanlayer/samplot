@@ -1690,7 +1690,7 @@ if not options.json_only:
                 t_end = min(range_max, transcripts[gene_id][transcript][2])
                 r=[float(t_start - range_min)/float(range_max - range_min), \
                    float(t_end - range_min)/float(range_max - range_min)]
-                ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=1)
+                ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
 
                 ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue', fontsize=options.annotation_fontsize)
 
