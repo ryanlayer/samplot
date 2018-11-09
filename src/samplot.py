@@ -872,7 +872,8 @@ def plot_coverage(coverage,
                   ax,
                   range_min,
                   range_max,
-                  hp_count):
+                  hp_count,
+                  max_coverage):
     cover_x = []
     cover_y = []
 
@@ -887,7 +888,10 @@ def plot_coverage(coverage,
             cover_y.append(0)
     cover_y = np.array(cover_y)
 
-    if cover_y.max() > 3 * cover_y.mean():
+    #this max_coverage will only be > 0 if the command-line param is set to use it
+    if max_coverage > 0:
+        max_plot_depth = max_coverage
+    elif cover_y.max() > 3 * cover_y.mean():
         max_plot_depth = np.percentile(cover_y, 99.5)
     else:
         max_plot_depth = cover_y.max()
@@ -1158,6 +1162,12 @@ parser.add_argument("--hide_annotation_labels",
                   help="Hide the label (fourth column text) from annotation files, useful for region with many annotations",
                   required=False)
 
+parser.add_argument("--same_yaxis_scales",
+                  action="store_true",
+                  default=False,
+                  help="Set the scales of the Y axes to the max of all",
+                  required=False)
+
 options = parser.parse_args()
 
 if not options.json_only:
@@ -1199,6 +1209,7 @@ if not options.json_only:
     max_insert_size = None
 
     bam_files = options.bams
+    max_coverage = 0
 
     #{{{ read data from bams/crams
     for bam_file_name in bam_files:
@@ -1254,6 +1265,11 @@ if not options.json_only:
         else: 
             max_insert_size = max(max(insert_sizes), min_insert_size)
 
+        if options.same_yaxis_scales:
+            for i in coverage:
+                curr_max = max(coverage[i].values())
+                if curr_max > max_coverage:
+                    max_coverage = curr_max
         all_coverages.append(coverage)
         all_pairs.append(pairs)
         all_splits.append(splits)
@@ -1357,12 +1373,17 @@ if not options.json_only:
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
+            
+           
+
 
         curr_min_insert_size = None
         curr_max_insert_size = None
 
         cover_axs = {}
         curr_axs = ''
+        overall_insert_size_range = []
+        overall_coverage_range = []
         for hp in hps:
             curr_ax = axs[hp]
 
@@ -1386,6 +1407,7 @@ if not options.json_only:
             if hp in all_coverages[i]:
                 curr_coverage = all_coverages[i][hp]
 
+            
             curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
                                                      curr_splits,
                                                      curr_linked_reads,
@@ -1419,8 +1441,11 @@ if not options.json_only:
                                      curr_ax,
                                      range_min,
                                      range_max,
-                                     len(hps))
+                                     len(hps),
+                                     max_coverage)
+            
             cover_axs[hp] = cover_ax
+
 
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
@@ -1455,6 +1480,8 @@ if not options.json_only:
         for j in hps:
             curr_ax = axs[j]
             curr_ax.set_xlim([0,1])
+            if options.same_yaxis_scales:
+                curr_ax.set_ylim([0,max_insert_size])
             curr_ax.spines['top'].set_visible(False)
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)
