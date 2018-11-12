@@ -120,8 +120,13 @@ def add_coverage(read, coverage):
         if op in [0,7,8]:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
-                    coverage[hp][pos] = 0
-                coverage[hp][pos] += 1
+                    coverage[hp][pos] = [0,0]
+
+                #the two coverage tracks are [0] high-coverage and [1] low-coverage
+                if read.mapping_quality > options.minq:
+                    coverage[hp][pos][0] += 1
+                else:
+                    coverage[hp][pos][1] += 1
             curr_pos += length
         elif op == 1:
             curr_pos = curr_pos
@@ -568,7 +573,7 @@ def plot_pair(pair, y, ax, range_min, range_max):
             alpha=0.25, \
             lw=0.5, \
             marker='s', \
-            markersize=marker_size)
+            markersize=marker_size, zorder=10)
 #}}}
 
 #{{{ def plot_pairs(all_pairs
@@ -875,26 +880,30 @@ def plot_coverage(coverage,
                   hp_count,
                   max_coverage):
     cover_x = []
-    cover_y = []
+    cover_y_all = []
+    cover_y_highqual = []
 
     for pos in range(range_min,range_max+1):
         if pos in coverage:
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
-            cover_y.append(coverage[pos])
+            cover_y_all.append(coverage[pos][0] + coverage[pos][1])
+            cover_y_highqual.append(coverage[pos][0])
         else:
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
-            cover_y.append(0)
-    cover_y = np.array(cover_y)
+            cover_y_all.append(0)
+            cover_y_highqual.append(0)
+    cover_y_all = np.array(cover_y_all)
+    cover_y_highqual = np.array(cover_y_highqual)
 
     #this max_coverage will only be > 0 if the command-line param is set to use it
     if max_coverage > 0:
         max_plot_depth = max_coverage
-    elif cover_y.max() > 3 * cover_y.mean():
-        max_plot_depth = np.percentile(cover_y, 99.5)
+    elif cover_y_highqual.max() > 3 * cover_y_all.mean():
+        max_plot_depth = np.percentile(cover_y_all, 99.5)
     else:
-        max_plot_depth = cover_y.max()
+        max_plot_depth = cover_y_all.max()
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     
@@ -902,11 +911,17 @@ def plot_coverage(coverage,
         max_plot_depth = 0.01
     ax2.set_ylim([0,max_plot_depth])
     ax2.fill_between(cover_x, \
-                     cover_y, \
-                     np.zeros(len(cover_y)),
+                     cover_y_all, \
+                     np.zeros(len(cover_y_all)),
                      color='grey',
-                     alpha=0.25)
+                     alpha=0.15)
     
+    ax2.fill_between(cover_x, \
+                     cover_y_highqual, \
+                     np.zeros(len(cover_y_highqual)),
+                     color='darkgrey',
+                     alpha=.4)
+
     #number of ticks should be 6 if there's one hp, 3 otherwise
     tick_count = 5 if hp_count==1 else 2
     tick_count = max(int(max_plot_depth/tick_count), 1)
@@ -1052,6 +1067,12 @@ parser.add_argument("-d",
                   "--max_depth",
                   type=int,
                   help="Max number of normal pairs to plot",
+                  required=False)
+
+parser.add_argument("--minq",
+                  type=int,
+                  help="Min map quality of reads to consider high quality for darker coverage plot. To disable lighter track, pass in negative value",
+                  default=0,
                   required=False)
 
 parser.add_argument("-t",
@@ -1407,6 +1428,13 @@ if not options.json_only:
             if hp in all_coverages[i]:
                 curr_coverage = all_coverages[i][hp]
 
+            cover_ax = plot_coverage(curr_coverage,
+                                     curr_ax,
+                                     range_min,
+                                     range_max,
+                                     len(hps),
+                                     max_coverage)
+            
             
             curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
                                                      curr_splits,
@@ -1437,13 +1465,6 @@ if not options.json_only:
                                                curr_min_insert_size,
                                                curr_max_insert_size)
 
-            cover_ax = plot_coverage(curr_coverage,
-                                     curr_ax,
-                                     range_min,
-                                     range_max,
-                                     len(hps),
-                                     max_coverage)
-            
             cover_axs[hp] = cover_ax
 
 
