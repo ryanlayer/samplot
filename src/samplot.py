@@ -232,7 +232,6 @@ def add_split(read, splits, bam_file, linked_reads):
 
         splits[sr.HP][read.query_name]=[sr]
 
-        
         for sa in read.get_tag('SA').split(';'):
             if len(sa) == 0:
                 continue
@@ -734,13 +733,13 @@ def plot_split(split, y, ax, range_min, range_max):
     # Do not plot pairs that extend beyond the current range
     if range_min > start.end or range_max < end.start:
         return
-         
+
     p = [float(start.end - range_min)/float(range_max - range_min), \
          float(end.start - range_min)/float(range_max - range_min)]
 
     if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
         return
-       
+
     # For a given SV, the orientation of the pairs and split do not match
     # so we cannot use the colors dict here
     color = 'black'
@@ -757,7 +756,10 @@ def plot_split(split, y, ax, range_min, range_max):
     elif start.strand == False and \
          end.strand == False and \
          start.query_pos > end.query_pos: #DEL
-        color = 'black'
+        if start.start < end.start:
+          color = 'red'
+        else:
+          color = 'black'
     elif start.strand == True and \
          end.strand == True and \
          start.query_pos > end.query_pos: #DUP
@@ -765,7 +767,10 @@ def plot_split(split, y, ax, range_min, range_max):
     elif start.strand == False and \
          end.strand == False and \
          start.query_pos < end.query_pos: #DUP
-        color = 'red'
+        if start.start < end.start:
+          color = 'black' # DEL
+        else:
+          color = 'red' # DUP
 
     ax.plot(p,\
             [y,y],\
