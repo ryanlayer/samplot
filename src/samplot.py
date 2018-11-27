@@ -6,7 +6,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.gridspec as gridspec
 import pylab
-import random
 import pysam
 import os
 import re
@@ -14,7 +13,6 @@ import statistics
 import random
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
-from optparse import OptionParser
 import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
@@ -63,6 +61,9 @@ def calc_query_pos_from_cigar(cigar, strand):
 def sample_normal(max_depth, pairs, z):
     sampled_pairs = {}
     plus_minus_pairs = {}
+
+    if max_depth == 0:
+        return sampled_pairs
 
     for read_name in pairs:
         pair = pairs[read_name]
@@ -883,10 +884,12 @@ def plot_coverage(coverage,
                   range_min,
                   range_max,
                   hp_count,
-                  max_coverage):
+                  max_coverage, 
+                  tracktype):
     cover_x = []
-    cover_y_all = []
+    cover_y_lowqual = []
     cover_y_highqual = []
+    cover_y_all = []
 
     for pos in range(range_min,range_max+1):
         if pos in coverage:
@@ -894,39 +897,64 @@ def plot_coverage(coverage,
                     float(pos-range_min)/float(range_max - range_min))
             cover_y_all.append(coverage[pos][0] + coverage[pos][1])
             cover_y_highqual.append(coverage[pos][0])
+            cover_y_lowqual.append(coverage[pos][1])
         else:
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
-            cover_y_all.append(0)
+            cover_y_lowqual.append(0)
             cover_y_highqual.append(0)
-    cover_y_all = np.array(cover_y_all)
+            cover_y_all.append(0)
+    cover_y_lowqual = np.array(cover_y_lowqual)
     cover_y_highqual = np.array(cover_y_highqual)
+    cover_y_all = np.array(cover_y_all)
 
     #this max_coverage will only be > 0 if the command-line param is set to use it
     if max_coverage > 0:
         max_plot_depth = max_coverage
-    elif cover_y_highqual.max() > 3 * cover_y_all.mean():
-        max_plot_depth = np.percentile(cover_y_all, 99.5)
+    elif cover_y_all.max() > 3 * cover_y_all.mean():
+        max_plot_depth = max(np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5))
     else:
-        max_plot_depth = cover_y_all.max()
+        max_plot_depth = max(cover_y_all.max(), cover_y_all.max())
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     
     if 0 == max_plot_depth:
         max_plot_depth = 0.01
     ax2.set_ylim([0,max_plot_depth])
-    ax2.fill_between(cover_x, \
-                     cover_y_all, \
-                     np.zeros(len(cover_y_all)),
-                     color='grey',
-                     alpha=0.15)
-    
-    ax2.fill_between(cover_x, \
-                     cover_y_highqual, \
-                     np.zeros(len(cover_y_highqual)),
-                     color='darkgrey',
-                     alpha=.4)
+    bottom_fill = np.zeros(len(cover_y_all))
+    if tracktype == "stack":
+        ax2.fill_between(cover_x, \
+                         cover_y_highqual, \
+                         bottom_fill,\
+                         color='darkgrey',
+                         alpha=.4)
 
+        ax2.fill_between(cover_x, \
+                         cover_y_all, \
+                         cover_y_highqual,
+                         color='grey',
+                         alpha=0.15)
+        
+    elif tracktype == "superimpose": 
+        ax2.fill_between(cover_x, \
+                         cover_y_lowqual, \
+                         bottom_fill,\
+                         color='grey',
+                         alpha=.15)
+
+
+        ax2.fill_between(cover_x, \
+                         cover_y_highqual, \
+                         cover_y_lowqual,\
+                         color='darkgrey',
+                         alpha=.4)
+
+        ax2.fill_between(cover_x, \
+                         cover_y_lowqual, \
+                         bottom_fill,
+                         color='grey',
+                         alpha=0.15)
+       
     #number of ticks should be 6 if there's one hp, 3 otherwise
     tick_count = 5 if hp_count==1 else 2
     tick_count = max(int(max_plot_depth/tick_count), 1)
@@ -1072,11 +1100,12 @@ parser.add_argument("-d",
                   "--max_depth",
                   type=int,
                   help="Max number of normal pairs to plot",
+                  default=100,
                   required=False)
 
 parser.add_argument("--minq",
                   type=int,
-                  help="Min map quality of reads to consider high quality for darker coverage plot. To disable lighter track, pass in negative value",
+                  help="coverage from reads with MAPQ <= minq plotted in lighter grey. To disable, pass in negative value",
                   default=0,
                   required=False)
 
@@ -1096,6 +1125,13 @@ parser.add_argument("-A",
                   type=str,
                   nargs="+",
                   help="Space-delimited list of bed.gz tabixed files of annotations (such as repeats, mappability, etc.)",
+                  required=False)
+
+parser.add_argument("--coverage_tracktype",
+                  type=str,
+                  help="type of track to use for low MAPQ coverage plot.",
+                  choices=['stack','superimpose'],
+                  default="stack",
                   required=False)
 
 parser.add_argument("-a",
@@ -1149,7 +1185,7 @@ parser.add_argument("--long_read",
 parser.add_argument("--min_event_size",
                   type=int,
                   default=100,
-                  help="Min size of an event in long-read CIGAR to consder when plotting (default 100)",
+                  help="Min size of an event in long-read CIGAR to include (default 100)",
                   required=False)
 
 parser.add_argument("--xaxis_label_fontsize",
@@ -1310,7 +1346,6 @@ if not options.json_only:
                 all_pairs[i][hp] = sample_normal(options.max_depth,
                                                  all_pairs[i][hp],
                                                  options.z)
-        #all_pairs = sample_normal(options.max_depth, all_pairs, options.z)
     #}}}
 
     #{{{ set up sub plots
@@ -1438,7 +1473,8 @@ if not options.json_only:
                                      range_min,
                                      range_max,
                                      len(hps),
-                                     max_coverage)
+                                     max_coverage,
+                                     options.coverage_tracktype)
             
             
             curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
