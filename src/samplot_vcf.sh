@@ -97,7 +97,7 @@ for bam in ${opts[@]:$((OPTIND - 1))}; do
     if [ -z "$bams" ]; then
         bams="$bam"
     else
-        bams+=",$bam"
+        bams+=" $bam"
     fi
 done
 

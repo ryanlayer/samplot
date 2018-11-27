@@ -6,7 +6,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.gridspec as gridspec
 import pylab
-import random
 import pysam
 import os
 import re
@@ -14,7 +13,6 @@ import statistics
 import random
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
-from optparse import OptionParser
 import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
@@ -63,6 +61,9 @@ def calc_query_pos_from_cigar(cigar, strand):
 def sample_normal(max_depth, pairs, z):
     sampled_pairs = {}
     plus_minus_pairs = {}
+
+    if max_depth == 0:
+        return sampled_pairs
 
     for read_name in pairs:
         pair = pairs[read_name]
@@ -120,8 +121,13 @@ def add_coverage(read, coverage):
         if op in [0,7,8]:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
-                    coverage[hp][pos] = 0
-                coverage[hp][pos] += 1
+                    coverage[hp][pos] = [0,0]
+
+                #the two coverage tracks are [0] high-coverage and [1] low-coverage
+                if read.mapping_quality > options.minq:
+                    coverage[hp][pos][0] += 1
+                else:
+                    coverage[hp][pos][1] += 1
             curr_pos += length
         elif op == 1:
             curr_pos = curr_pos
@@ -567,7 +573,7 @@ def plot_pair(pair, y, ax, range_min, range_max):
             alpha=0.25, \
             lw=0.5, \
             marker='s', \
-            markersize=marker_size)
+            markersize=marker_size, zorder=10)
 #}}}
 
 #{{{ def plot_pairs(all_pairs
@@ -877,37 +883,78 @@ def plot_coverage(coverage,
                   ax,
                   range_min,
                   range_max,
-                  hp_count):
+                  hp_count,
+                  max_coverage, 
+                  tracktype):
     cover_x = []
-    cover_y = []
+    cover_y_lowqual = []
+    cover_y_highqual = []
+    cover_y_all = []
 
     for pos in range(range_min,range_max+1):
         if pos in coverage:
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
-            cover_y.append(coverage[pos])
+            cover_y_all.append(coverage[pos][0] + coverage[pos][1])
+            cover_y_highqual.append(coverage[pos][0])
+            cover_y_lowqual.append(coverage[pos][1])
         else:
             cover_x.append(\
                     float(pos-range_min)/float(range_max - range_min))
-            cover_y.append(0)
-    cover_y = np.array(cover_y)
+            cover_y_lowqual.append(0)
+            cover_y_highqual.append(0)
+            cover_y_all.append(0)
+    cover_y_lowqual = np.array(cover_y_lowqual)
+    cover_y_highqual = np.array(cover_y_highqual)
+    cover_y_all = np.array(cover_y_all)
 
-    if cover_y.max() > 3 * cover_y.mean():
-        max_plot_depth = np.percentile(cover_y, 99.5)
+    #this max_coverage will only be > 0 if the command-line param is set to use it
+    if max_coverage > 0:
+        max_plot_depth = max_coverage
+    elif cover_y_all.max() > 3 * cover_y_all.mean():
+        max_plot_depth = max(np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5))
     else:
-        max_plot_depth = cover_y.max()
+        max_plot_depth = max(cover_y_all.max(), cover_y_all.max())
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     
     if 0 == max_plot_depth:
         max_plot_depth = 0.01
     ax2.set_ylim([0,max_plot_depth])
-    ax2.fill_between(cover_x, \
-                     cover_y, \
-                     np.zeros(len(cover_y)),
-                     color='grey',
-                     alpha=0.25)
-    
+    bottom_fill = np.zeros(len(cover_y_all))
+    if tracktype == "stack":
+        ax2.fill_between(cover_x, \
+                         cover_y_highqual, \
+                         bottom_fill,\
+                         color='darkgrey',
+                         alpha=.4)
+
+        ax2.fill_between(cover_x, \
+                         cover_y_all, \
+                         cover_y_highqual,
+                         color='grey',
+                         alpha=0.15)
+        
+    elif tracktype == "superimpose": 
+        ax2.fill_between(cover_x, \
+                         cover_y_lowqual, \
+                         bottom_fill,\
+                         color='grey',
+                         alpha=.15)
+
+
+        ax2.fill_between(cover_x, \
+                         cover_y_highqual, \
+                         cover_y_lowqual,\
+                         color='darkgrey',
+                         alpha=.4)
+
+        ax2.fill_between(cover_x, \
+                         cover_y_lowqual, \
+                         bottom_fill,
+                         color='grey',
+                         alpha=0.15)
+       
     #number of ticks should be 6 if there's one hp, 3 otherwise
     tick_count = 5 if hp_count==1 else 2
     tick_count = max(int(max_plot_depth/tick_count), 1)
@@ -1053,6 +1100,13 @@ parser.add_argument("-d",
                   "--max_depth",
                   type=int,
                   help="Max number of normal pairs to plot",
+                  default=100,
+                  required=False)
+
+parser.add_argument("--minq",
+                  type=int,
+                  help="coverage from reads with MAPQ <= minq plotted in lighter grey. To disable, pass in negative value",
+                  default=0,
                   required=False)
 
 parser.add_argument("-t",
@@ -1071,6 +1125,13 @@ parser.add_argument("-A",
                   type=str,
                   nargs="+",
                   help="Space-delimited list of bed.gz tabixed files of annotations (such as repeats, mappability, etc.)",
+                  required=False)
+
+parser.add_argument("--coverage_tracktype",
+                  type=str,
+                  help="type of track to use for low MAPQ coverage plot.",
+                  choices=['stack','superimpose'],
+                  default="stack",
                   required=False)
 
 parser.add_argument("-a",
@@ -1124,7 +1185,7 @@ parser.add_argument("--long_read",
 parser.add_argument("--min_event_size",
                   type=int,
                   default=100,
-                  help="Min size of an event in long-read CIGAR to consder when plotting (default 100)",
+                  help="Min size of an event in long-read CIGAR to include (default 100)",
                   required=False)
 
 parser.add_argument("--xaxis_label_fontsize",
@@ -1161,6 +1222,18 @@ parser.add_argument("--hide_annotation_labels",
                   action="store_true",
                   default=False,
                   help="Hide the label (fourth column text) from annotation files, useful for region with many annotations",
+                  required=False)
+
+parser.add_argument("--coverage_only",
+                  action="store_true",
+                  default=False,
+                  help="Hide all reads and show only coverage",
+                  required=False)
+
+parser.add_argument("--same_yaxis_scales",
+                  action="store_true",
+                  default=False,
+                  help="Set the scales of the Y axes to the max of all",
                   required=False)
 
 options = parser.parse_args()
@@ -1204,6 +1277,7 @@ if not options.json_only:
     max_insert_size = None
 
     bam_files = options.bams
+    max_coverage = 0
 
     #{{{ read data from bams/crams
     for bam_file_name in bam_files:
@@ -1226,12 +1300,13 @@ if not options.json_only:
                                    range_max+1000):
             if options.min_mqual and int(read.mapping_quality) < options.min_mqual:
                 continue
-
-            if read.query_length >= options.long_read:
-                add_long_reads(read, long_reads, range_min, range_max)
-            else:
-                add_pair_end(read, pairs, linked_reads)
-                add_split(read, splits, bam_file, linked_reads)
+            
+            if not options.coverage_only:
+                if read.query_length >= options.long_read:
+                    add_long_reads(read, long_reads, range_min, range_max)
+                else:
+                    add_pair_end(read, pairs, linked_reads)
+                    add_split(read, splits, bam_file, linked_reads)
             add_coverage(read, coverage)
 
 
@@ -1243,10 +1318,11 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            print('Warning: No data returned from fetch in region  ' + \
-                    options.chrom + ':' + str(options.start) + '-' + \
-                    str(options.end) + \
-                    ' from ' + bam_file_name, file=sys.stderr)
+            if not options.coverage_only:
+                print('Warning: No data returned from fetch in region  ' + \
+                        options.chrom + ':' + str(options.start) + '-' + \
+                        str(options.end) + \
+                        ' from ' + bam_file_name, file=sys.stderr)
             insert_sizes.append(0)
 
         if not min_insert_size:
@@ -1259,6 +1335,11 @@ if not options.json_only:
         else: 
             max_insert_size = max(max(insert_sizes), min_insert_size)
 
+        if options.same_yaxis_scales:
+            for i in coverage:
+                curr_max = max(coverage[i].values())
+                if curr_max > max_coverage:
+                    max_coverage = curr_max
         all_coverages.append(coverage)
         all_pairs.append(pairs)
         all_splits.append(splits)
@@ -1273,7 +1354,6 @@ if not options.json_only:
                 all_pairs[i][hp] = sample_normal(options.max_depth,
                                                  all_pairs[i][hp],
                                                  options.z)
-        #all_pairs = sample_normal(options.max_depth, all_pairs, options.z)
     #}}}
 
     #{{{ set up sub plots
@@ -1362,12 +1442,17 @@ if not options.json_only:
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
+            
+           
+
 
         curr_min_insert_size = None
         curr_max_insert_size = None
 
         cover_axs = {}
         curr_axs = ''
+        overall_insert_size_range = []
+        overall_coverage_range = []
         for hp in hps:
             curr_ax = axs[hp]
 
@@ -1391,6 +1476,15 @@ if not options.json_only:
             if hp in all_coverages[i]:
                 curr_coverage = all_coverages[i][hp]
 
+            cover_ax = plot_coverage(curr_coverage,
+                                     curr_ax,
+                                     range_min,
+                                     range_max,
+                                     len(hps),
+                                     max_coverage,
+                                     options.coverage_tracktype)
+            
+            
             curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
                                                      curr_splits,
                                                      curr_linked_reads,
@@ -1420,12 +1514,8 @@ if not options.json_only:
                                                curr_min_insert_size,
                                                curr_max_insert_size)
 
-            cover_ax = plot_coverage(curr_coverage,
-                                     curr_ax,
-                                     range_min,
-                                     range_max,
-                                     len(hps))
             cover_axs[hp] = cover_ax
+
 
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
@@ -1460,6 +1550,8 @@ if not options.json_only:
         for j in hps:
             curr_ax = axs[j]
             curr_ax.set_xlim([0,1])
+            if options.same_yaxis_scales:
+                curr_ax.set_ylim([0,max_insert_size])
             curr_ax.spines['top'].set_visible(False)
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)
