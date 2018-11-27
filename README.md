@@ -15,7 +15,7 @@ Options:
   -h, --help            show this help message and exit
   --marker_size=MARKER_SIZE
                         Size of marks on pairs and splits (default 3)
-  -n TITLES             Plot title (CSV)
+  -n TITLES             Space-delimited list of plot titles. Use quote marks to include spaces (i.e. \"plot 1\" \"plot 2\")"
   -r REFERENCE          Reference file for CRAM
   -z Z                  Number of stdevs from the mean (default 4)
   -b BAMS               Bam file names (CSV)
@@ -28,7 +28,7 @@ Options:
   -d MAX_DEPTH          Max number of normal pairs to plot
   -t SV_TYPE            SV type
   -T TRANSCRIPT_FILE    GFF of transcripts
-  -A ANNOTATION_FILE    bed.gz tabixed file of transcripts
+  -A ANNOTATION_FILE    Space-delimited list of bed.gz tabixed files of annotations (such as repeats, mappability, etc.)
   -a                    Print commandline arguments
   -H PLOT_HEIGHT        Plot height
   -W PLOT_WIDTH         Plot width
@@ -63,8 +63,10 @@ to that same region in two unrelated samples NA12889 and NA12890.
 The following command will create an image of that region:
 ```
 time samplot/src/samplot.py \
-    -n NA12878,NA12889,NA12890 \
-    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -n NA12878 NA12889 NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam \
+      samplot/test/data/NA12889_restricted.bam \
+      samplot/test/data/NA12890_restricted.bam \
     -o 4_115928726_115931880.png \
     -c chr4 \
     -s 115928726 \
@@ -80,7 +82,7 @@ The arguments used above are:
 
 `-n` The names to be shown for each sample in the plot
 
-`-b` The BAM/CRAM files of the samples (comma-separated)
+`-b` The BAM/CRAM files of the samples (space-delimited)
 
 `-o` The name of the output file containing the plot
 
@@ -105,8 +107,10 @@ a random sampling of 100 normal pairs we get a similar result 3.6X faster.
 
 ```
 time samplot/src/samplot.py \
-    -n NA12878,NA12889,NA12890 \
-    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -n NA12878 NA12889 NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam \
+      samplot/test/data/NA12889_restricted.bam \
+      samplot/test/data/NA12890_restricted.bam \
     -o 4_115928726_115931880.d100.png \
     -c chr4 \
     -s 115928726 \
@@ -153,8 +157,10 @@ tabix rmsk.bed.gz
 Plot:
 ```
 samplot/src/samplot.py \
-    -n NA12878,NA12889,NA12890 \
-    -b samplot/test/data/NA12878_restricted.bam,samplot/test/data/NA12889_restricted.bam,samplot/test/data/NA12890_restricted.bam \
+    -n NA12878 NA12889 NA12890 \
+    -b samplot/test/data/NA12878_restricted.bam \
+      samplot/test/data/NA12889_restricted.bam \
+      samplot/test/data/NA12890_restricted.bam \
     -o 4_115928726_115931880.d100.genes_reps_map.png \
     -c chr4 \
     -s 115928726 \
@@ -162,7 +168,7 @@ samplot/src/samplot.py \
     -t DEL \
     -d 100 \
     -T Homo_sapiens.GRCh37.82.sort.gff3.gz \
-    -A rmsk.bed.gz,wgEncodeDukeMapabilityUniqueness35bp.bed.gz
+    -A rmsk.bed.gz wgEncodeDukeMapabilityUniqueness35bp.bed.gz
 
 real    0m2.784s
 user    0m2.633s
@@ -211,8 +217,10 @@ X:101055330-101067156.
 
 ```
 samplot/src/samplot.py \
-    -n NA12878,NA12889,NA12890 \
-    -b samplot/test/data/NA12878_restricted.cram,samplot/test/data/NA12889_restricted.cram,samplot/test/data/NA12890_restricted.cram \
+    -n NA12878 NA12889 NA12890 \
+    -b samplot/test/data/NA12878_restricted.cram \
+      samplot/test/data/NA12889_restricted.cram \
+      samplot/test/data/NA12890_restricted.cram \
     -o cramX_101055330_101067156.png 
     -c chrX \
     -s 101055330 \
