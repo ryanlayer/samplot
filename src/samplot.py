@@ -1224,6 +1224,12 @@ parser.add_argument("--hide_annotation_labels",
                   help="Hide the label (fourth column text) from annotation files, useful for region with many annotations",
                   required=False)
 
+parser.add_argument("--coverage_only",
+                  action="store_true",
+                  default=False,
+                  help="Hide all reads and show only coverage",
+                  required=False)
+
 parser.add_argument("--same_yaxis_scales",
                   action="store_true",
                   default=False,
@@ -1294,12 +1300,13 @@ if not options.json_only:
                                    range_max+1000):
             if options.min_mqual and int(read.mapping_quality) < options.min_mqual:
                 continue
-
-            if read.query_length >= options.long_read:
-                add_long_reads(read, long_reads, range_min, range_max)
-            else:
-                add_pair_end(read, pairs, linked_reads)
-                add_split(read, splits, bam_file, linked_reads)
+            
+            if not options.coverage_only:
+                if read.query_length >= options.long_read:
+                    add_long_reads(read, long_reads, range_min, range_max)
+                else:
+                    add_pair_end(read, pairs, linked_reads)
+                    add_split(read, splits, bam_file, linked_reads)
             add_coverage(read, coverage)
 
 
@@ -1311,10 +1318,11 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            print('Warning: No data returned from fetch in region  ' + \
-                    options.chrom + ':' + str(options.start) + '-' + \
-                    str(options.end) + \
-                    ' from ' + bam_file_name, file=sys.stderr)
+            if not options.coverage_only:
+                print('Warning: No data returned from fetch in region  ' + \
+                        options.chrom + ':' + str(options.start) + '-' + \
+                        str(options.end) + \
+                        ' from ' + bam_file_name, file=sys.stderr)
             insert_sizes.append(0)
 
         if not min_insert_size:
