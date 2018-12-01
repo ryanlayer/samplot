@@ -17,6 +17,14 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
+COLORS = { 
+    'Deletion/Normal': 'black',
+    'Duplication': 'red',
+    'Inversion': 'blue'
+}
+
+
+
 READ_TYPES_USED = {
     "Deletion/Normal":False,
     "Duplication":False,
@@ -644,18 +652,24 @@ def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
     ax.set_xticklabels([])
     ax.set_yticklabels([])
 
+def get_pair_event_type(pe_read):
+    """Decide what type of event the read supports (del/normal, dup, inv)
+    """
+    event_by_strand = {
+        (True, False): 'Deletion/Normal',
+        (False, True): 'Duplication',
+        (False, False): 'Inversion',
+        (True, True): 'Inversion'
+    }
+    return event_by_strand[pe_read[0].strand,pe_read[1].strand]
 
 def plot_pair(pair, y, ax, range_min, range_max):
     """Plots a PairedEnd read at the y-position corresponding to insert size
 
     If read lies outside the range-min or range_max, it is not plotted
     """
-    colors = { (True, False): 'black', # DEL
-               (False, True): 'red',   # DUP
-               (False, False): 'blue', # INV
-               (True, True): 'blue' } # INV
-
-    if pair[0].end < range_min  or pair[1].start > range_max:
+    
+    if pair[0].end < range_min or pair[1].start > range_max:
         return
 
     p = [float(pair[0].start - range_min)/float(range_max - range_min), \
@@ -666,14 +680,9 @@ def plot_pair(pair, y, ax, range_min, range_max):
     if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
         return
 
-    color = colors[(pair[0].strand, pair[1].strand)]
-    
-    if color == "black":
-        READ_TYPES_USED["Deletion/Normal"] = True
-    elif color == "red":
-        READ_TYPES_USED["Duplication"] = True
-    elif color == "blue":
-        READ_TYPES_USED["Inversion"] = True
+    event_type = get_pair_event_type(pair)
+    READ_TYPES_USED[event_type] = True
+    color = COLORS[event_type]
 
     # plot the individual pair
     ax.plot(p,\
@@ -817,6 +826,41 @@ def plot_linked_reads(pairs,
 
     return [curr_min_insert_size, curr_max_insert_size]
 
+def get_split_event_type(split):
+    """Decide what type of event the read supports (del/normal, dup, inv)
+    """
+
+    first = split[0]
+    second = split[1]
+    if first.start > second.end:
+        second = split[0]
+        first = split[1]
+
+    # first.strand, second.strand, first.query<second.query,first.start<second.start
+    event_type_by_strand_and_order = {
+        (True, False)               : 'Inversion',       #mixed strands
+        (False, True)               : 'Inversion',       #mixed strands 
+        (True, True, True)          : 'Deletion/Normal', #forward strand
+        (True, True, False)         : 'Duplication',     #forward strand
+        (False, False, False, False): 'Deletion/Normal', #reverse strand
+        (False, False, False, True) : 'Duplication',     #reverse strand
+        (False, False, True, True)  : 'Deletion/Normal', #reverse strand
+        (False, False, True, False)  : 'Duplication'     #reverse strand
+    }
+    orientations = [first.strand, second.strand]
+    
+    #if same strand, need query position info
+    if orientations[0] == orientations[1]:
+        #first query position smaller than second query position, normal for forward strand
+        orientations.append(first.query_pos < second.query_pos)
+        
+        #reverse strand requires start position info
+        if False in orientations[:2]:
+            #first start smaller than second start, normal for forward strand
+            orientations.append(first.start < second.start)
+    return event_type_by_strand_and_order[orientations]
+            
+
 def plot_split(split, y, ax, range_min, range_max):
     """Plots a SplitRead at the y-position corresponding to insert size
 
@@ -837,35 +881,9 @@ def plot_split(split, y, ax, range_min, range_max):
 
     if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
         return
-
-    # For a given SV, the orientation of the pairs and split do not match
-    # so we cannot use the colors dict here
-    color = 'black'
-    if start.strand != end.strand: #INV
-        color = 'blue'
-    elif start.strand == True and \
-         end.strand == True and \
-         start.query_pos < end.query_pos: #DEL
-        color = 'black'
-    elif start.strand == False and \
-         end.strand == False and \
-         start.query_pos > end.query_pos: #DEL
-        if start.start < end.start:
-          color = 'red'
-        else:
-          color = 'black'
-    elif start.strand == True and \
-         end.strand == True and \
-         start.query_pos > end.query_pos: #DUP
-        color = 'red'
-    elif start.strand == False and \
-         end.strand == False and \
-         start.query_pos < end.query_pos: #DUP
-        if start.start < end.start:
-          color = 'black' # DEL
-        else:
-          color = 'red' # DUP
-
+    event_type = get_split_event_type(split)
+    color = COLORS[event_type]
+    
     ax.plot(p,\
             [y,y],\
             ':',\
