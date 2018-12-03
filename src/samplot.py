@@ -713,9 +713,9 @@ def plot_pairs(pairs,
         # y value is the insert size
         insert_size = pair[1].end - pair[0].start
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         plot_pair(pair, insert_size, ax, range_min, range_max)
@@ -781,9 +781,9 @@ def plot_linked_reads(pairs,
 
         insert_size = max(gap_sizes)
 
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         alignments.sort(key=lambda x: x[0])
@@ -914,9 +914,9 @@ def plot_splits(splits,
         insert_size = abs(end.start - start.end - 1)
 
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         plot_split(split, insert_size, ax, range_min, range_max)
@@ -1673,7 +1673,6 @@ def plot_samples(read_data,
 
             cover_axs[hp] = cover_ax
 
-
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
@@ -1960,10 +1959,6 @@ def plot_transcript(transcript_file, chrom, start, end,
     ax.tick_params(axis='y',length=0)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
-    labels = [int(range_min + l*(range_max-range_min)) \
-            for l in ax.xaxis.get_majorticklocs()]
-    ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
-    ax.set_xlabel('Chromosomal position on ' + chrom, fontsize=8)
     ax.set_title(os.path.basename(transcript_file), fontsize=8, loc='left')
 
 def create_variant_plot(grid, 
