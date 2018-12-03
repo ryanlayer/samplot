@@ -661,7 +661,8 @@ def get_pair_event_type(pe_read):
         (False, False): 'Inversion',
         (True, True): 'Inversion'
     }
-    return event_by_strand[pe_read[0].strand,pe_read[1].strand]
+    event_type = event_by_strand[pe_read[0].strand,pe_read[1].strand]
+    return event_type
 
 def plot_pair(pair, y, ax, range_min, range_max):
     """Plots a PairedEnd read at the y-position corresponding to insert size
@@ -858,7 +859,8 @@ def get_split_event_type(split):
         if False in orientations[:2]:
             #first start smaller than second start, normal for forward strand
             orientations.append(first.start < second.start)
-    return event_type_by_strand_and_order[orientations]
+    event_type = event_type_by_strand_and_order[tuple(orientations)]
+    return event_type
             
 
 def plot_split(split, y, ax, range_min, range_max):
@@ -1133,13 +1135,6 @@ def get_long_read_gap_sizes(long_reads):
                     get_long_read_max_gap(read_name, long_reads[hp]))
     return long_read_gap_sizes
 
-class ReferenceAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        for bam in namespace.bams:
-            if "cram" in bam:
-                if namespace.reference == None:
-                    parser.error('Missing reference for CRAM')
-
 def pair(arg):
     """Defines behavior for ArgParse pairs 
 
@@ -1203,7 +1198,6 @@ def setup_arguments():
                       "--reference",
                       help="Reference file for CRAM, required if CRAM files used",
                       type=str,
-                      action=ReferenceAction,
                       required=False);
 
     parser.add_argument("-z",
@@ -1400,6 +1394,12 @@ def setup_arguments():
         print_arguments(options)
         if options.json_only:
             sys.exit(0)
+
+    for bam in options.bams:
+        if ".cram" in bam:
+            if not options.reference:
+                parser.print_help(sys.stderr)
+                sys.exit("Error: Missing reference for CRAM")
     return options
 
 def set_plot_dimensions(start, end, sv_type, arg_plot_height, arg_plot_width, 
@@ -1415,15 +1415,14 @@ def set_plot_dimensions(start, end, sv_type, arg_plot_height, arg_plot_width,
 
     plot_height = 5
     plot_width = 8
-
     if arg_plot_height:
         plot_height = arg_plot_height
     else:
         num_subplots = len(bams)
         if annotation_files:
-            num_subplots += len(annotation_files)
+            num_subplots += .3*len(annotation_files)
         if transcript_file:
-            num_subplots += 1
+            num_subplots += .3
         plot_height = 2 + num_subplots
 
     if arg_plot_width:
