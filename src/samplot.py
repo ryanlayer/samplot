@@ -1848,9 +1848,9 @@ def plot_annotations(annotation_files, chrom, start, end,
             if len(A) > 3 :
                 try:
                     v = float(A[3])
-                    ax.plot(r,[0,0],'-',color=str(v),lw=5)
+                    ax.plot(r,[0,0],'-',color=str(v),lw=15)
                 except ValueError:
-                    ax.plot(r,[0,0],'-',color='black',lw=5)
+                    ax.plot(r,[0,0],'-',color='black',lw=15)
                     if not hide_annotation_labels:
                         ax.text(r[0],
                                 0 + 0.1,
@@ -2013,9 +2013,9 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
             ratios[-1] = 9
     
     if annotation_files:
-        ratios += [1]*len(annotation_files)
+        ratios += [.3]*len(annotation_files)
     if transcript_file:
-        ratios += [2]
+        ratios.append(2)
     return gridspec.GridSpec(num_ax, 1, height_ratios = ratios), num_ax
 
 ########################################################################
@@ -2042,7 +2042,6 @@ if __name__ == '__main__':
     # set up sub plots
     matplotlib.rcParams.update({'font.size': 12})
     fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
-    fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
 
     # read alignment data
     read_data,max_coverage = get_read_data(options.chrom, 
@@ -2117,5 +2116,5 @@ if __name__ == '__main__':
     
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
-    matplotlib.pyplot.tight_layout()
+    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.00001, w_pad=.00001)
     matplotlib.pyplot.savefig(options.output_file)
