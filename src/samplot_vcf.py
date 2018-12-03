@@ -58,9 +58,48 @@ def get_names_to_bams(bams):
         names[b.header["RG"][0]['SM']] = p
     return names
 
+import operator
+cmp_lookup = {
+        '>': operator.gt,
+        '<': operator.lt,
+        '<=': operator.le,
+        '>=': operator.ge,
+        '==': operator.eq
+        }
+
+def tryfloat(v):
+    try:
+        return float(v)
+    except:
+        return v
+
+def toexprs(astr):
+    """
+    an expr is just a 3-tuple of "name", fn, value"
+    e.g. "DHFFC", operator.lt, 0.7"
+    """
+    astr = (x.strip() for x in astr.strip().split("&"))
+    result = []
+    for a in astr:
+        a = [x.strip() for x in a.split()]
+        assert len(a) == 3, ("bad expression", a)
+        assert a[1] in cmp_lookup, ("comparison:" + a[1] + " not supported. must be one of:" + ",".join(cmp_lookup.keys()))
+        result.append((a[0], cmp_lookup[a[1]], tryfloat(a[2])))
+    return result
+
+def check_expr(vdict, expr):
+    # a single set of exprs must be "anded"
+    for name, fcmp, val in expr:
+        if not fcmp(vdict[name], val):
+            return False
+    return True
+
 def main(args, pass_through_args):
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
+    vcf_samples_set = set(vcf_samples)
+
+    filters = [toexprs(f) for f in args.filter]
 
     if args.ped:
         ped_samples = parse_ped(args.ped, vcf_samples)
@@ -73,6 +112,9 @@ def main(args, pass_through_args):
     names_to_bams = get_names_to_bams(args.bams)
 
     for v in vcf:
+        svtype = v.info.get("SVTYPE", "SV")
+        if svtype == "BND": continue
+
         gts = [s.get("GT", (None, None)) for s in v.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
@@ -80,7 +122,20 @@ def main(args, pass_through_args):
         if sum(sum(x) == 1 for x in gts if not None in x) > args.max_hets: continue
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
-        idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
+        test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
+        test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
+
+
+        idxs = []
+        for i, ts in enumerate(test_samples):
+            vdict = {"SVTYPE": svtype}
+            vdict.update(dict(ts.items()))
+            for k in vdict.keys():
+                if isinstance(vdict[k], tuple) and len(vdict[k]) == 1:
+                    vdict[k] = vdict[k][0]
+            exprs = [check_expr(vdict, fs) for fs in filters]
+            if any(exprs):
+                idxs.append(i)
 
         vsamples = [vcf_samples[i] for i in idxs]
         bams = [names_to_bams[s] for s in vsamples]
@@ -89,14 +144,14 @@ def main(args, pass_through_args):
             for vs in vsamples:
                 s = ped_samples.get(vs)
                 if s is None: continue
-                if s.mom is not None and not s.mom.id in vsamples and s.mom.id in vcf_samples:
+                if s.mom is not None and not s.mom.id in vsamples and s.mom.id in vcf_samples_set:
                     vsamples.append(s.mom.id)
                     bams.append(names_to_bams[s.mom.id])
-                if s.dad is not None and not s.dad.id in vsamples and s.dad.id in vcf_samples:
+                if s.dad is not None and not s.dad.id in vsamples and s.dad.id in vcf_samples_set:
                     vsamples.append(s.dad.id)
                     bams.append(names_to_bams[s.dad.id])
                 for kid in s.kids:
-                    if not kid.id in vsamples and kid.id in vcf_samples:
+                    if not kid.id in vsamples and kid.id in vcf_samples_set:
                         vsamples.append(kid.id)
                         bams.append(names_to_bams[kid.id])
 
@@ -113,8 +168,6 @@ def main(args, pass_through_args):
             bams.extend(names_to_bams[s] for s in hsamples)
             vsamples += ["control-sample: " + s for s in hsamples]
 
-        svtype = v.info.get("SVTYPE", "SV")
-        if svtype == "BND": continue
 
         fig_path = "{out_dir}/{svtype}_{chrom}_{start}_{end}.{itype}".format(
                 svtype=svtype,
@@ -127,6 +180,7 @@ def main(args, pass_through_args):
             fig_path=fig_path,
             chrom=v.chrom, start=v.start, end=v.stop))
 
+
 if __name__ == "__main__":
     import argparse
 
@@ -135,6 +189,9 @@ if __name__ == "__main__":
     p.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
     p.add_argument("--ped", help="path ped (or .fam) file")
     p.add_argument("--min-call-rate", type=float, help="only plot variants with at least this call-rate", default=0.9)
+    p.add_argument("--filter", action="append", help="simple filter that samples" +
+            " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'" +
+            " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
     p.add_argument("-O", "--output-type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
     p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", default=10)
     p.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
