@@ -262,7 +262,7 @@ class SplitRead:
 
     Contains start(int), end(int), strand(bool True=forward), query position (int), MI (int molecular identifier), HP (int haplotype)
     """
-    def __init__(self, start,end,strand,query_pos, MI_tag, HP_tag):
+    def __init__(self, start,end,strand,query_pos, MI_tag=None, HP_tag=None):
         """Create SplitRead instance
 
         Genomic interval is defined by start, end, and query_pos integers
@@ -1709,6 +1709,8 @@ def plot_samples(read_data,
             curr_ax.set_xlim([0,1])
             if same_yaxis_scales:
                 curr_ax.set_ylim([0,max_insert_size])
+            else:
+                curr_ax.set_ylim([0,curr_max_insert_size])
             curr_ax.spines['top'].set_visible(False)
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)
