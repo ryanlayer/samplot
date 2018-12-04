@@ -1,10 +1,12 @@
 from __future__ import print_function
 import pysam
+import operator
 import random
 import gzip
 import os
 
 HERE = os.path.dirname(__file__)
+def xopen(path): return gzip.open(path) if path.endswith(".gz") else open(path)
 
 class Sample(object):
     __slots__ = 'family_id id paternal_id maternal_id mom dad kids i'.split()
@@ -17,7 +19,12 @@ class Sample(object):
         self.kids = []
         self.i = -1 # index in the vcf.
 
+    def __repr__(self):
+        return "Sample(id:{id})".format(id=self.id)
+
 def parse_ped(path, vcf_samples=None):
+    if path is None:
+        return {}
     samples = []
     look = {}
     for line in open(path):
@@ -31,8 +38,8 @@ def parse_ped(path, vcf_samples=None):
         s.mom = look.get(s.maternal_id)
         if s.mom is not None:
             s.mom.kids.append(s)
-    # match these samples to the ones in the VCF.
 
+    # match these samples to the ones in the VCF.
     if vcf_samples is not None:
         result = []
         for i, vs in enumerate(vcf_samples):
@@ -43,8 +50,6 @@ def parse_ped(path, vcf_samples=None):
 
     return {s.id: s for s in samples}
 
-
-def xopen(path): return gzip.open(path) if path.endswith(".gz") else open(path)
 
 def get_names_to_bams(bams):
     """
@@ -58,13 +63,14 @@ def get_names_to_bams(bams):
         names[b.header["RG"][0]['SM']] = p
     return names
 
-import operator
+
 cmp_lookup = {
-        '>': operator.gt,
+        '>': operator.gt, # e.g. DHFC < 0.5
         '<': operator.lt,
         '<=': operator.le,
         '>=': operator.ge,
-        '==': operator.eq
+        '==': operator.eq,
+        'contains': operator.contains, # e.g. CSQ contains HIGH
         }
 
 def tryfloat(v):
@@ -73,10 +79,15 @@ def tryfloat(v):
     except:
         return v
 
-def toexprs(astr):
+def to_exprs(astr):
     """
     an expr is just a 3-tuple of "name", fn, value"
     e.g. "DHFFC", operator.lt, 0.7"
+    >>> to_exprs("DHFFC < 0.5 & SVTYPE == 'DEL'")
+    [('DHFFC', <built-in function lt>, 0.5), ('SVTYPE', <built-in function eq>, 'DEL')]
+
+    >>> to_exprs("CSQ contains 'HIGH'")
+    [('CSQ', <built-in function contains>, 'HIGH')]
     """
     astr = (x.strip() for x in astr.strip().split("&"))
     result = []
@@ -84,27 +95,48 @@ def toexprs(astr):
         a = [x.strip() for x in a.split()]
         assert len(a) == 3, ("bad expression", a)
         assert a[1] in cmp_lookup, ("comparison:" + a[1] + " not supported. must be one of:" + ",".join(cmp_lookup.keys()))
-        result.append((a[0], cmp_lookup[a[1]], tryfloat(a[2])))
+        result.append((a[0], cmp_lookup[a[1]], tryfloat(a[2].strip("'").strip('"'))))
     return result
 
 def check_expr(vdict, expr):
+    """
+    >>> check_expr({"CSQ": "asdfHIGHasdf"}, to_exprs("CSQ contains 'HIGH'"))
+    True
+
+    >>> check_expr({"CSQ": "asdfHIGHasdf", "DHFC": 1.1}, to_exprs("CSQ contains 'HIGH' & DHFC < 0.5"))
+    False
+
+    >>> check_expr({"CSQ": "asdfHIGHasdf", "DHFC": 1.1}, to_exprs("CSQ contains 'HIGH' & DHFC < 1.5"))
+    True
+    """
+
     # a single set of exprs must be "anded"
     for name, fcmp, val in expr:
+        # NOTE: asking for a missing annotation will return false.
+        if not name in vdict: return False
         if not fcmp(vdict[name], val):
             return False
     return True
+
+def make_single(vdict):
+    """
+    >>> d = {"xx": (1,)}
+    >>> make_single(d)
+    >>> d
+    {'xx': 1}
+    """
+    for k in vdict.keys():
+        if isinstance(vdict[k], tuple) and len(vdict[k]) == 1:
+            vdict[k] = vdict[k][0]
 
 def main(args, pass_through_args):
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
     vcf_samples_set = set(vcf_samples)
 
-    filters = [toexprs(f) for f in args.filter]
+    filters = [to_exprs(f) for f in args.filter]
 
-    if args.ped:
-        ped_samples = parse_ped(args.ped, vcf_samples)
-    else:
-        ped_samples = {}
+    ped_samples = parse_ped(args.ped, vcf_samples)
 
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
@@ -125,16 +157,14 @@ def main(args, pass_through_args):
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
         test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
 
+        odict = make_single(dict(v.info.items()))
 
         idxs = []
         for i, ts in enumerate(test_samples):
-            vdict = {"SVTYPE": svtype}
-            vdict.update(dict(ts.items()))
-            for k in vdict.keys():
-                if isinstance(vdict[k], tuple) and len(vdict[k]) == 1:
-                    vdict[k] = vdict[k][0]
-            exprs = [check_expr(vdict, fs) for fs in filters]
-            if any(exprs):
+            vdict = odict.copy()
+            vdict.update(make_single(dict(ts.items())))
+
+            if any(check_expr(vdict, fs) for fs in filters):
                 idxs.append(i)
 
         vsamples = [vcf_samples[i] for i in idxs]
@@ -168,7 +198,6 @@ def main(args, pass_through_args):
             bams.extend(names_to_bams[s] for s in hsamples)
             vsamples += ["control-sample: " + s for s in hsamples]
 
-
         fig_path = "{out_dir}/{svtype}_{chrom}_{start}_{end}.{itype}".format(
                 svtype=svtype,
                 out_dir=args.out_dir, chrom=v.chrom, start=v.start, end=v.stop, itype=args.output_type)
@@ -183,6 +212,12 @@ def main(args, pass_through_args):
 
 if __name__ == "__main__":
     import argparse
+    import sys
+    import doctest
+    if sys.argv[1] == "test":
+        r = doctest.testmod()
+        print(r)
+        sys.exit(r.failed)
 
     p = argparse.ArgumentParser("note that additional arguments are passed through to samplot.py")
     p.add_argument("--vcf", "-v", help="VCF file containing structural variants")
