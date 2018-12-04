@@ -1,4 +1,5 @@
 from __future__ import print_function
+import json
 import pysam
 import operator
 import random
@@ -7,6 +8,46 @@ import os
 
 HERE = os.path.dirname(__file__)
 def xopen(path): return gzip.open(path) if path.endswith(".gz") else open(path)
+
+html_tmpl = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<link href="https://unpkg.com/tabulator-tables@4.1.3/dist/css/tabulator_modern.min.css" rel="stylesheet">
+<script type="text/javascript" src="https://unpkg.com/tabulator-tables@4.1.3/dist/js/tabulator.min.js"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+<body>
+Click a row to see the <a href="https://github.com/ryanlayer/samplot" target="_blank">samplot</a> image.
+<div id="xtable"></div>
+<div id="ximg"><img src="https://raw.githubusercontent.com/ryanlayer/samplot/master/doc/imgs/samplot_logo_v5.png"/></div>
+<script>
+
+var rowClick = %s
+
+var table = new Tabulator("#xtable", {
+    height: 400,
+    selectable: 1,
+    layout:"fitColumns",
+    pagination:"local",
+    paginationSize:1000,
+    columns: [
+      {title:"chrom", field:"chrom", width: 100},
+      {title:"start", field:"start"},
+      {title:"end", field:"end"},
+      {title:"size", field:"size"},
+      {title:"type", field:"SVTYPE", width: 80},
+      {title:"# of samples", field:"n_samples"},
+      {title:"samples", field:"samples", width:200},
+    ],
+    rowClick: rowClick,
+})
+table.setData(%s)
+
+</script>
+</body>
+</html>
+"""
+
 
 class Sample(object):
     __slots__ = 'family_id id paternal_id maternal_id mom dad kids i'.split()
@@ -71,6 +112,7 @@ cmp_lookup = {
         '>=': operator.ge,
         '==': operator.eq,
         'contains': operator.contains, # e.g. CSQ contains HIGH
+        'exists': lambda a,b: True, # e.g. exists smoove_gene
         }
 
 def tryfloat(v):
@@ -93,6 +135,9 @@ def to_exprs(astr):
     result = []
     for a in astr:
         a = [x.strip() for x in a.split()]
+        if len(a) == 2:
+            assert a[1] == "exists", ("bad expression", a)
+            a.append("extra_arg")
         assert len(a) == 3, ("bad expression", a)
         assert a[1] in cmp_lookup, ("comparison:" + a[1] + " not supported. must be one of:" + ",".join(cmp_lookup.keys()))
         result.append((a[0], cmp_lookup[a[1]], tryfloat(a[2].strip("'").strip('"'))))
@@ -108,6 +153,15 @@ def check_expr(vdict, expr):
 
     >>> check_expr({"CSQ": "asdfHIGHasdf", "DHFC": 1.1}, to_exprs("CSQ contains 'HIGH' & DHFC < 1.5"))
     True
+
+    >>> check_expr({"smoove_gene": "asdf"}, to_exprs("smoove_gene exists"))
+    True
+
+    >>> check_expr({"smooe_gene": "asdf"}, to_exprs("smoove_gene exists"))
+    False
+
+    >>> check_expr({"smoove_gene": ""}, to_exprs("smoove_gene exists"))
+    True
     """
 
     # a single set of exprs must be "anded"
@@ -122,12 +176,12 @@ def make_single(vdict):
     """
     >>> d = {"xx": (1,)}
     >>> make_single(d)
-    >>> d
     {'xx': 1}
     """
     for k in vdict.keys():
         if isinstance(vdict[k], tuple) and len(vdict[k]) == 1:
             vdict[k] = vdict[k][0]
+    return vdict
 
 def main(args, pass_through_args):
     vcf = pysam.VariantFile(args.vcf)
@@ -142,10 +196,11 @@ def main(args, pass_through_args):
       os.makedirs(args.out_dir)
 
     names_to_bams = get_names_to_bams(args.bams)
+    tabledata = []
 
     for v in vcf:
         svtype = v.info.get("SVTYPE", "SV")
-        if svtype == "BND": continue
+        if svtype in ("BND", "INS"): continue
 
         gts = [s.get("GT", (None, None)) for s in v.samples.values()]
 
@@ -154,24 +209,28 @@ def main(args, pass_through_args):
         if sum(sum(x) == 1 for x in gts if not None in x) > args.max_hets: continue
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
+
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
-        test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
 
-        odict = dict(v.info.items())
-        make_single(odict)
+        if len(filters) == 0:
+            idxs = test_idxs
+        else:
+            idxs = []
+            test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
+            odict = make_single(dict(v.info.items()))
+            for i, ts in enumerate(test_samples):
+                vdict = odict.copy()
+                vdict.update(make_single(dict(ts.items())))
 
-        idxs = []
-        for i, ts in enumerate(test_samples):
-            vdict = odict.copy()
-            t = dict(ts.items())
-            make_single(t)
-            vdict.update(t)
-
-            if any(check_expr(vdict, fs) for fs in filters):
-                idxs.append(test_idxs[i])
+                if any(check_expr(vdict, fs) for fs in filters):
+                    idxs.append(test_idxs[i])
+        if len(idxs) == 0: continue
 
         vsamples = [vcf_samples[i] for i in idxs]
         bams = [names_to_bams[s] for s in vsamples]
+        # save these for the html.
+        n_samples = len(vsamples)
+        sample_str = ",".join(vsamples)
         # try to get family members
         if args.ped is not None:
             for vs in vsamples:
@@ -199,19 +258,37 @@ def main(args, pass_through_args):
 
             hsamples = [vcf_samples[i] for i in hom_ref_idxs]
             bams.extend(names_to_bams[s] for s in hsamples)
-            vsamples += ["control-sample: " + s for s in hsamples]
+            vsamples += ["control-sample:" + s for s in hsamples]
 
-        fig_path = "{out_dir}/{svtype}_{chrom}_{start}_{end}.{itype}".format(
-                svtype=svtype,
-                out_dir=args.out_dir, chrom=v.chrom, start=v.start, end=v.stop, itype=args.output_type)
+        data_dict = {"chrom": v.chrom, "start": v.start, "end": v.stop,
+                "SVTYPE": svtype, "size": v.stop - v.start, "samples":
+                sample_str, "n_samples": n_samples}
+        fig_path = "{out_dir}/{SVTYPE}_{chrom}_{start}_{end}.{itype}".format(
+                out_dir=args.out_dir, itype=args.output_type,
+                **data_dict)
+        tabledata.append(data_dict)
 
-        print("python {here}/samplot.py {extra_args} --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
+        print("python {here}/samplot.py {extra_args} -z 3 --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
             titles=" ".join(vsamples),
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
             chrom=v.chrom, start=v.start, end=v.stop))
 
+
+    rowFn = """
+    function(e, row) {{
+        var d = row.getData()
+        var img = d['SVTYPE'] + "_" + d['chrom'] + "_" + d['start'] + "_" + d["end"] + ".{itype}"
+        var i = jQuery("#ximg")
+        i.empty()
+        i.append('<img width="100%" src="' + img + '"/>"')
+        return true
+
+    }}""".format(out_dir=args.out_dir, itype=args.output_type)
+
+    with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
+        fh.write(html_tmpl % (rowFn, json.dumps(tabledata)))
 
 if __name__ == "__main__":
     import argparse
