@@ -38,6 +38,7 @@ var table = new Tabulator("#xtable", {
       {title:"type", field:"SVTYPE", width: 80},
       {title:"# of samples", field:"n_samples"},
       {title:"samples", field:"samples", width:200},
+      %s
     ],
     rowClick: rowClick,
 })
@@ -183,6 +184,13 @@ def make_single(vdict):
             vdict[k] = vdict[k][0]
     return vdict
 
+def get_dn_row(ped_samples):
+    for s in ped_samples.values():
+        if s.mom is not None and s.dad is not None:
+            return '{title:"de novo", field:"dn"}'
+    return ''
+
+
 def main(args, pass_through_args):
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
@@ -192,6 +200,8 @@ def main(args, pass_through_args):
 
     ped_samples = parse_ped(args.ped, vcf_samples)
 
+    # this is empty unless we have a sample with both parents defined.
+    dn_row = get_dn_row(ped_samples)
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
@@ -206,18 +216,18 @@ def main(args, pass_through_args):
         gts = [s.get("GT", (None, None)) for s in v.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
-        # requisite hets
-        if sum(sum(x) == 1 for x in gts if not None in x) > args.max_hets: continue
+        # requisite hets/hom-alts
+        if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: continue
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
+        test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
 
         if len(filters) == 0:
             idxs = test_idxs
         else:
             idxs = []
-            test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
             odict = make_single(dict(v.info.items()))
             for i, ts in enumerate(test_samples):
                 vdict = odict.copy()
@@ -226,15 +236,29 @@ def main(args, pass_through_args):
                 if any(check_expr(vdict, fs) for fs in filters):
                     idxs.append(test_idxs[i])
         if len(idxs) == 0: continue
+        is_dn = []
 
+        # we call it a de novo if the sample passed the filters but the mom and
+        # dad were not even with the genotype before filtering. so stringent
+        # filtering on the kid and lenient on parents.
         vsamples = [vcf_samples[i] for i in idxs]
         bams = [names_to_bams[s] for s in vsamples]
+        if dn_row != "":
+            test_sample_names = {s.name for s in test_samples}
+            for vs in vsamples:
+                sample = ped_samples[vs]
+                if sample.mom is None or sample.dad is None: continue
+                if not sample.mom.id in test_sample_names and not sample.dad.id in test_sample_names:
+                    is_dn.append(sample.id)
+
+
         # save these for the html.
         n_samples = len(vsamples)
         sample_str = ",".join(vsamples)
         # try to get family members
         if args.ped is not None:
-            for vs in vsamples:
+            # do DN samples first so we can see parents.
+            for vs in is_dn + [x for x in vsamples if not x in is_dn]:
                 s = ped_samples.get(vs)
                 if s is None: continue
                 if s.mom is not None and not s.mom.id in vsamples and s.mom.id in vcf_samples_set:
@@ -262,10 +286,11 @@ def main(args, pass_through_args):
             bams.extend(names_to_bams[s] for s in hsamples)
             vsamples += ["control-sample:" + s for s in hsamples]
 
-        print(len(bams), file=sys.stderr)
         data_dict = {"chrom": v.chrom, "start": v.start, "end": v.stop,
                 "SVTYPE": svtype, "size": v.stop - v.start, "samples":
                 sample_str, "n_samples": n_samples}
+        if dn_row != "":
+            data_dict["dn"] = ",".join(is_dn)
         fig_path = "{out_dir}/{SVTYPE}_{chrom}_{start}_{end}.{itype}".format(
                 out_dir=args.out_dir, itype=args.output_type,
                 **data_dict)
@@ -277,7 +302,6 @@ def main(args, pass_through_args):
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
             chrom=v.chrom, start=v.start, end=v.stop))
-        #if len(tabledata) > 200: break
 
 
     rowFn = """
@@ -292,7 +316,7 @@ def main(args, pass_through_args):
     }}""".format(out_dir=args.out_dir, itype=args.output_type)
 
     with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
-        fh.write(html_tmpl % (rowFn, json.dumps(tabledata)))
+        fh.write(html_tmpl % (rowFn, dn_row, json.dumps(tabledata)))
 
 if __name__ == "__main__":
     import argparse
