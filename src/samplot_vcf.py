@@ -201,6 +201,7 @@ def main(args, pass_through_args):
     for v in vcf:
         svtype = v.info.get("SVTYPE", "SV")
         if svtype in ("BND", "INS"): continue
+        if v.stop - v.start > args.max_mb * 1000000: continue
 
         gts = [s.get("GT", (None, None)) for s in v.samples.values()]
 
@@ -237,17 +238,18 @@ def main(args, pass_through_args):
                 s = ped_samples.get(vs)
                 if s is None: continue
                 if s.mom is not None and not s.mom.id in vsamples and s.mom.id in vcf_samples_set:
-                    vsamples.append(s.mom.id)
+                    vsamples.append("mom-of-%s[%s]" % (vs, s.mom.id))
                     bams.append(names_to_bams[s.mom.id])
                 if s.dad is not None and not s.dad.id in vsamples and s.dad.id in vcf_samples_set:
-                    vsamples.append(s.dad.id)
+                    vsamples.append("dad-of-%s[%s]" % (vs, s.dad.id))
                     bams.append(names_to_bams[s.dad.id])
                 for kid in s.kids:
                     if not kid.id in vsamples and kid.id in vcf_samples_set:
-                        vsamples.append(kid.id)
+                        vsamples.append("kid-of-%s[%s]" % (vs, kid.id))
                         bams.append(names_to_bams[kid.id])
 
-            if len(bams) > 1.5 * args.max_hets: break
+                    if len(bams) > 1.5 * args.max_hets: break
+                if len(bams) > 1.5 * args.max_hets: break
 
         elif len(bams) < 6:
             # extend with some controls:
@@ -260,6 +262,7 @@ def main(args, pass_through_args):
             bams.extend(names_to_bams[s] for s in hsamples)
             vsamples += ["control-sample:" + s for s in hsamples]
 
+        print(len(bams), file=sys.stderr)
         data_dict = {"chrom": v.chrom, "start": v.start, "end": v.stop,
                 "SVTYPE": svtype, "size": v.stop - v.start, "samples":
                 sample_str, "n_samples": n_samples}
@@ -274,6 +277,7 @@ def main(args, pass_through_args):
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
             chrom=v.chrom, start=v.start, end=v.stop))
+        #if len(tabledata) > 200: break
 
 
     rowFn = """
@@ -294,7 +298,7 @@ if __name__ == "__main__":
     import argparse
     import sys
     import doctest
-    if sys.argv[1] == "test":
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
         r = doctest.testmod()
         print(r)
         sys.exit(r.failed)
@@ -309,6 +313,7 @@ if __name__ == "__main__":
             " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
     p.add_argument("-O", "--output-type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
     p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", default=10)
+    p.add_argument("--max-mb", type=int, help="skip variants longer than this many megabases", default=1)
     p.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
 
     a, pass_through_args = p.parse_known_args()
