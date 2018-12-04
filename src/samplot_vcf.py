@@ -157,15 +157,18 @@ def main(args, pass_through_args):
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
         test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
 
-        odict = make_single(dict(v.info.items()))
+        odict = dict(v.info.items())
+        make_single(odict)
 
         idxs = []
         for i, ts in enumerate(test_samples):
             vdict = odict.copy()
-            vdict.update(make_single(dict(ts.items())))
+            t = dict(ts.items())
+            make_single(t)
+            vdict.update(t)
 
             if any(check_expr(vdict, fs) for fs in filters):
-                idxs.append(i)
+                idxs.append(test_idxs[i])
 
         vsamples = [vcf_samples[i] for i in idxs]
         bams = [names_to_bams[s] for s in vsamples]
@@ -202,7 +205,7 @@ def main(args, pass_through_args):
                 svtype=svtype,
                 out_dir=args.out_dir, chrom=v.chrom, start=v.start, end=v.stop, itype=args.output_type)
 
-        print("python {here}/samplot.py {extra_args} --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -w 2000 -b {bams}".format(here=HERE,
+        print("python {here}/samplot.py {extra_args} --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
             titles=" ".join(vsamples),
             svtype="-t " + svtype if svtype != "SV" else "",
@@ -223,7 +226,7 @@ if __name__ == "__main__":
     p.add_argument("--vcf", "-v", help="VCF file containing structural variants")
     p.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
     p.add_argument("--ped", help="path ped (or .fam) file")
-    p.add_argument("--min-call-rate", type=float, help="only plot variants with at least this call-rate", default=0.9)
+    p.add_argument("--min-call-rate", type=float, help="only plot variants with at least this call-rate", default=0.95)
     p.add_argument("--filter", action="append", help="simple filter that samples" +
             " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'" +
             " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
