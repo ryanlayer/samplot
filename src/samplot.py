@@ -401,7 +401,7 @@ def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
     Set of CIGAR operations and lengths as pairs passed in as cigartuples
     Direction of alignment set to reverse with reverse boolean
 
-    Return list of Aalignments
+    Return list of Alignments
     """
     alignments = []
     q_pos = 0
@@ -453,7 +453,7 @@ def merge_alignments(min_gap, alignments):
             merged_alignments.append(alignment)
         else:
             if alignment.start < merged_alignments[-1].end + min_gap:
-                merged_alignments[-1].end = alignment.start
+                merged_alignments[-1].end = alignment.end
             else:
                 merged_alignments.append(alignment)
     return merged_alignments
@@ -1477,7 +1477,7 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
         long_reads = {}
         coverage = {}
         linked_reads = {}
-
+        
         for read in bam_file.fetch(chrom,
                                    max(0,range_min-1000), 
                                    range_max+1000):
@@ -1495,7 +1495,6 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
                     add_pair_end(read, pairs, linked_reads)
                     add_split(read, splits, bam_file, linked_reads)
             add_coverage(read, coverage, options.minq)
-
 
         pair_insert_sizes = get_pair_insert_sizes(pairs)
         split_insert_sizes = get_split_insert_size(splits)
