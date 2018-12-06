@@ -17,7 +17,15 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
-read_types_used = {
+COLORS = { 
+    'Deletion/Normal': 'black',
+    'Duplication': 'red',
+    'Inversion': 'blue'
+}
+
+
+
+READ_TYPES_USED = {
     "Deletion/Normal":False,
     "Duplication":False,
     "Inversion":False,
@@ -27,10 +35,30 @@ read_types_used = {
     "Paired-end read": False
 }
 
-#{{{def calc_query_pos_from_cigar(cigar, strand):
+#pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
+CIGAR_MAP = { 
+    'M' : 0,
+    'I' : 1,
+    'D' : 2,
+    'N' : 3,
+    'S' : 4,
+    'H' : 5,
+    'P' : 6,    
+    '=' : 7,
+    'X' : 8,
+    'B' : 9
+}
+
 def calc_query_pos_from_cigar(cigar, strand):
-    cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', \
-                  cigar)]
+    """Uses the CIGAR string to determine the query position of a read
+
+    The cigar arg is a string like the following: 86M65S
+    The strand arg is a boolean, True for forward strand and False for reverse
+
+    Returns pair of ints for query start, end positions
+    """
+
+    cigar_ops = [[int(op[0]), op[1]] for op in re.findall('(\d+)([A-Za-z])', cigar)]
 
     order_ops = cigar_ops
     if not strand: # - strand
@@ -40,7 +68,7 @@ def calc_query_pos_from_cigar(cigar, strand):
     qe_pos = 0
     q_len = 0
 
-    for op_position  in range(len(cigar_ops)):
+    for op_position in range(len(cigar_ops)):
         op_len = cigar_ops[op_position][0]
         op_type = cigar_ops[op_position][1]
 
@@ -55,10 +83,16 @@ def calc_query_pos_from_cigar(cigar, strand):
             q_len += op_len
 
     return qs_pos, qe_pos
-#}}}
 
-#{{{ def sample_normal(max_depth, all_pairs):
 def sample_normal(max_depth, pairs, z):
+    """Downsamples paired-end reads 
+    
+    Selects max_depth reads
+    Does not remove discordant pairs, those with insert distance greater than z stdevs from mean
+
+    Returns downsampled pairs list
+    """
+
     sampled_pairs = {}
     plus_minus_pairs = {}
 
@@ -86,7 +120,7 @@ def sample_normal(max_depth, pairs, z):
             pair = pairs[read_name]
             if len(pair) != 2: 
                 continue
-            if pair[1].end - pair[0].start >= mean + options.z*stdev:
+            if pair[1].end - pair[0].start >= mean + z*stdev:
                 sampled_pairs[read_name] = pair 
             else:
                 inside_norm[read_name] = pair 
@@ -102,10 +136,15 @@ def sample_normal(max_depth, pairs, z):
             sampled_pairs[read_name] = plus_minus_pairs[read_name]
 
     return sampled_pairs
-#}}}
 
-#{{{ def add_coverage(read, coverage):
-def add_coverage(read, coverage):
+def add_coverage(read, coverage, minq):
+    """Adds a read to the known coverage 
+    
+    Coverage from Pysam read is added to the coverage list
+    Coverage list is a pair of high- and low-quality lists
+    Quality is determined by minq, which is min quality
+    """
+
     hp = 0
 
     if read.has_tag('HP'):
@@ -118,56 +157,87 @@ def add_coverage(read, coverage):
     if not read.cigartuples: return
 
     for op,length in read.cigartuples:
-        if op in [0,7,8]:
+        if op in [CIGAR_MAP['M'], CIGAR_MAP['='], CIGAR_MAP['X']]:
             for pos in range(curr_pos, curr_pos+length+1):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = [0,0]
 
-                #the two coverage tracks are [0] high-coverage and [1] low-coverage
-                if read.mapping_quality > options.minq:
+                #the two coverage tracks are [0] high-quality and [1] low-quality
+                if read.mapping_quality > minq:
                     coverage[hp][pos][0] += 1
                 else:
                     coverage[hp][pos][1] += 1
             curr_pos += length
-        elif op == 1:
+        elif op == CIGAR_MAP['I']:
             curr_pos = curr_pos
-        elif op == 2:
+        elif op == CIGAR_MAP['D']:
             curr_pos += length
-        elif op == 3:
+        elif op == CIGAR_MAP['N']:
             curr_pos = length
-        elif op == 4:
+        elif op == CIGAR_MAP['S']:
             curr_pos = curr_pos
-        elif op == 5:
+        elif op == CIGAR_MAP['H']:
             curr_pos = curr_pos
         else:
             curr_pos += length
-#}}}
 
-#{{{ class PairEnd:
-class PairEnd:
-    def __init__(self, read):
-        self.start = read.reference_start
-        self.end = read.reference_end
-        self.strand = not(read.is_reverse)
+class PairedEnd:
+    """container of paired-end read info
+
+    Contains start(int), end(int), strand(bool True=forward), MI (int molecular identifier), HP (int haplotype)
+    """
+    
+    def __init__(self, start, end, is_reverse, MI_tag, HP_tag):
+        """Create PairedEnd instance
+
+        Genomic interval is defined by start and end integers
+        Strand is opposite of is_reverse
+        Molecular identifier and Haplotype are integers if present, else False
+        """
+        self.start = start
+        self.end = end
+        self.strand = not(is_reverse)
+        # molecular identifier - linked reads only
         self.MI = None
-
-        if read.has_tag('MI'):
-            self.MI = int(read.get_tag('MI'))
-
+        #haplotype - phased reads only
         self.HP = 0
 
-        if read.has_tag('HP'):
-            self.HP =  int(read.get_tag('HP'))
-#}}}
+        if MI_tag:
+            self.MI = MI_tag
+        if HP_tag:
+            self.HP = HP_tag
+    
+    def __repr__(self):
+        return ('PairedEnd(%s,%s,%s,%s,%s)' % \
+                (self.start, self.end, self.strand,self.MI,self.HP))
 
-#{{{def add_pair_end(read, pairs):
 def add_pair_end(read, pairs, linked_reads):
+    """adds a (mapped, primary, non-supplementary, and paired) read to the pairs list
+
+    Pysam read is added as simpified PairedEnd instance to pairs
+    Also added to linked_reads list if there is an associated MI tag
+    """
+
     if read.is_unmapped: return
     if not (read.is_paired): return
     if read.is_secondary: return
     if read.is_supplementary: return
+
+    MI_tag = False
+    HP_tag = False
+
+    if read.has_tag('MI'):
+        MI_tag = int(read.get_tag('MI'))
+    if read.has_tag('HP'):
+        HP_tag = int(read.get_tag('HP'))
     
-    pe = PairEnd(read) 
+    READ_TYPES_USED["Paired-end read"] = True
+
+    pe = PairedEnd(read.reference_start, 
+        read.reference_end, 
+        read.is_reverse, 
+        MI_tag, 
+        HP_tag) 
 
     if pe.HP not in pairs:
         pairs[pe.HP] = {}
@@ -176,7 +246,7 @@ def add_pair_end(read, pairs, linked_reads):
         pairs[pe.HP][read.query_name] = []
 
     if pe.MI:
-        read_types_used["Linked read"] = True
+        READ_TYPES_USED["Linked read"] = True
         if pe.HP not in linked_reads:
             linked_reads[pe.HP] = {}
 
@@ -186,79 +256,107 @@ def add_pair_end(read, pairs, linked_reads):
 
     pairs[pe.HP][read.query_name].append( pe )
     pairs[pe.HP][read.query_name].sort(key=lambda x:x.start)
-#}}}
 
-#{{{ class SplitRead:
 class SplitRead:
-    def __init__(self, start,end,strand,query_pos):
+    """container of split read info
+
+    Contains start(int), end(int), strand(bool True=forward), query position (int), MI (int molecular identifier), HP (int haplotype)
+    """
+    def __init__(self, start,end,strand,query_pos, MI_tag=None, HP_tag=None):
+        """Create SplitRead instance
+
+        Genomic interval is defined by start, end, and query_pos integers
+        Strand is opposite of is_reverse
+        Molecular identifier and Haplotype are integers if present, else False
+        """
         self.start = start
         self.end = end
         self.strand = strand
         self.query_pos = query_pos
+        # molecular identifier - linked reads only
         self.MI = None
-
-        if read.has_tag('MI'):
-            self.MI = int(read.get_tag('MI'))
-
+        #haplotype - phased reads only
         self.HP = 0
 
-        if read.has_tag('HP'):
-            self.HP =  int(read.get_tag('HP'))
-#}}}
+        if MI_tag:
+            self.MI = MI_tag
+        if HP_tag:
+            self.HP = HP_tag
+    
+    def __repr__(self):
+        return ('SplitRead(%s,%s,%s,%s,%s,%s)' % \
+                (self.start, self.end, self.strand, self.query_pos, self.MI, self.HP))
 
-#{{{def add_split(read, splits):
+
 def add_split(read, splits, bam_file, linked_reads):
-    read_types_used["Split-read"] = True
-    if not read.is_secondary and \
-       not read.is_supplementary and \
-       read.has_tag('SA'):
+    """adds a (primary, non-supplementary) read to the splits list
+
+    Pysam read is added as simpified SplitRead instance to splits
+    Also added to linked_reads list if there is an associated MI tag
+    """
+    if read.is_secondary: return
+    if read.is_supplementary: return
+    if not read.has_tag('SA'): return
+
+    READ_TYPES_USED["Split-read"] = True
+    qs_pos, qe_pos = calc_query_pos_from_cigar(read.cigarstring, (not read.is_reverse))
+    
+    HP_tag = False 
+    MI_tag = False
+    if read.has_tag('MI'):
+        MI_tag = int(read.get_tag('MI'))
+
+    if read.has_tag('HP'):
+        HP_tag = int(read.get_tag('HP'))
+    sr = SplitRead(read.reference_start,
+                   read.reference_end,
+                   not(read.is_reverse),
+                   qs_pos,
+                   MI_tag,
+                   HP_tag)
+
+    if sr.MI:
+        if sr.HP not in linked_reads:
+            linked_read[sr.HP] = {}
+        if sr.MI not in linked_reads[sr.HP]:
+            linked_reads[sr.HP][sr.MI] = [[],[]]
+        linked_reads[sr.HP][sr.MI][1].append(read.query_name)
+
+    if sr.HP not in splits:
+        splits[sr.HP] = {}
+
+    splits[sr.HP][read.query_name]=[sr]
+
+    for sa in read.get_tag('SA').split(';'):
+        if len(sa) == 0:
+            continue
+        chrm = sa.split(',')[0]
+        if chrm != bam_file.get_reference_name(read.reference_id):
+            continue
+
+        pos = int(sa.split(',')[1])
+        strand = sa.split(',')[2] == '+'
+        cigar = sa.split(',')[3]
         qs_pos, qe_pos = \
-            calc_query_pos_from_cigar(read.cigarstring, \
-                                      (not read.is_reverse))
+                calc_query_pos_from_cigar(cigar, strand)
+        splits[sr.HP][read.query_name].append(SplitRead(pos,pos+qe_pos, strand, qs_pos))
 
-        sr = SplitRead(read.reference_start,
-                       read.reference_end,
-                       not(read.is_reverse),
-                       qs_pos)
+    if len(splits[sr.HP][read.query_name]) == 1:
+        del splits[sr.HP][read.query_name]
+    else:
+        splits[sr.HP][read.query_name].sort(key=lambda x:x.start)
 
-        if sr.MI:
-            if sr.HP not in linked_reads:
-                linked_read[sr.HP] = {}
-            if sr.MI not in linked_reads[sr.HP]:
-                linked_reads[sr.HP][sr.MI] = [[],[]]
-            linked_reads[sr.HP][sr.MI][1].append(read.query_name)
-
-        if sr.HP not in splits:
-            splits[sr.HP] = {}
-
-        splits[sr.HP][read.query_name]=[sr]
-
-        for sa in read.get_tag('SA').split(';'):
-            if len(sa) == 0:
-                continue
-            chrm = sa.split(',')[0]
-            if chrm != bam_file.get_reference_name(read.reference_id):
-                continue
-
-            pos = int(sa.split(',')[1])
-            strand = sa.split(',')[2] == '+'
-            cigar = sa.split(',')[3]
-            qs_pos, qe_pos = \
-                    calc_query_pos_from_cigar(cigar, strand)
-            splits[sr.HP][read.query_name].append(SplitRead(pos,
-                                                  pos+qe_pos,
-                                                  strand,
-                                                  qs_pos))
-
-        if len(splits[sr.HP][read.query_name]) == 1:
-            del splits[sr.HP][read.query_name]
-        else:
-            splits[sr.HP][read.query_name].sort(key=lambda x:x.start)
-#}}}
-
-#{{{class Alignment:
 class Alignment:
+    """container of alignment info, from CIGAR string
+
+    Contains start(int), end(int), strand(bool True=forward), query position (int)
+    """
     def __init__(self,start,end,strand,query_position):
+        """Create Alignment instance
+
+        Genomic interval is defined by start, end, and query_pos integers
+        Strand is bool (True for forward)
+        """
         self.start = start
         self.end = end
         self.strand = strand
@@ -268,11 +366,23 @@ class Alignment:
                                           self.end, 
                                           self.strand, 
                                           self.query_position]])
-#}}}
 
-#{{{class LongRead:
+    def __repr__(self):
+        return ('Alignment(%s,%s,%s,%s)' % \
+                (self.start, self.end, self.strand,self.query_position))
+
 class LongRead:
+    """container of LongRead info
+
+    Contains start(int), end(int), list of Alignments
+    """
+
     def __init__(self,start,end,alignments):
+        """Create LongRead instance
+
+        Genomic interval is defined by start, end integers
+        List of Alignments set by parameter
+        """
         self.start = start
         self.end = end
         self.alignments = alignments
@@ -280,70 +390,61 @@ class LongRead:
         return ','.join([str(x) for x in [self.start, 
                                           self.end, 
                                           len(self.alignments)]])
-#}}}
+    def __repr__(self):
+        return ('LongRead(%s,%s,%s)' % \
+                (self.start, self.end, len(self.alignments)))
     
-#{{{def get_alignments_from_cigar(curr_pos, cigartuples, reverse=False):
 def get_alignments_from_cigar(curr_pos, strand, cigartuples, reverse=False):
+    """Breaks CIGAR string into individual Aignments
+
+    Starting point within genome given by curr_pos and strand
+    Set of CIGAR operations and lengths as pairs passed in as cigartuples
+    Direction of alignment set to reverse with reverse boolean
+
+    Return list of Alignments
+    """
     alignments = []
     q_pos = 0
     if reverse:
         cigartuples = cigartuples[::-1]
     for op,length in cigartuples:
-        if op in [0,7,8]: #M, =, X
+        if op in [CIGAR_MAP['M'],CIGAR_MAP['='],CIGAR_MAP['X']]:
             alignments.append(Alignment(curr_pos,
                                         curr_pos+length,
                                         strand,
                                         q_pos))
             curr_pos += length
             q_pos += length
-        elif op == 1: #I
+        elif op == CIGAR_MAP['I']: 
             q_pos += length
-        elif op == 2: #D
+        elif op == CIGAR_MAP['D']:
             curr_pos += length
-        elif op == 3: #N
+        elif op == CIGAR_MAP['N']:
             curr_pos += length
-        elif op == 4: #S
+        elif op == CIGAR_MAP['S']:
             q_pos += length
     return alignments
-#}}}
 
-#{{{def get_cigartuples_from_string(cigarstring):
 def get_cigartuples_from_string(cigarstring):
+    """Extracts operations,lengths as tuples from cigar string"
+
+    Returns list of tuples of [operation,length]
+    """
     cigartuples = []
-
-    #pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
-    #M   BAM_CMATCH  0
-    #I   BAM_CINS    1
-    #D   BAM_CDEL    2
-    #N   BAM_CREF_SKIP   3
-    #S   BAM_CSOFT_CLIP  4
-    #H   BAM_CHARD_CLIP  5
-    #P   BAM_CPAD    6
-    #=   BAM_CEQUAL  7
-    #X   BAM_CDIFF   8
-    #B   BAM_CBACK   9
-
-    cigar_map = { 'M' : 0,
-                  'I' : 1,
-                  'D' : 2,
-                  'N' : 3,
-                  'S' : 4,
-                  'H' : 5,
-                  'P' : 6,
-                  '=' : 7,
-                  'X' : 8,
-                  'B' : 9}
-
     for match in re.findall(r'(\d+)([A-Z]{1})', cigarstring):
-        l = int(match[0])
-        o = match[1]
-        cigartuples.append((cigar_map[o], l))
+        length = int(match[0])
+        op = match[1]
+        cigartuples.append((CIGAR_MAP[op], length))
     
     return cigartuples
-#}}}
 
-#{{{def merge_alignments(min_gap, alignments):
 def merge_alignments(min_gap, alignments):
+    """Combines previously identified alignments if close together
+
+    Alignments are combined if within min_gap distance
+    
+    Returns list of Alignments
+    """
 
     merged_alignments = []
 
@@ -352,15 +453,18 @@ def merge_alignments(min_gap, alignments):
             merged_alignments.append(alignment)
         else:
             if alignment.start < merged_alignments[-1].end + min_gap:
-                merged_alignments[-1].end = alignment.start
+                merged_alignments[-1].end = alignment.end
             else:
                 merged_alignments.append(alignment)
     return merged_alignments
-#}}}
 
-#{{{def add_long_reads(read, long_reads, range_min, range_max):
-def add_long_reads(read, long_reads, range_min, range_max):
-    read_types_used["Aligned long read"] = True
+def add_long_reads(read, long_reads, range_min, range_max, min_event_size):
+    """Adds a (primary, non-supplementary, long) read to the long_reads list
+
+    Read added to long_reads if within the inteval defined by range_min, range_max
+    Alignments belonging to the LongRead instance combined if within the min_event_size distance apart
+    """
+    READ_TYPES_USED["Aligned long read"] = True
 
     if read.is_supplementary or read.is_secondary: return
 
@@ -372,7 +476,7 @@ def add_long_reads(read, long_reads, range_min, range_max):
     alignments = get_alignments_from_cigar(read.pos,
                                            not read.is_reverse,
                                            read.cigartuples)
-    min_gap = options.min_event_size
+    min_gap = min_event_size
     merged_alignments = merge_alignments(min_gap, alignments)
 
     read_strand = not read.is_reverse
@@ -404,10 +508,18 @@ def add_long_reads(read, long_reads, range_min, range_max):
     long_reads[hp][read.query_name].append(LongRead(read.reference_start,
                                                     read.reference_end,
                                                     merged_alignments))
-#}}}
 
-#{{{def get_long_read_plan(read_name, long_reads, splits):
 def get_long_read_plan(read_name, long_reads, range_min, range_max):
+    """Create a plan to render a long read
+
+    Plan consists of the largest event within the read 
+        (used to determine the y-axis position of read)
+        and the alignment types for plotting each Alignment within 
+        LongRead.alignments ALIGN, DUP, DEL, INVIN, INVOUT
+
+    Returns plan
+    """
+
     alignments = []
 
     for long_read in long_reads[read_name]:
@@ -469,10 +581,12 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
     plan = [max_gap, steps]
 
     return plan 
-#}}}
 
-#{{{def get_long_read_max_gap(read_name, long_reads):
 def get_long_read_max_gap(read_name, long_reads):
+    """Finds the largest gap between alignments in LongRead alignments, plus lengths of the  alignments 
+
+    Returns the integer max gap
+    """
     alignments = []
     for long_read in long_reads[read_name]:
         for alignment in long_read.alignments:
@@ -485,10 +599,11 @@ def get_long_read_max_gap(read_name, long_reads):
         curr_gap = abs(alignments[i].start - alignments[i-1].end)
         max_gap = max(max_gap,curr_gap)
     return max_gap
-#}}}
 
-#{{{def plot_variant(start, end, sv_type, ax, range_min, range_max):
 def plot_variant(start, end, sv_type, ax, range_min, range_max):
+    """Plots the variant bar at the top of the image
+
+    """
     r=[float(int(start) - range_min)/float(range_max - range_min), \
         float(int(end) - range_min)/float(range_max - range_min)]
     ax.plot(r,[0,0],'-',color='black',lw=8,solid_capstyle="butt",alpha=0.5)
@@ -515,10 +630,10 @@ def plot_variant(start, end, sv_type, ax, range_min, range_max):
 
     sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + sv_type
     ax.set_title(sv_title, fontsize=8)
-#}}}
 
-#{{{def plot_confidence_interval(start, end, sv_type, ax, range_min, range_max):
 def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
+    """Plots a confidence interval on the variant bar
+    """
     r=[float(int(breakpoint)-int(ci[0]) - range_min)/float(range_max - range_min), \
         float(int(breakpoint)+int(ci[1]) - range_min)/float(range_max - range_min)]
     
@@ -536,17 +651,26 @@ def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
     ax.tick_params(axis='y',length=0)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
-#}}}
 
+def get_pair_event_type(pe_read):
+    """Decide what type of event the read supports (del/normal, dup, inv)
+    """
+    event_by_strand = {
+        (True, False): 'Deletion/Normal',
+        (False, True): 'Duplication',
+        (False, False): 'Inversion',
+        (True, True): 'Inversion'
+    }
+    event_type = event_by_strand[pe_read[0].strand,pe_read[1].strand]
+    return event_type
 
-#{{{ def plot_pair(pair, y, ax, range_min, range_max):
 def plot_pair(pair, y, ax, range_min, range_max):
-    colors = { (True, False): 'black', # DEL
-               (False, True): 'red',   # DUP
-               (False, False): 'blue', # INV
-               (True, True): 'blue' } # INV
+    """Plots a PairedEnd read at the y-position corresponding to insert size
 
-    if pair[0].end < range_min  or pair[1].start > range_max:
+    If read lies outside the range-min or range_max, it is not plotted
+    """
+    
+    if pair[0].end < range_min or pair[1].start > range_max:
         return
 
     p = [float(pair[0].start - range_min)/float(range_max - range_min), \
@@ -557,14 +681,9 @@ def plot_pair(pair, y, ax, range_min, range_max):
     if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
         return
 
-    color = colors[(pair[0].strand, pair[1].strand)]
-    
-    if color == "black":
-        read_types_used["Deletion/Normal"] = True
-    elif color == "red":
-        read_types_used["Duplication"] = True
-    elif color == "blue":
-        read_types_used["Inversion"] = True
+    event_type = get_pair_event_type(pair)
+    READ_TYPES_USED[event_type] = True
+    color = COLORS[event_type]
 
     # plot the individual pair
     ax.plot(p,\
@@ -574,15 +693,15 @@ def plot_pair(pair, y, ax, range_min, range_max):
             lw=0.5, \
             marker='s', \
             markersize=marker_size, zorder=10)
-#}}}
 
-#{{{ def plot_pairs(all_pairs
 def plot_pairs(pairs,
                ax,
                range_min,
                range_max,
                curr_min_insert_size,
                curr_max_insert_size):
+    """Plots all PairedEnd reads for the region
+    """
 
     ## set the color of the pair based on the two strands
     for read_name in pairs:
@@ -595,17 +714,15 @@ def plot_pairs(pairs,
         # y value is the insert size
         insert_size = pair[1].end - pair[0].start
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         plot_pair(pair, insert_size, ax, range_min, range_max)
 
     return [curr_min_insert_size, curr_max_insert_size]
-#}}}
 
-#{{{ def plot_linked_reads(pairs,
 def plot_linked_reads(pairs,
                       splits,
                       linked_reads,
@@ -614,6 +731,8 @@ def plot_linked_reads(pairs,
                       range_max,
                       curr_min_insert_size,
                       curr_max_insert_size):
+    """Plots all LinkedReads for the region
+    """
 
     for linked_read in linked_reads:
         linked_pairs = []
@@ -663,9 +782,9 @@ def plot_linked_reads(pairs,
 
         insert_size = max(gap_sizes)
 
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         alignments.sort(key=lambda x: x[0])
@@ -696,20 +815,6 @@ def plot_linked_reads(pairs,
                 alpha=0.75, \
                 lw=0.25)
 
-#        last = alignments[0]
-#        for curr in alignments[1:]:
-#            start = last[1]
-#            end = curr[0]
-#            p = [float(start - range_min)/float(range_max - range_min), \
-#                 float(end - range_min)/float(range_max - range_min)]
-#
-#            ax.plot(p,
-#                    [insert_size,insert_size],\
-#                    '-',color='purple', \
-#                    alpha=0.05, \
-#                    lw=4)
-#            last = curr
-#
         for name in linked_reads[linked_read][0]:
             if name in pairs and len(pairs[name]) == 2:
                 pair = pairs[name]
@@ -721,10 +826,48 @@ def plot_linked_reads(pairs,
                 plot_split(split, insert_size, ax, range_min, range_max)
 
     return [curr_min_insert_size, curr_max_insert_size]
-#}}}
 
-#{{{def plot_split(split, y, ax, range_min, range_max):
+def get_split_event_type(split):
+    """Decide what type of event the read supports (del/normal, dup, inv)
+    """
+
+    first = split[0]
+    second = split[1]
+    if first.start > second.end:
+        second = split[0]
+        first = split[1]
+
+    # first.strand, second.strand, first.query<second.query,first.start<second.start
+    event_type_by_strand_and_order = {
+        (True, False)               : 'Inversion',       #mixed strands
+        (False, True)               : 'Inversion',       #mixed strands 
+        (True, True, True)          : 'Deletion/Normal', #forward strand
+        (True, True, False)         : 'Duplication',     #forward strand
+        (False, False, False, False): 'Deletion/Normal', #reverse strand
+        (False, False, False, True) : 'Duplication',     #reverse strand
+        (False, False, True, True)  : 'Deletion/Normal', #reverse strand
+        (False, False, True, False)  : 'Duplication'     #reverse strand
+    }
+    orientations = [first.strand, second.strand]
+    
+    #if same strand, need query position info
+    if orientations[0] == orientations[1]:
+        #first query position smaller than second query position, normal for forward strand
+        orientations.append(first.query_pos < second.query_pos)
+        
+        #reverse strand requires start position info
+        if False in orientations[:2]:
+            #first start smaller than second start, normal for forward strand
+            orientations.append(first.start < second.start)
+    event_type = event_type_by_strand_and_order[tuple(orientations)]
+    return event_type
+            
+
 def plot_split(split, y, ax, range_min, range_max):
+    """Plots a SplitRead at the y-position corresponding to insert size
+
+    If read lies outside the range-min or range_max, it is not plotted
+    """
     start = split[0]
     end = split[1]
     if start.start > end.end:
@@ -740,39 +883,9 @@ def plot_split(split, y, ax, range_min, range_max):
 
     if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
         return
-
-    # For a given SV, the orientation of the pairs and split do not match
-    # so we cannot use the colors dict here
-    color = 'black'
-    if start.strand != end.strand: #INV
-        if start.strand == True: 
-            #color = 'green'
-            color = 'blue'
-        else:
-            color = 'blue'
-    elif start.strand == True and \
-         end.strand == True and \
-         start.query_pos < end.query_pos: #DEL
-        color = 'black'
-    elif start.strand == False and \
-         end.strand == False and \
-         start.query_pos > end.query_pos: #DEL
-        if start.start < end.start:
-          color = 'red'
-        else:
-          color = 'black'
-    elif start.strand == True and \
-         end.strand == True and \
-         start.query_pos > end.query_pos: #DUP
-        color = 'red'
-    elif start.strand == False and \
-         end.strand == False and \
-         start.query_pos < end.query_pos: #DUP
-        if start.start < end.start:
-          color = 'black' # DEL
-        else:
-          color = 'red' # DUP
-
+    event_type = get_split_event_type(split)
+    color = COLORS[event_type]
+    
     ax.plot(p,\
             [y,y],\
             ':',\
@@ -781,15 +894,15 @@ def plot_split(split, y, ax, range_min, range_max):
             lw=1, \
             marker='o',
             markersize=marker_size)
-#}}}
 
-#{{{ def plot_splits(all_splits,
 def plot_splits(splits,
                 ax,
                 range_min,
                 range_max,
                 curr_min_insert_size,
                 curr_max_insert_size):
+    """Plots all SplitReads for the region
+    """
 
     for read_name in splits:
         split = splits[read_name]
@@ -803,29 +916,28 @@ def plot_splits(splits,
         insert_size = abs(end.start - start.end - 1)
 
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size < insert_size:
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size > insert_size:
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
             curr_max_insert_size = insert_size
 
         plot_split(split, insert_size, ax, range_min, range_max)
 
     return [curr_min_insert_size, curr_max_insert_size]
-#}}}
 
-#{{{ def plot_long_reads(all_long_reads,
 def plot_long_reads(long_reads,
                     ax,
                     range_min,
                     range_max,
                     curr_min_insert_size,
                     curr_max_insert_size):
+    """Plots all LongReads for the region
+    """
 
     Path = mpath.Path
 
     colors = { 'ALIGN' : 'orange',
                'DEL' : 'black',
-               #'INVIN' : 'green',
                'INVIN' : 'blue',
                'INVOUT' : 'blue',
                'DUP' : 'red' }
@@ -876,16 +988,21 @@ def plot_long_reads(long_reads,
                 ax.add_patch(pp)
 
     return [curr_min_insert_size, curr_max_insert_size]
-#}}}
 
-#{{{def plot_coverage(coverage,
-def plot_coverage(coverage,
-                  ax,
-                  range_min,
-                  range_max,
-                  hp_count,
-                  max_coverage, 
-                  tracktype):
+def plot_coverage(coverage, 
+                ax, 
+                range_min, 
+                range_max, 
+                hp_count,
+                max_coverage, 
+                tracktype,
+                yaxis_label_fontsize):
+    """Plots high and low quality coverage for the region
+
+    User may specify a preference between stacked and superimposed 
+        superimposed may cause unexpected behavior if low-quality depth is greater than high 
+    """
+   
     cover_x = []
     cover_y_lowqual = []
     cover_y_highqual = []
@@ -961,7 +1078,7 @@ def plot_coverage(coverage,
 
     # set axis parameters
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
-    ax2.tick_params(axis='y', colors='grey', labelsize=options.yaxis_label_fontsize)
+    ax2.tick_params(axis='y', colors='grey', labelsize=yaxis_label_fontsize)
     ax2.spines['top'].set_visible(False)
     ax2.spines['bottom'].set_visible(False)
     ax2.spines['left'].set_visible(False)
@@ -970,10 +1087,12 @@ def plot_coverage(coverage,
     ax2.tick_params(axis='y',length=0)
 
     return ax2
-#}}}
 
-#{{{def get_pair_insert_sizes(pairs):
 def get_pair_insert_sizes(pairs):
+    """Extracts the integer insert sizes for all pairs
+
+    Return list of integer insert sizes
+    """
     pair_insert_sizes = []
 
     for hp in pairs:
@@ -983,10 +1102,12 @@ def get_pair_insert_sizes(pairs):
                 second = pairs[hp][read_name][1]
                 pair_insert_sizes.append(second.end - first.start)
     return pair_insert_sizes
-#}}}
 
-#{{{def get_split_insert_size(splits):
 def get_split_insert_size(splits):
+    """Extracts the integer gap sizes for all split reads
+
+    Return list of integer gap sizes
+    """
     split_insert_sizes = []
 
     for hp in splits:
@@ -1000,10 +1121,12 @@ def get_split_insert_size(splits):
                     split_insert_sizes.append(abs(curr - last))
                 last = curr
     return split_insert_sizes
-#}}}
 
-#{{{def get_long_read_gap_sizes(long_reads):
 def get_long_read_gap_sizes(long_reads):
+    """Extracts the integer gap sizes for all long reads
+
+    Return list of integer gap sizes
+    """
     long_read_gap_sizes = [] 
 
     for hp in long_reads:
@@ -1011,15 +1134,12 @@ def get_long_read_gap_sizes(long_reads):
             long_read_gap_sizes.append(\
                     get_long_read_max_gap(read_name, long_reads[hp]))
     return long_read_gap_sizes
-#}}}
 
-class ReferenceAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        for bam in namespace.bams:
-            if "cram" in bam:
-                if namespace.reference == None:
-                    parser.error('Missing reference for CRAM')
 def pair(arg):
+    """Defines behavior for ArgParse pairs 
+
+    Pairs must be comma-separated list of two items
+    """
     try:
         parsed_arg = [int(x) for x in arg.split(',')]
         if len(parsed_arg) == 2:
@@ -1029,286 +1149,352 @@ def pair(arg):
     except:
         parser.error('Invalid pair values')
 
+def print_arguments(options):
+    """Prints out the arguments to samplot as a json object
 
-#{{{parser = ArgumentParser()
-parser = argparse.ArgumentParser(description="SAMPLOT creates images of genome regions from CRAM/SAM alignments, optimized for structural variant call review")
-parser.add_argument("--marker_size",
-                  type=int,
-                  default=3,
-                  help="Size of marks on pairs and splits (default 3) ",
-                  required=False)
+    Used as metadata for PlotCritic
+    """
+    if options.print_args or options.json_only:
+        import json
+        args_filename = os.path.splitext(options.output_file)[0] + ".json"
+        args_info = {
+            'titles': options.titles if options.titles else 'None',
+            'reference': options.reference if options.reference else 'None',
+            'bams': options.bams,
+            'output_file': options.output_file,
+            'start': options.start, 
+            'end': options.end,
+            'chrom': options.chrom,
+            'window': options.window,
+            'max_depth': options.max_depth if options.max_depth else 'None',
+            'sv_type': options.sv_type,
+            'transcript_file': options.transcript_file if options.transcript_file else 'None'
+        }
+        with open(args_filename, 'w') as outfile:
+            json.dump(args_info, outfile)
+ 
 
-parser.add_argument("-n",
-                  "--titles",
-                  help="Space-delimited list of plot titles. Use quote marks to include spaces (i.e. \"plot 1\" \"plot 2\")",
-                  type=str,
-                  nargs="+",
-                  required=False);
+def setup_arguments():
+    """Defines the allowed arguments for samplot
+    """
+    parser = argparse.ArgumentParser(
+            description="SAMPLOT creates images of genome regions from CRAM/SAM alignments, "+\
+                    "optimized for structural variant call review")
+    parser.add_argument("--marker_size",
+                      type=int,
+                      default=3,
+                      help="Size of marks on pairs and splits (default 3) ",
+                      required=False)
 
-parser.add_argument("-r",
-                  "--reference",
-                  help="Reference file for CRAM, required if CRAM files used",
-                  type=str,
-                  action=ReferenceAction,
-                  required=False);
+    parser.add_argument("-n",
+                      "--titles",
+                      help="Space-delimited list of plot titles. "+\
+                              "Use quote marks to include spaces (i.e. \"plot 1\" \"plot 2\")",
+                      type=str,
+                      nargs="+",
+                      required=False);
 
-parser.add_argument("-z",
-                  "--z",
-                  type=int,
-                  default=4,
-                  help="Number of stdevs from the mean (default 4)",
-                  required=False)
+    parser.add_argument("-r",
+                      "--reference",
+                      help="Reference file for CRAM, required if CRAM files used",
+                      type=str,
+                      required=False);
 
-parser.add_argument("-b",
-                  "--bams",
-                  type=str,
-                  nargs="+",
-                  help="Space-delimited list of BAM/CRAM file names",
-                  required=True)
+    parser.add_argument("-z",
+                      "--z",
+                      type=int,
+                      default=4,
+                      help="Number of stdevs from the mean (default 4)",
+                      required=False)
 
-parser.add_argument("-o",
-                  "--output_file",
-                  type=str,
-                  help="Output file name",
-                  required=True)
+    parser.add_argument("-b",
+                      "--bams",
+                      type=str,
+                      nargs="+",
+                      help="Space-delimited list of BAM/CRAM file names",
+                      required=True)
 
-parser.add_argument("-s",
-                  "--start",
-                  type=int,
-                  help="Start position of region/variant",
-                  required=True)
+    parser.add_argument("-o",
+                      "--output_file",
+                      type=str,
+                      help="Output file name",
+                      required=True)
 
-parser.add_argument("-e",
-                  "--end",
-                  type=int,
-                  help="End position of region/variant",
-                  required=True)
+    parser.add_argument("-s",
+                      "--start",
+                      type=int,
+                      help="Start position of region/variant",
+                      required=True)
 
-parser.add_argument("-c",
-                  "--chrom",
-                  type=str,
-                  help="Chromosome",
-                  required=True)
+    parser.add_argument("-e",
+                      "--end",
+                      type=int,
+                      help="End position of region/variant",
+                      required=True)
 
-parser.add_argument("-w",
-                  "--window",
-                  type=int,
-                  help="Window size (count of bases to include in view), default(0.5 * len)",
-                  required=False)
+    parser.add_argument("-c",
+                      "--chrom",
+                      type=str,
+                      help="Chromosome",
+                      required=True)
 
-parser.add_argument("-d",
-                  "--max_depth",
-                  type=int,
-                  help="Max number of normal pairs to plot",
-                  default=100,
-                  required=False)
+    parser.add_argument("-w",
+                      "--window",
+                      type=int,
+                      help="Window size (count of bases to include in view), default(0.5 * len)",
+                      required=False)
 
-parser.add_argument("--minq",
-                  type=int,
-                  help="coverage from reads with MAPQ <= minq plotted in lighter grey. To disable, pass in negative value",
-                  default=0,
-                  required=False)
+    parser.add_argument("-d",
+                      "--max_depth",
+                      type=int,
+                      help="Max number of normal pairs to plot",
+                      default=100,
+                      required=False)
 
-parser.add_argument("-t",
-                  "--sv_type",
-                  type=str,
-                  help="SV type. If omitted, plot is created without variant bar",
-                  required=False)
+    parser.add_argument("--minq",
+                      type=int,
+                      help="coverage from reads with MAPQ <= minq plotted in lighter grey."+\
+                              " To disable, pass in negative value",
+                      default=0,
+                      required=False)
 
-parser.add_argument("-T",
-                  "--transcript_file",
-                  help="GFF of transcripts",
-                  required=False)
+    parser.add_argument("-t",
+                      "--sv_type",
+                      type=str,
+                      help="SV type. If omitted, plot is created without variant bar",
+                      required=False)
 
-parser.add_argument("-A",
-                  "--annotation_files",
-                  type=str,
-                  nargs="+",
-                  help="Space-delimited list of bed.gz tabixed files of annotations (such as repeats, mappability, etc.)",
-                  required=False)
+    parser.add_argument("-T",
+                      "--transcript_file",
+                      help="GFF of transcripts",
+                      required=False)
 
-parser.add_argument("--coverage_tracktype",
-                  type=str,
-                  help="type of track to use for low MAPQ coverage plot.",
-                  choices=['stack','superimpose'],
-                  default="stack",
-                  required=False)
+    parser.add_argument("-A",
+                      "--annotation_files",
+                      type=str,
+                      nargs="+",
+                      help="Space-delimited list of bed.gz tabixed files of annotations "+\
+                              "(such as repeats, mappability, etc.)",
+                      required=False)
 
-parser.add_argument("-a",
-                  "--print_args",
-                  action="store_true",
-                  default=False,
-                  help="Print commandline arguments",
-                  required=False)
+    parser.add_argument("--coverage_tracktype",
+                      type=str,
+                      help="type of track to use for low MAPQ coverage plot.",
+                      choices=['stack','superimpose'],
+                      default="stack",
+                      required=False)
 
-parser.add_argument("-H",
-                  "--plot_height",
-                  type=int,
-                  help="Plot height",
-                  required=False)
+    parser.add_argument("-a",
+                      "--print_args",
+                      action="store_true",
+                      default=False,
+                      help="Print commandline arguments",
+                      required=False)
 
-parser.add_argument("-W",
-                  "--plot_width",
-                  type=int,
-                  help="Plot width",
-                  required=False)
+    parser.add_argument("-H",
+                      "--plot_height",
+                      type=int,
+                      help="Plot height",
+                      required=False)
 
-parser.add_argument("-q",
-                  "--min_mqual",
-                  type=int,
-                  help="Min mapping quality of reads to be included in plot",
-                  required=False)
+    parser.add_argument("-W",
+                      "--plot_width",
+                      type=int,
+                      help="Plot width",
+                      required=False)
 
-parser.add_argument("-j",
-                  "--json_only",
-                  action="store_true",
-                  default=False,
-                  help="Create only the json file, not the image plot",
-                  required=False)
+    parser.add_argument("-q",
+                      "--min_mqual",
+                      type=int,
+                      help="Min mapping quality of reads to be included in plot",
+                      required=False)
 
-parser.add_argument("--start_ci",
-                  help="confidence intervals of SV first breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
-                  type=pair,
-                  required=False)
+    parser.add_argument("-j",
+                      "--json_only",
+                      action="store_true",
+                      default=False,
+                      help="Create only the json file, not the image plot",
+                      required=False)
 
-parser.add_argument("--end_ci",
-                  help="confidence intervals of SV end breakpoint (distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
-                  type=pair,
-                  required=False)
+    parser.add_argument("--start_ci",
+                      help="confidence intervals of SV first breakpoint "+\
+                              "(distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
+                      type=pair,
+                      required=False)
 
-parser.add_argument("--long_read",
-                  type=int,
-                  default=1000,
-                  help="Min length of a read to be treated as a long-read (default 1000)",
-                  required=False)
+    parser.add_argument("--end_ci",
+                      help="confidence intervals of SV end breakpoint "+\
+                              "(distance from the breakpoint). Must be a comma-separated pair of ints (i.e. 20,40)",
+                      type=pair,
+                      required=False)
 
-parser.add_argument("--min_event_size",
-                  type=int,
-                  default=100,
-                  help="Min size of an event in long-read CIGAR to include (default 100)",
-                  required=False)
+    parser.add_argument("--long_read",
+                      type=int,
+                      default=1000,
+                      help="Min length of a read to be treated as a long-read (default 1000)",
+                      required=False)
 
-parser.add_argument("--xaxis_label_fontsize",
-                  type=int,
-                  default=6,
-                  help="Font size for X-axis labels (default 6)",
-                  required=False)
+    parser.add_argument("--min_event_size",
+                      type=int,
+                      default=100,
+                      help="Min size of an event in long-read CIGAR to include (default 100)",
+                      required=False)
 
-parser.add_argument("--yaxis_label_fontsize",
-                  type=int,
-                  default=6,
-                  help="Font size for Y-axis labels (default 6)",
-                  required=False)
+    parser.add_argument("--xaxis_label_fontsize",
+                      type=int,
+                      default=6,
+                      help="Font size for X-axis labels (default 6)",
+                      required=False)
 
-parser.add_argument("--legend_fontsize",
-                  type=int,
-                  default=6,
-                  help="Font size for legend labels (default 6)",
-                  required=False)
+    parser.add_argument("--yaxis_label_fontsize",
+                      type=int,
+                      default=6,
+                      help="Font size for Y-axis labels (default 6)",
+                      required=False)
 
-parser.add_argument("--annotation_fontsize",
-                  type=int,
-                  default=6,
-                  help="Font size for annotation labels (default 6)",
-                  required=False)
+    parser.add_argument("--legend_fontsize",
+                      type=int,
+                      default=6,
+                      help="Font size for legend labels (default 6)",
+                      required=False)
 
-parser.add_argument("--common_insert_size",
-                  action="store_true",
-                  default=False,
-                  help="Set common insert size for all plots",
-                  required=False)
+    parser.add_argument("--annotation_fontsize",
+                      type=int,
+                      default=6,
+                      help="Font size for annotation labels (default 6)",
+                      required=False)
 
-parser.add_argument("--hide_annotation_labels",
-                  action="store_true",
-                  default=False,
-                  help="Hide the label (fourth column text) from annotation files, useful for region with many annotations",
-                  required=False)
+    parser.add_argument("--common_insert_size",
+                      action="store_true",
+                      default=False,
+                      help="Set common insert size for all plots",
+                      required=False)
 
-parser.add_argument("--coverage_only",
-                  action="store_true",
-                  default=False,
-                  help="Hide all reads and show only coverage",
-                  required=False)
+    parser.add_argument("--hide_annotation_labels",
+                      action="store_true",
+                      default=False,
+                      help="Hide the label (fourth column text) "+\
+                              "from annotation files, useful for region with many annotations",
+                      required=False)
 
-parser.add_argument("--same_yaxis_scales",
-                  action="store_true",
-                  default=False,
-                  help="Set the scales of the Y axes to the max of all",
-                  required=False)
+    parser.add_argument("--coverage_only",
+                      action="store_true",
+                      default=False,
+                      help="Hide all reads and show only coverage",
+                      required=False)
 
-options = parser.parse_args()
+    parser.add_argument("--same_yaxis_scales",
+                      action="store_true",
+                      default=False,
+                      help="Set the scales of the Y axes to the max of all",
+                      required=False)
+    options = parser.parse_args()
+    
+    if options.print_args or options.json_only:
+        print_arguments(options)
+        if options.json_only:
+            sys.exit(0)
 
-if not options.json_only:
+    for bam in options.bams:
+        if ".cram" in bam:
+            if not options.reference:
+                parser.print_help(sys.stderr)
+                sys.exit("Error: Missing reference for CRAM")
+    return options
+
+def set_plot_dimensions(start, end, sv_type, arg_plot_height, arg_plot_width, 
+        bams, annotation_files, transcript_file, arg_window):
+    """Chooses appropriate dimensions for the plot
+
+    Includes the number of samples, whether a variant type is included, and any annotations in height
+    Includes the start, end, and window argument in width
+    If height and width are chosen by used, these are used instead
+
+    Return plot height, width, and window as integers
+    """
+
     plot_height = 5
     plot_width = 8
-    marker_size = options.marker_size
-
-    if options.plot_height:
-        plot_height = options.plot_height
+    if arg_plot_height:
+        plot_height = arg_plot_height
     else:
-        num_subplots = len(options.bams)
-        if options.annotation_files:
-            num_subplots += len(options.annotation_files)
-        if options.transcript_file:
-            num_subplots += 1
+        num_subplots = len(bams)
+        if annotation_files:
+            num_subplots += .3*len(annotation_files)
+        if transcript_file:
+            num_subplots += .3
         plot_height = 2 + num_subplots
 
-    if options.plot_width:
-        plot_width = options.plot_width
+    if arg_plot_width:
+        plot_width = arg_plot_width
 
     # if an SV type is given, then expand the window around its bounds
-    if options.sv_type:
-        window = int((int(options.end) - int(options.start))/2)
-    else:
-        window = 0
-    if options.window:
-        window = options.window
-    #}}}
+    window = 0
+    if arg_window:
+        window = arg_window
+    elif sv_type:
+        window = int((int(end) - int(start))/2)
 
+    return plot_height,plot_width,window
+
+def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only, 
+        long_read_length, same_yaxis_scales, max_depth, z_score):
+    """Reads alignment files to extract reads for the region
+
+    Region and alignment files given with chrom, start, end, bams
+    If CRAM files are used, reference must be provided
+    Reads with mapping quality below min_mqual will not be retrieved
+    If coverage_only, reads are not kept and used only for checking coverage
+    Reads longer than long_read_length will be treated as long reads
+    Max coverages values will be set to same value for all samples if same_yaxis_scales
+    If max_depth, only max_depth reads will be retrieved, although all will be included in coverage
+    If PairedEnd read insert size is greater than z_score standard deviations from mean, read will be treated as discordant
+    """
+    
     all_pairs = []
     all_splits = []
     all_coverages = []
     all_long_reads = []
     all_linked_reads = []
 
-    range_min = max(0,int(options.start) - window)
-    range_max = int(options.end) + window
+    range_min = max(0,int(start) - window)
+    range_max = int(end) + window
     min_insert_size = None
     max_insert_size = None
-
-    bam_files = options.bams
     max_coverage = 0
 
-    #{{{ read data from bams/crams
-    for bam_file_name in bam_files:
+    for bam_file_name in bams:
         bam_file = None
-        if not options.reference:
+        if not reference:
             bam_file = pysam.AlignmentFile(bam_file_name, "rb")
         else:
             bam_file = pysam.AlignmentFile(bam_file_name, \
                                            "rc", \
-                                           reference_filename=options.reference)
+                                           reference_filename=reference)
 
         pairs = {}
         splits = {}
         long_reads = {}
         coverage = {}
         linked_reads = {}
-
-        for read in bam_file.fetch(options.chrom,
+        
+        for read in bam_file.fetch(chrom,
                                    max(0,range_min-1000), 
                                    range_max+1000):
-            if options.min_mqual and int(read.mapping_quality) < options.min_mqual:
+            if min_mqual and int(read.mapping_quality) < min_mqual:
                 continue
             
-            if not options.coverage_only:
-                if read.query_length >= options.long_read:
-                    add_long_reads(read, long_reads, range_min, range_max)
+            if not coverage_only:
+                if read.query_length >= long_read_length:
+                    add_long_reads(read, 
+                        long_reads, 
+                        range_min, 
+                        range_max, 
+                        options.min_event_size)
                 else:
                     add_pair_end(read, pairs, linked_reads)
                     add_split(read, splits, bam_file, linked_reads)
-            add_coverage(read, coverage)
-
+            add_coverage(read, coverage, options.minq)
 
         pair_insert_sizes = get_pair_insert_sizes(pairs)
         split_insert_sizes = get_split_insert_size(splits)
@@ -1318,10 +1504,10 @@ if not options.json_only:
                        split_insert_sizes + \
                        long_read_gap_sizes
         if not insert_sizes or len(insert_sizes) == 0:
-            if not options.coverage_only:
+            if not coverage_only:
                 print('Warning: No data returned from fetch in region  ' + \
-                        options.chrom + ':' + str(options.start) + '-' + \
-                        str(options.end) + \
+                        chrom + ':' + str(start) + '-' + \
+                        str(end) + \
                         ' from ' + bam_file_name, file=sys.stderr)
             insert_sizes.append(0)
 
@@ -1335,7 +1521,7 @@ if not options.json_only:
         else: 
             max_insert_size = max(max(insert_sizes), min_insert_size)
 
-        if options.same_yaxis_scales:
+        if same_yaxis_scales:
             for i in coverage:
                 curr_max = max(coverage[i].values())
                 if curr_max > max_coverage:
@@ -1345,107 +1531,75 @@ if not options.json_only:
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
-    #}}}
-
-    #{{{ Sample +/- pairs in the normal insert size range
-    if options.max_depth:
-        for i in range(len(all_pairs)):
-            for hp in all_pairs[i]:
-                all_pairs[i][hp] = sample_normal(options.max_depth,
-                                                 all_pairs[i][hp],
-                                                 options.z)
-    #}}}
-
-    #{{{ set up sub plots
-    matplotlib.rcParams.update({'font.size': 12})
-    fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
-    fig.subplots_adjust(wspace=.05,left=.01,bottom=.01)
-
-    # give one axis to display each sample
-    num_ax = len(options.bams)
-
-    # add another if we are displaying the SV
-    if options.sv_type:
-        num_ax+=1
-
-    # add another if a annotation file is given
-    if options.transcript_file:
-        num_ax+=1
-
-    if options.annotation_files:
-        num_ax+=len(options.annotation_files)
-
-    # set the relative sizes for each
-    ratios = []
-    if options.sv_type:
-        ratios = [1] 
     
-    for i in range(len(options.bams)):
-        ratios.append( len(all_coverages[i]) * 3 )
-        if len(all_coverages) > 0:
-            ratios[-1] = 9
+    read_data = {
+            "all_pairs" :       all_pairs,
+            "all_splits":       all_splits,
+            "all_coverages":    all_coverages,
+            "all_long_reads":   all_long_reads,
+            "all_linked_reads": all_linked_reads
+        }
+
+    # Sample +/- pairs in the normal insert size range
+    if max_depth:
+        read_data['all_pairs'] = downsample_pairs(max_depth, z_score, read_data['all_pairs'])
     
-    if options.annotation_files:
-        ratios += [1]*len(options.annotation_files)
-    if options.transcript_file:
-        ratios += [2]
-    gs = gridspec.GridSpec(num_ax, 1, height_ratios = ratios)
-    #}}}
+    return read_data,max_coverage
 
-    ax_i = 0
+def downsample_pairs(max_depth, z_score, all_pairs):
+    """Downsamples to keep only max_depth normal pairs from all PairedEnd reads 
+    """
+    for i in range(len(all_pairs)):
+        for hp in all_pairs[i]:
+            all_pairs[i][hp] = sample_normal(max_depth,all_pairs[i][hp],z_score)
+    return all_pairs
 
-    #{{{ plot variant on top
-    if options.sv_type:
-        ax = matplotlib.pyplot.subplot(gs[ax_i])
-        plot_variant(options.start,
-                     options.end,
-                     options.sv_type,
-                     ax,
-                     range_min,
-                     range_max)
-        ax_i += 1
-        #plot confidence intervals if provided
-        if options.start_ci and options.start_ci != None:
-            plot_confidence_interval(options.start,
-                     options.start_ci,
-                     ax,
-                     range_min,
-                     range_max)
-        if options.end_ci and options.end_ci != None:
-            plot_confidence_interval(options.end,
-                     options.end_ci,
-                     ax,
-                     range_min,
-                     range_max)
-    #}}}
-
-    # Plot each sample
-    for i in range(len(bam_files)):
-        ax =  matplotlib.pyplot.subplot(gs[ax_i])
-        hps = sorted(all_coverages[i].keys(), reverse=True)
-        #if there are multiple haplotypes, must have 0,1,2
-        if len(hps) > 1 or (len(hps) == 1 and hps[0] != 0):
-            if 0 not in hps:
-                hps.append(0)
-            if 1 not in hps:
-                hps.append(1)
-            if 2 not in hps:
-                hps.append(2)
-        elif 0 not in hps:
+def set_haplotypes(curr_coverage):
+    """Creates a list to manage counting haplotypes for subplots
+    """
+    hps = sorted(curr_coverage.keys(), reverse=True)
+    #if there are multiple haplotypes, must have 0,1,2
+    if len(hps) > 1 or (len(hps) == 1 and hps[0] != 0):
+        if 0 not in hps:
             hps.append(0)
-        hps.sort(reverse=True)
+        if 1 not in hps:
+            hps.append(1)
+        if 2 not in hps:
+            hps.append(2)
+    elif 0 not in hps:
+        hps.append(0)
+    hps.sort(reverse=True)
+    return hps
+
+
+def plot_samples(read_data, 
+        grid, 
+        ax_i, 
+        number_of_axes, 
+        bams, 
+        chrom, 
+        coverage_tracktype, 
+        titles, 
+        same_yaxis_scales, 
+        xaxis_label_fontsize, 
+        yaxis_label_fontsize, 
+        annotation_files, 
+        transcript_file):
+    """Plots all samples
+    """
+    
+    for i in range(len(bams)):
+        ax =  matplotlib.pyplot.subplot(grid[ax_i])
+        hps = set_haplotypes(read_data['all_coverages'][i])
         inner_axs = gridspec.GridSpecFromSubplotSpec(len(hps), 
                                                      1,
-                                                     subplot_spec=gs[ax_i],
+                                                     subplot_spec=grid[ax_i],
                                                      wspace=0.0,
                                                      hspace=0.5)
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
             
-           
-
-
         curr_min_insert_size = None
         curr_max_insert_size = None
 
@@ -1457,76 +1611,76 @@ if not options.json_only:
             curr_ax = axs[hp]
 
             curr_pairs = []
-            if hp in all_pairs[i]:
-                curr_pairs = all_pairs[i][hp]
+            if hp in read_data['all_pairs'][i]:
+                curr_pairs = read_data['all_pairs'][i][hp]
 
             curr_splits = []
-            if hp in all_splits[i]:
-                curr_splits = all_splits[i][hp]
+            if hp in read_data['all_splits'][i]:
+                curr_splits = read_data['all_splits'][i][hp]
 
             curr_linked_reads = []
-            if hp in all_linked_reads[i]:
-                curr_linked_reads = all_linked_reads[i][hp]
+            if hp in read_data['all_linked_reads'][i]:
+                curr_linked_reads = read_data['all_linked_reads'][i][hp]
 
             curr_long_reads = []
-            if hp in all_long_reads[i]:
-                curr_long_reads = all_long_reads[i][hp]
+            if hp in read_data['all_long_reads'][i]:
+                curr_long_reads = read_data['all_long_reads'][i][hp]
 
             curr_coverage = []
-            if hp in all_coverages[i]:
-                curr_coverage = all_coverages[i][hp]
+            if hp in read_data['all_coverages'][i]:
+                curr_coverage = read_data['all_coverages'][i][hp]
 
-            cover_ax = plot_coverage(curr_coverage,
-                                     curr_ax,
-                                     range_min,
-                                     range_max,
-                                     len(hps),
-                                     max_coverage,
-                                     options.coverage_tracktype)
-            
+            cover_ax = plot_coverage(curr_coverage, 
+                    curr_ax, 
+                    range_min, 
+                    range_max,
+                    len(hps), 
+                    max_coverage, 
+                    coverage_tracktype, 
+                    yaxis_label_fontsize)
             
             curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
-                                                     curr_splits,
-                                                     curr_linked_reads,
-                                                     curr_ax,
-                                                     range_min,
-                                                     range_max,
-                                                     curr_min_insert_size,
-                                                     curr_max_insert_size)
+                    curr_splits,
+                    curr_linked_reads,
+                    curr_ax,
+                    range_min,
+                    range_max,
+                    curr_min_insert_size,
+                    curr_max_insert_size)
 
             curr_min_insert_size,curr_max_insert_size = plot_long_reads(curr_long_reads,
-                                                   curr_ax,
-                                                   range_min,
-                                                   range_max,
-                                                   curr_min_insert_size,
-                                                   curr_max_insert_size)
+                    curr_ax,
+                    range_min,
+                    range_max,
+                    curr_min_insert_size,
+                    curr_max_insert_size)
+            
             curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
-                                              curr_ax,
-                                              range_min,
-                                              range_max,
-                                              curr_min_insert_size,
-                                              curr_max_insert_size)
+                     curr_ax,
+                     range_min,
+                     range_max,
+                     curr_min_insert_size,
+                     curr_max_insert_size)
 
             curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
-                                               curr_ax,
-                                               range_min,
-                                               range_max,
-                                               curr_min_insert_size,
-                                               curr_max_insert_size)
+                     curr_ax,
+                     range_min,
+                     range_max,
+                     curr_min_insert_size,
+                     curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
-
 
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
 
-        if options.titles and \
-                len(options.titles) == len(options.bams):
-            curr_ax.set_title(options.titles[ax_i-1], \
+        if titles and \
+                len(titles) == len(bams):
+            curr_ax.set_title(titles[ax_i-1], \
                          fontsize=8, loc='left')
         else:
-            curr_ax.set_title(os.path.basename(options.bams[ax_i-1]), \
+            curr_ax.set_title(os.path.basename(bams[ax_i-1]), \
                          fontsize=8, loc='left')
 
 
@@ -1550,32 +1704,32 @@ if not options.json_only:
         for j in hps:
             curr_ax = axs[j]
             curr_ax.set_xlim([0,1])
-            if options.same_yaxis_scales:
+            if same_yaxis_scales:
                 curr_ax.set_ylim([0,max_insert_size])
+            else:
+                curr_ax.set_ylim([0,curr_max_insert_size])
             curr_ax.spines['top'].set_visible(False)
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)
             curr_ax.spines['right'].set_visible(False)
-            curr_ax.tick_params(axis='y', labelsize=options.yaxis_label_fontsize)
+            curr_ax.tick_params(axis='y', labelsize=yaxis_label_fontsize)
             #if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps)==1 else 3
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
             curr_ax.tick_params(axis='both', length=0)
             curr_ax.set_xticklabels([])
-
-        last_sample_num = num_ax - 1
-        if options.annotation_files:
-            last_sample_num -= len(options.annotation_files)
-        if options.transcript_file:
+        last_sample_num = number_of_axes - 1
+        if annotation_files:
+            last_sample_num -= len(annotation_files)
+        if transcript_file:
             last_sample_num -= 1
         
         if (ax_i == last_sample_num):
             curr_ax = axs[ hps[-1] ]
             labels = [int(range_min + l*(range_max-range_min)) \
                     for l in curr_ax.xaxis.get_majorticklocs()]
-            curr_ax.set_xticklabels(labels, fontsize=options.xaxis_label_fontsize)
-            curr_ax.set_xlabel('Chromosomal position on ' + \
-                    options.chrom, fontsize=8)
+            curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
+            curr_ax.set_xlabel('Chromosomal position on ' + chrom, fontsize=8)
 
         curr_ax = axs[hps[ int(len(hps)/2)    ]]
         curr_ax.set_ylabel('Insert size', fontsize=8)
@@ -1584,8 +1738,12 @@ if not options.json_only:
         #}}}
 
         ax_i += 1
+    return ax_i
 
-    #{{{ plot legend
+
+def plot_legend(fig, legend_fontsize):
+    """Plots the figure legend
+    """
     marker_colors = []
     marker_labels = []
     read_colors = {
@@ -1596,14 +1754,13 @@ if not options.json_only:
         "Linked read":'green'
     }
 
-    for read_type in read_types_used:
+    for read_type in READ_TYPES_USED:
         if read_type in read_colors:
             color = read_colors[read_type]
-            flag = read_types_used[read_type]
+            flag = READ_TYPES_USED[read_type]
             if flag:
                 marker_colors.append(color)
                 marker_labels.append(read_type)
-    #marker_colors = ['black', 'red', 'blue', 'orange', 'green']
     legend_elements = []
 
     for color in marker_colors:
@@ -1611,7 +1768,7 @@ if not options.json_only:
                 color=color,
                 linestyle='-',
                 lw=1)]
-    if read_types_used["Split-read"]:
+    if READ_TYPES_USED["Split-read"]:
         marker_labels.append("Split read")
         legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
                     markerfacecolor="None",
@@ -1622,9 +1779,9 @@ if not options.json_only:
                     linestyle=':',
                     lw=1)]
     
-    if read_types_used["Paired-end read"] \
-            or read_types_used["Deletion/Normal"] \
-            or read_types_used["Inversion"]:
+    if READ_TYPES_USED["Paired-end read"] \
+            or READ_TYPES_USED["Deletion/Normal"] \
+            or READ_TYPES_USED["Inversion"]:
         marker_labels.append("Paired-end read")
         legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1], \
                     markerfacecolor="None",
@@ -1638,170 +1795,69 @@ if not options.json_only:
     fig.legend( legend_elements ,
                 marker_labels, 
                 loc=1,
-                fontsize = options.legend_fontsize,
+                fontsize = legend_fontsize,
                 frameon=False)
-    #}}}
 
+def get_tabix_iter(chrom, pos, end, datafile):
+    """Gets an iterator from a tabix BED/GFF/GFF3 file
 
+    Used to avoid chrX vs. X notation issues when extracting data from  annotation files
+    """
+    tbx = pysam.TabixFile(datafile)
+    itr = None
+    try:
+        itr = tbx.fetch(chrom, max(0,range_min-1000), range_max+1000)
+    except ValueError:
+        # try and account for chr/no chr prefix
+        if chrom[:3] == 'chr':
+            chrom = chrom[3:]
+        else:
+            chrom = 'chr' + chrom
 
-    #{{{ Plot annoation files
-    if options.annotation_files:
-        #a_i = 0
-        for annotation_file in options.annotation_files:
-            tbx = pysam.TabixFile(annotation_file)
-
-            # fetch and parse data from the tabixed gff file
-            itr = None
-            try:
-                itr = tbx.fetch(options.chrom, 
-                                max(0,range_min-1000), 
-                                range_max+1000)
-            except ValueError:
-                # try and account for chr/no chr prefix
-                chrom = options.chrom
-                if chrom[:3] == 'chr':
-                    chrom = chrom[3:]
-                else:
-                    chrom = 'chr' + chrom
-
-                try:
-                    itr = tbx.fetch(chrom,
-                                    max(0,range_min-1000), 
-                                    range_max+1000)
-                except ValueError:
-                    sys.exit('Warning: Could not fetch ' + \
-                            options.chrom + ':' + options.start + '-' + \
-                            options.end + \
-                            ' from ' + annotation_file)
-             
-            ax =  matplotlib.pyplot.subplot(gs[ax_i])
-            ax_i += 1
-
-            for row in itr:
-                A = row.rstrip().split()
-                t_start = max(range_min, int(A[1]))
-                t_end = min(range_max, int(A[2]))
-
-                r=[float(t_start - range_min)/float(range_max - range_min), \
-                   float(t_end - range_min)/float(range_max - range_min)]
-
-                if len(A) > 3 :
-                    try:
-                        v = float(A[3])
-                        ax.plot(r,[0,0],'-',color=str(v),lw=5)
-                    except ValueError:
-                        ax.plot(r,[0,0],'-',color='black',lw=5)
-                        if not options.hide_annotation_labels:
-                            ax.text(r[0],0 + 0.1,A[3],color='black', fontsize=options.annotation_fontsize)
-                else:
-                    ax.plot(r,[0,0],'-',color='black',lw=5)
-
-            # set axis parameters
-            ax.set_xlim([0,1])
-            ax.spines['top'].set_visible(False)
-            ax.spines['bottom'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.set_title(os.path.basename(annotation_file), \
-                             fontsize=8, loc='left')
-
-            #matplotlib.pyplot.tick_params(axis='x',length=0)
-            #matplotlib.pyplot.tick_params(axis='y',length=0)
-            ax.tick_params(axis='x',length=0)
-            ax.tick_params(axis='y',length=0)
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            #a_i+=1
-    #}}}
-
-    #{{{ Plot sorted/bgziped/tabixed transcript file
-    if options.transcript_file:
-        tbx = pysam.TabixFile(options.transcript_file)
-
-        genes = {}
-        transcripts = {}
-        cdss = {}
-
-        # fetch and parse data from the tabixed gff file
-        itr = None
         try:
-            itr = tbx.fetch(options.chrom, \
-                            int(options.start), \
-                            int(options.end))
+            itr = tbx.fetch(chrom,
+                            max(0,range_min-1000), 
+                            range_max+1000)
         except ValueError:
-            # try and account for chr/no chr prefix
-            chrom = options.chrom
-            if chrom[:3] == 'chr':
-                chrom = chrom[3:]
-            else:
-                chrom = 'chr' + chrom
+            sys.exit('Warning: Could not fetch ' + \
+                    chrom + ':' + pos + '-' + end + \
+                    ' from ' + datafile)
+    return itr
+        
 
-            try:
-                itr = tbx.fetch(chrom,
-                                int(options.start), \
-                                int(options.end))
-            except ValueError:
-                sys.exit('Error: Could not fetch ' + \
-                        options.chrom + ':' + options.start + '-' + options.end + \
-                        'from ' + options.transcript_file)
-         
+
+def plot_annotations(annotation_files, chrom, start, end, 
+        hide_annotation_labels, annotation_fontsize, grid, ax_i):
+    """Plots annotation information from region 
+    """
+    
+    for annotation_file in annotation_files:
+        itr = get_tabix_iter(chrom,start, end, annotation_file)
+        ax =  matplotlib.pyplot.subplot(grid[ax_i])
+        ax_i += 1
+
         for row in itr:
-            A = row.split()
+            A = row.rstrip().split()
+            t_start = max(range_min, int(A[1]))
+            t_end = min(range_max, int(A[2]))
 
-            if A[2] == 'gene':
-                info =  dict([list(val.split('=')) for val in A[8].split(';')])
+            r=[float(t_start - range_min)/float(range_max - range_min), \
+               float(t_end - range_min)/float(range_max - range_min)]
 
-                genes[info['Name']] = [A[0],int(A[3]), int(A[4]),info]
-
-            elif A[2] == 'transcript':
-                info =  dict([list(val.split('=')) for val in A[8].split(';')])
-                
-                if info['Parent'] not in transcripts:
-                    transcripts[info['Parent']] = {}
-
-                transcripts[info['Parent']][info['ID']] = \
-                        [A[0],int(A[3]), int(A[4]),info]
-
-            elif A[2] == 'CDS':
-
-                info =  dict([list(val.split('=')) for val in A[8].split(';')])
-                
-                if info['Parent'] not in cdss:
-                    cdss[info['Parent']] = {}
-
-                if info['ID'] not in cdss[info['Parent']]:
-                    cdss[info['Parent']][info['ID']] = []
-
-                cdss[info['Parent']][info['ID']].append([A[0], \
-                                                         int(A[3]), \
-                                                         int(A[4]), \
-                                                         info])
-        ax =  matplotlib.pyplot.subplot(gs[-1])
-
-        t_i = 0
-        for gene in genes:
-            gene_id = genes[gene][3]['ID']
-            if gene_id not in transcripts: continue
-            for transcript in transcripts[gene_id]:
-                t_start = max(range_min, transcripts[gene_id][transcript][1])
-                t_end = min(range_max, transcripts[gene_id][transcript][2])
-                r=[float(t_start - range_min)/float(range_max - range_min), \
-                   float(t_end - range_min)/float(range_max - range_min)]
-                ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
-
-                ax.text(r[0],t_i + 0.02,gene,color='cornflowerblue', fontsize=options.annotation_fontsize)
-
-            
-                if transcript in cdss:
-                    for cds in cdss[transcript]:
-                        for exon in cdss[transcript][cds]:
-                            e_start = max(range_min,exon[1])
-                            e_end = min(range_max,exon[2])
-                            r=[float(e_start - range_min)/float(range_max - range_min), \
-                                float(e_end - range_min)/float(range_max - range_min)]
-                            ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
-
-                    t_i += 1
+            if len(A) > 3 :
+                try:
+                    v = float(A[3])
+                    ax.plot(r,[0,0],'-',color=str(v),lw=15)
+                except ValueError:
+                    ax.plot(r,[0,0],'-',color='black',lw=15)
+                    if not hide_annotation_labels:
+                        ax.text(r[0],
+                                0 + 0.1,
+                                A[3],
+                                color='black', 
+                                fontsize=annotation_fontsize)
+            else:
+                ax.plot(r,[0,0],'-',color='black',lw=5)
 
         # set axis parameters
         ax.set_xlim([0,1])
@@ -1809,43 +1865,251 @@ if not options.json_only:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.set_title(os.path.basename(annotation_file), \
+                         fontsize=8, loc='left')
 
-        #matplotlib.pyplot.tick_params(axis='x',length=0)
-        #matplotlib.pyplot.tick_params(axis='y',length=0)
         ax.tick_params(axis='x',length=0)
         ax.tick_params(axis='y',length=0)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        labels = [int(range_min + l*(range_max-range_min)) \
-                for l in ax.xaxis.get_majorticklocs()]
-        ax.set_xticklabels(labels, fontsize=options.xaxis_label_fontsize)
-        ax.set_xlabel('Chromosomal position on ' + options.chrom, fontsize=8)
-        ax.set_title(os.path.basename(options.transcript_file), \
-                             fontsize=8, loc='left')
-    #}}}
 
+def plot_transcript(transcript_file, chrom, start, end, 
+        grid, annotation_fontsize, xaxis_label_fontsize):
+    """Plots a transcript file annotation
+    """
+    genes = {}
+    transcripts = {}
+    cdss = {}
+
+    # fetch and parse data from the tabixed gff file
+    itr = get_tabix_iter(chrom, start, end, transcript_file)
+     
+    for row in itr:
+        A = row.split()
+
+        if A[2] == 'gene':
+            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+
+            genes[info['Name']] = [A[0],int(A[3]), int(A[4]),info]
+
+        elif A[2] == 'transcript':
+            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+            
+            if info['Parent'] not in transcripts:
+                transcripts[info['Parent']] = {}
+
+            transcripts[info['Parent']][info['ID']] = \
+                    [A[0],int(A[3]), int(A[4]),info]
+
+        elif A[2] == 'CDS':
+
+            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+            
+            if info['Parent'] not in cdss:
+                cdss[info['Parent']] = {}
+
+            if info['ID'] not in cdss[info['Parent']]:
+                cdss[info['Parent']][info['ID']] = []
+
+            cdss[info['Parent']][info['ID']].append([A[0], \
+                                                     int(A[3]), \
+                                                     int(A[4]), \
+                                                     info])
+    ax =  matplotlib.pyplot.subplot(grid[-1])
+
+    t_i = 0
+    for gene in genes:
+        gene_id = genes[gene][3]['ID']
+        if gene_id not in transcripts: continue
+        for transcript in transcripts[gene_id]:
+            t_start = max(range_min, transcripts[gene_id][transcript][1])
+            t_end = min(range_max, transcripts[gene_id][transcript][2])
+            r=[float(t_start - range_min)/float(range_max - range_min), \
+               float(t_end - range_min)/float(range_max - range_min)]
+            ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
+
+            ax.text(r[0],
+                    t_i + 0.02,
+                    gene,
+                    color='cornflowerblue', 
+                    fontsize=annotation_fontsize)
+
+        
+            if transcript in cdss:
+                for cds in cdss[transcript]:
+                    for exon in cdss[transcript][cds]:
+                        e_start = max(range_min,exon[1])
+                        e_end = min(range_max,exon[2])
+                        r=[float(e_start - range_min)/float(range_max - range_min), \
+                            float(e_end - range_min)/float(range_max - range_min)]
+                        ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
+
+                t_i += 1
+
+    # set axis parameters
+    ax.set_xlim([0,1])
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    ax.tick_params(axis='x',length=0)
+    ax.tick_params(axis='y',length=0)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.set_title(os.path.basename(transcript_file), fontsize=8, loc='left')
+
+def create_variant_plot(grid, 
+        ax_i, 
+        start, 
+        end, 
+        sv_type, 
+        range_min, 
+        range_max, 
+        start_ci, 
+        end_ci):
+    """Plots the pieces of the variant bar at the top, including bar and confidence intervals
+    """
+    ax = matplotlib.pyplot.subplot(grid[ax_i])
+    plot_variant(start, end, sv_type, ax, range_min, range_max)
+    ax_i += 1
+    #plot confidence intervals if provided
+    if start_ci and start_ci != None:
+        plot_confidence_interval(start, start_ci, ax, range_min, range_max)
+    if end_ci and end_ci != None:
+        plot_confidence_interval(end, end_ci, ax, range_min, range_max)
+    return ax_i
+
+def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
+    """Helper function for creation of a correctly-sized GridSpec instance
+    """
+    # give one axis to display each sample
+    num_ax = len(bams)
+
+    # add another if we are displaying the SV
+    if sv_type:
+        num_ax+=1
+
+    # add another if a annotation file is given
+    if transcript_file:
+        num_ax+=1
+
+    if annotation_files:
+        num_ax+=len(options.annotation_files)
+
+    # set the relative sizes for each
+    ratios = []
+    if sv_type:
+        ratios = [1] 
+    
+    for i in range(len(bams)):
+        ratios.append( len(read_data['all_coverages'][i]) * 3 )
+        if len(read_data['all_coverages']) > 0:
+            ratios[-1] = 9
+    
+    if annotation_files:
+        ratios += [.3]*len(annotation_files)
+    if transcript_file:
+        ratios.append(2)
+    return gridspec.GridSpec(num_ax, 1, height_ratios = ratios), num_ax
+
+########################################################################
+# main block
+########################################################################
+if __name__ == '__main__':
+    options = setup_arguments()
+    
+    # set up plot 
+    plot_height,plot_width,window = set_plot_dimensions(options.start, 
+            options.end, 
+            options.sv_type, 
+            options.plot_height, 
+            options.plot_width, 
+            options.bams, 
+            options.annotation_files, 
+            options.transcript_file, 
+            options.window)
+
+    marker_size = options.marker_size
+    range_min = max(0,int(options.start) - window)
+    range_max = int(options.end) + window
+
+    # set up sub plots
+    matplotlib.rcParams.update({'font.size': 12})
+    fig = matplotlib.pyplot.figure(figsize=(plot_width, plot_height), dpi=300)
+
+    # read alignment data
+    read_data,max_coverage = get_read_data(options.chrom, 
+            options.start, 
+            options.end, 
+            options.bams, 
+            options.reference, 
+            options.min_mqual, 
+            options.coverage_only, 
+            options.long_read, 
+            options.same_yaxis_scales, 
+            options.max_depth, 
+            options.z)
+    
+    # set up grid organizer
+    grid,num_ax = create_gridspec(options.bams, 
+            options.transcript_file, 
+            options.annotation_files, 
+            options.sv_type )
+    current_axis_idx = 0
+    
+    # plot variant on top
+    if options.sv_type:
+        current_axis_idx = create_variant_plot(grid, 
+            current_axis_idx, 
+            options.start, 
+            options.end, 
+            options.sv_type, 
+            range_min, 
+            range_max, 
+            options.start_ci, 
+            options.end_ci)
+    
+    # Plot each sample
+    current_axis_idx = plot_samples(read_data, 
+        grid, 
+        current_axis_idx, 
+        num_ax, 
+        options.bams, 
+        options.chrom,  
+        options.coverage_tracktype, 
+        options.titles, 
+        options.same_yaxis_scales, 
+        options.xaxis_label_fontsize, 
+        options.yaxis_label_fontsize, 
+        options.annotation_files, 
+        options.transcript_file)
+
+    # plot legend
+    plot_legend(fig, options.legend_fontsize)
+
+    # Plot annotation files
+    if options.annotation_files:
+        plot_annotations(options.annotation_files, 
+            options.chrom, 
+            options.start, 
+            options.end, 
+            options.hide_annotation_labels, 
+            options.annotation_fontsize, 
+            grid, 
+            current_axis_idx)
+
+    # Plot sorted/bgziped/tabixed transcript file
+    if options.transcript_file:
+        plot_transcript(options.transcript_file, 
+            options.chrom, 
+            options.start, 
+            options.end, 
+            grid, 
+            options.annotation_fontsize, 
+            options.xaxis_label_fontsize)
+    
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
-    matplotlib.pyplot.tight_layout()
+    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.00001, w_pad=.00001)
     matplotlib.pyplot.savefig(options.output_file)
-
-#{{{ give sv-plaudit output
-if options.print_args or options.json_only:
-    import json
-    args_filename = os.path.splitext(options.output_file)[0] + ".json"
-    args_info = {
-        'titles': options.titles if options.titles else 'None',
-        'reference': options.reference if options.reference else 'None',
-        'bams': options.bams,
-        'output_file': options.output_file,
-        'start': options.start, 
-        'end': options.end,
-        'chrom': options.chrom,
-        'window': options.window,
-        'max_depth': options.max_depth if options.max_depth else 'None',
-        'sv_type': options.sv_type,
-        'transcript_file': options.transcript_file if options.transcript_file else 'None'
-    }
-    with open(args_filename, 'w') as outfile:
-        json.dump(args_info, outfile)
-#}}}
