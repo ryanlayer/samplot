@@ -1063,19 +1063,23 @@ def plot_coverage(coverage,
                          cover_y_highqual, \
                          bottom_fill,\
                          color='darkgrey',
+                         step="pre",
                          alpha=.4)
 
         ax2.fill_between(cover_x, \
                          cover_y_all, \
                          cover_y_highqual,
                          color='grey',
+                         step="pre",
                          alpha=0.15)
+
         
     elif tracktype == "superimpose": 
         ax2.fill_between(cover_x, \
                          cover_y_lowqual, \
                          bottom_fill,\
                          color='grey',
+                         step="pre",
                          alpha=.15)
 
 
@@ -1083,12 +1087,14 @@ def plot_coverage(coverage,
                          cover_y_highqual, \
                          cover_y_lowqual,\
                          color='darkgrey',
+                         step="pre",
                          alpha=.4)
 
         ax2.fill_between(cover_x, \
                          cover_y_lowqual, \
                          bottom_fill,
                          color='grey',
+                         step="pre",
                          alpha=0.15)
        
     #number of ticks should be 6 if there's one hp, 3 otherwise
