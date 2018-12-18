@@ -84,9 +84,9 @@ def parse_ped(path, vcf_samples=None):
     # match these samples to the ones in the VCF.
     if vcf_samples is not None:
         result = []
-        for i, vs in enumerate(vcf_samples):
-            if not vs in look: continue
-            result.append(next(s for s in samples if s.id == vs))
+        for i, variant_sample in enumerate(vcf_samples):
+            if not variant_sample in look: continue
+            result.append(next(s for s in samples if s.id == variant_sample))
             result[-1].i = i
         samples = result
 
@@ -208,12 +208,12 @@ def main(args, pass_through_args):
     names_to_bams = get_names_to_bams(args.bams)
     tabledata = []
 
-    for v in vcf:
-        svtype = v.info.get("SVTYPE", "SV")
+    for variant in vcf:
+        svtype = variant.info.get("SVTYPE", "SV")
         if svtype in ("BND", "INS"): continue
-        if v.stop - v.start > args.max_mb * 1000000: continue
+        if variant.stop - variant.start > args.max_mb * 1000000: continue
 
-        gts = [s.get("GT", (None, None)) for s in v.samples.values()]
+        gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
         # requisite hets/hom-alts
@@ -222,13 +222,13 @@ def main(args, pass_through_args):
 
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
-        test_samples = [s for i, s in enumerate(v.samples.values()) if i in test_idxs]
+        test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
 
         if len(filters) == 0:
             idxs = test_idxs
         else:
             idxs = []
-            odict = make_single(dict(v.info.items()))
+            odict = make_single(dict(variant.info.items()))
             for i, ts in enumerate(test_samples):
                 vdict = odict.copy()
                 vdict.update(make_single(dict(ts.items())))
@@ -241,35 +241,40 @@ def main(args, pass_through_args):
         # we call it a de novo if the sample passed the filters but the mom and
         # dad were not even with the genotype before filtering. so stringent
         # filtering on the kid and lenient on parents.
-        vsamples = [vcf_samples[i] for i in idxs]
-        bams = [names_to_bams[s] for s in vsamples]
+        variant_samples = []
+        for i in idxs:
+            if vcf_samples[i] in names_to_bams:
+                variant_samples.append(vcf_samples[i])
+        if len(variant_samples) <= 0: continue
+
+        bams = [names_to_bams[s] for s in variant_samples]
         if dn_row != "":
             test_sample_names = {s.name for s in test_samples}
-            for vs in vsamples:
-                sample = ped_samples[vs]
+            for variant_sample in variant_samples:
+                sample = ped_samples[variant_sample]
                 if sample.mom is None or sample.dad is None: continue
                 if not sample.mom.id in test_sample_names and not sample.dad.id in test_sample_names:
                     is_dn.append(sample.id)
 
 
         # save these for the html.
-        n_samples = len(vsamples)
-        sample_str = ",".join(vsamples)
+        n_samples = len(variant_samples)
+        sample_str = ",".join(variant_samples)
         # try to get family members
         if args.ped is not None:
             # do DN samples first so we can see parents.
-            for vs in is_dn + [x for x in vsamples if not x in is_dn]:
-                s = ped_samples.get(vs)
+            for variant_sample in is_dn + [x for x in variant_samples if not x in is_dn]:
+                s = ped_samples.get(variant_sample)
                 if s is None: continue
-                if s.mom is not None and not s.mom.id in vsamples and s.mom.id in vcf_samples_set:
-                    vsamples.append("mom-of-%s[%s]" % (vs, s.mom.id))
+                if s.mom is not None and not s.mom.id in variant_samples and s.mom.id in vcf_samples_set:
+                    variant_samples.append("mom-of-%s[%s]" % (variant_sample, s.mom.id))
                     bams.append(names_to_bams[s.mom.id])
-                if s.dad is not None and not s.dad.id in vsamples and s.dad.id in vcf_samples_set:
-                    vsamples.append("dad-of-%s[%s]" % (vs, s.dad.id))
+                if s.dad is not None and not s.dad.id in variant_samples and s.dad.id in vcf_samples_set:
+                    variant_samples.append("dad-of-%s[%s]" % (variant_sample, s.dad.id))
                     bams.append(names_to_bams[s.dad.id])
                 for kid in s.kids:
-                    if not kid.id in vsamples and kid.id in vcf_samples_set:
-                        vsamples.append("kid-of-%s[%s]" % (vs, kid.id))
+                    if not kid.id in variant_samples and kid.id in vcf_samples_set:
+                        variant_samples.append("kid-of-%s[%s]" % (variant_sample, kid.id))
                         bams.append(names_to_bams[kid.id])
 
                     if len(bams) > 1.5 * args.max_hets: break
@@ -282,26 +287,31 @@ def main(args, pass_through_args):
               random.shuffle(hom_ref_idxs)
               hom_ref_idxs = hom_ref_idxs[:3]
 
-            hsamples = [vcf_samples[i] for i in hom_ref_idxs]
-            bams.extend(names_to_bams[s] for s in hsamples)
-            vsamples += ["control-sample:" + s for s in hsamples]
+            hom_ref_samples = []
+            for i in idxs:
+                if vcf_samples[i] in names_to_bams:
+                    hom_ref_samples.append(vcf_samples[i])
 
-        data_dict = {"chrom": v.chrom, "start": v.start, "end": v.stop,
-                "SVTYPE": svtype, "size": v.stop - v.start, "samples":
+            #hsamples = [vcf_samples[i] for i in hom_ref_idxs]
+            bams.extend(names_to_bams[s] for s in hom_ref_samples)
+            variant_samples += ["control-sample:" + s for s in hom_ref_samples]
+
+        data_dict = {"chrom": variant.chrom, "start": variant.start, "end": variant.stop,
+                "SVTYPE": svtype, "size": variant.stop - variant.start, "samples":
                 sample_str, "n_samples": n_samples}
         if dn_row != "":
             data_dict["dn"] = ",".join(is_dn)
-        fig_path = "{out_dir}/{SVTYPE}_{chrom}_{start}_{end}.{itype}".format(
-                out_dir=args.out_dir, itype=args.output_type,
-                **data_dict)
+        fig_path = os.path.join(args.out_dir, "{SVTYPE}_{chrom}_{start}_{end}.{itype}".format(
+                itype=args.output_type,
+                **data_dict))
         tabledata.append(data_dict)
 
         print("python {here}/samplot.py {extra_args} -z 3 --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
-            titles=" ".join(vsamples),
+            titles=" ".join(variant_samples),
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
-            chrom=v.chrom, start=v.start, end=v.stop))
+            chrom=variant.chrom, start=variant.start, end=variant.stop))
 
 
     rowFn = """

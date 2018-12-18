@@ -664,6 +664,17 @@ def get_pair_event_type(pe_read):
     event_type = event_by_strand[pe_read[0].strand,pe_read[1].strand]
     return event_type
 
+def points_in_window(points):
+    """Checks whether these points lie within the window of interest
+
+    Points is a list of one start, one end coordinate (ints)
+    """
+    #if greater than 1 or less than 0, outside the range
+    if points[0] < 0 or points[1] < 0 or points[0] > 1 or points[1] > 1:
+        return False
+    return True
+
+
 def plot_pair(pair, y, ax, range_min, range_max):
     """Plots a PairedEnd read at the y-position corresponding to insert size
 
@@ -676,9 +687,8 @@ def plot_pair(pair, y, ax, range_min, range_max):
     p = [float(pair[0].start - range_min)/float(range_max - range_min), \
          float(pair[1].end - range_min)/float(range_max - range_min)]
 
-    # some points are far outside of the printable area, so we ignore
-    # them 
-    if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+    # some points are far outside of the printable area, so we ignore them 
+    if not points_in_window(p):
         return
 
     event_type = get_pair_event_type(pair)
@@ -714,10 +724,13 @@ def plot_pairs(pairs,
         # y value is the insert size
         insert_size = pair[1].end - pair[0].start
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size > insert_size:
-            curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size < insert_size:
-            curr_max_insert_size = insert_size
+        points = [float(pair[0].start - range_min)/float(range_max - range_min), \
+         float(pair[1].end - range_min)/float(range_max - range_min)]
+        if points_in_window(points):
+            if not curr_min_insert_size or curr_min_insert_size > insert_size:
+                curr_min_insert_size = insert_size
+            if not curr_max_insert_size or curr_max_insert_size < insert_size:
+                curr_max_insert_size = insert_size
 
         plot_pair(pair, insert_size, ax, range_min, range_max)
 
@@ -763,24 +776,28 @@ def plot_linked_reads(pairs,
         gap_sizes = []
         alignments = []
         for linked_pair in linked_pairs:
-
             alignments.append([linked_pair[0].start,linked_pair[1].end])
 
-            if linked_pair[1].end > range_max or \
-               linked_pair[0].start < range_min:
+            if linked_pair[1].end > range_max or linked_pair[0].start < range_min:
                 continue
-            gap_sizes.append(abs(linked_pair[1].end - linked_pair[0].start))
+            points = [float(linked_pair[0].start - range_min)/float(range_max - range_min), 
+                    float(linked_pair[1].end - range_min)/float(range_max - range_min)]
+            if points_in_window(points):
+                gap_sizes.append(abs(linked_pair[1].end - linked_pair[0].start))
 
         for linked_split in linked_splits:
             alignments.append([linked_split[0].end,linked_split[1].start])
-            if linked_split[1].start > range_max or \
-               linked_split[0].end < range_min:
+            if linked_split[1].start > range_max or linked_split[0].end < range_min:
                 continue
-            gap_sizes.append(abs(linked_split[1].start - linked_split[0].end))
+            points = [float(linked_split[0].start - range_min)/float(range_max - range_min), 
+                    float(linked_split[1].end - range_min)/float(range_max - range_min)]
+            if points_in_window(points):
+                gap_sizes.append(abs(linked_split[1].start - linked_split[0].end))
 
         if len(gap_sizes) == 0 : continue
 
         insert_size = max(gap_sizes)
+        
 
         if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
@@ -805,8 +822,9 @@ def plot_linked_reads(pairs,
         end = alignments[-1][1]
         p = [float(start - range_min)/float(range_max - range_min), \
              float(end - range_min)/float(range_max - range_min)]
-
-        if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+        
+        #ignore points outside window
+        if not points_in_window(p):
             continue
 
         ax.plot(p,
@@ -881,7 +899,7 @@ def plot_split(split, y, ax, range_min, range_max):
     p = [float(start.end - range_min)/float(range_max - range_min), \
          float(end.start - range_min)/float(range_max - range_min)]
 
-    if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+    if not points_in_window(p):
         return
     event_type = get_split_event_type(split)
     color = COLORS[event_type]
@@ -916,13 +934,15 @@ def plot_splits(splits,
         insert_size = abs(end.start - start.end - 1)
 
         # use this to scale the y-axis
-        if not curr_min_insert_size or curr_min_insert_size > insert_size:
-            curr_min_insert_size = insert_size
-        if not curr_max_insert_size or curr_max_insert_size < insert_size:
-            curr_max_insert_size = insert_size
+        points = [float(start.end - range_min)/float(range_max - range_min), \
+                float(end.start - range_min)/float(range_max - range_min)]
+        if points_in_window(points):
+            if not curr_min_insert_size or curr_min_insert_size > insert_size:
+                curr_min_insert_size = insert_size
+            if not curr_max_insert_size or curr_max_insert_size < insert_size:
+                curr_max_insert_size = insert_size
 
         plot_split(split, insert_size, ax, range_min, range_max)
-
     return [curr_min_insert_size, curr_max_insert_size]
 
 def plot_long_reads(long_reads,
@@ -958,9 +978,8 @@ def plot_long_reads(long_reads,
             p = [float(step_cords[0]-range_min)/float(range_max - range_min),
                  float(step_cords[1]-range_min)/float(range_max - range_min)]
 
-            # some points are far outside of the printable area, so we ignore
-            # them 
-            if p[0] < -5 or p[1] < -5 or p[0] > 5 or p[1] > 5:
+            # some points are far outside of the printable area, so we ignore them 
+            if not points_in_window(p):
                 continue
 
             if step_type == 'ALIGN':
@@ -1025,7 +1044,6 @@ def plot_coverage(coverage,
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    #this max_coverage will only be > 0 if the command-line param is set to use it
     if max_coverage > 0:
         max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
@@ -1037,6 +1055,7 @@ def plot_coverage(coverage,
     
     if 0 == max_plot_depth:
         max_plot_depth = 0.01
+
     ax2.set_ylim([0,max_plot_depth])
     bottom_fill = np.zeros(len(cover_y_all))
     if tracktype == "stack":
@@ -1044,19 +1063,23 @@ def plot_coverage(coverage,
                          cover_y_highqual, \
                          bottom_fill,\
                          color='darkgrey',
+                         step="pre",
                          alpha=.4)
 
         ax2.fill_between(cover_x, \
                          cover_y_all, \
                          cover_y_highqual,
                          color='grey',
+                         step="pre",
                          alpha=0.15)
+
         
     elif tracktype == "superimpose": 
         ax2.fill_between(cover_x, \
                          cover_y_lowqual, \
                          bottom_fill,\
                          color='grey',
+                         step="pre",
                          alpha=.15)
 
 
@@ -1064,12 +1087,14 @@ def plot_coverage(coverage,
                          cover_y_highqual, \
                          cover_y_lowqual,\
                          color='darkgrey',
+                         step="pre",
                          alpha=.4)
 
         ax2.fill_between(cover_x, \
                          cover_y_lowqual, \
                          bottom_fill,
                          color='grey',
+                         step="pre",
                          alpha=0.15)
        
     #number of ticks should be 6 if there's one hp, 3 otherwise
@@ -1580,14 +1605,14 @@ def plot_samples(read_data,
         chrom, 
         coverage_tracktype, 
         titles, 
-        same_yaxis_scales, 
+        same_yaxis_scales,
         xaxis_label_fontsize, 
         yaxis_label_fontsize, 
         annotation_files, 
         transcript_file):
     """Plots all samples
     """
-    
+    max_insert_size = 0
     for i in range(len(bams)):
         ax =  matplotlib.pyplot.subplot(grid[ax_i])
         hps = set_haplotypes(read_data['all_coverages'][i])
@@ -1596,6 +1621,7 @@ def plot_samples(read_data,
                                                      subplot_spec=grid[ax_i],
                                                      wspace=0.0,
                                                      hspace=0.5)
+        max_coverage = 0
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
@@ -1670,6 +1696,8 @@ def plot_samples(read_data,
                      curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
+            if curr_max_insert_size > max_insert_size:
+                max_insert_size = curr_max_insert_size
 
         #{{{ set axis parameters
         #set the axis title to be either one passed in or filename
