@@ -1956,6 +1956,7 @@ def plot_transcript(transcript_file, chrom, start, end,
     ax =  matplotlib.pyplot.subplot(grid[-1])
 
     transcript_idx = 0
+    arrow_loc = 0.02
     for gene in genes:
         gene_id = genes[gene][3]['ID']
         if gene_id not in transcripts: continue
@@ -1965,14 +1966,28 @@ def plot_transcript(transcript_file, chrom, start, end,
             r=[float(t_start - range_min)/float(range_max - range_min), \
                float(t_end - range_min)/float(range_max - range_min)]
             
-            ax.plot(r,[transcript_idx,transcript_idx],'--',color='cornflowerblue',lw=1)
+            ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=0.5)
 
             ax.text(r[0],
                     transcript_idx + 0.02,
                     gene,
-                    color='cornflowerblue', 
+                    color='blue', 
                     fontsize=annotation_fontsize)
 
+            if genes[gene][3]['strand']:
+                ax.annotate("",
+                    xy=(1,transcript_idx), 
+                    xytext=(1-arrow_loc, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
+            else:
+                ax.annotate("",
+                    xy=(1-arrow_loc,transcript_idx), 
+                    xytext=(1, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
         
             if transcript in cdss:
                 for cds in cdss[transcript]:
@@ -1982,25 +1997,7 @@ def plot_transcript(transcript_file, chrom, start, end,
 
                         r=[float(e_start - range_min)/float(range_max - range_min), \
                             float(e_end - range_min)/float(range_max - range_min)]
-                        
-                        # only show annotation if within range
-                        if 0 <= r[0] <= 1 and 0 <= r[1] <= 1:
-                            if genes[gene][3]['strand']:
-                                ax.annotate("", 
-                                    xy=(r[1],transcript_idx), 
-                                    xytext=(r[0], transcript_idx),
-                                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=2), 
-                                    annotation_clip=True
-                                )
-                            else:
-                                ax.annotate("", 
-                                    xy=(r[0],transcript_idx), 
-                                    xytext=(r[1], transcript_idx),
-                                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=2), 
-                                    annotation_clip=True
-                                )
-
-
+                        ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=4)
                 transcript_idx += 1
         
     # set axis parameters
