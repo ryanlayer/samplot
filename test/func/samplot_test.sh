@@ -20,7 +20,7 @@ rm -f $out_file_name
 run basic_operation \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1,$bam_2,$bam_3 \
+        -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
         -t $sv_type
 assert_exit_code 0
@@ -30,7 +30,7 @@ sample_out_file_name="sample.png"
 run sampling_normal \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1,$bam_2,$bam_3 \
+        -b $bam_1 $bam_2 $bam_3 \
         -o $sample_out_file_name \
         -t $sv_type \
         -d 10
@@ -47,7 +47,7 @@ rm -f $out_file_name
 run common_insert_size_scale \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1,$bam_2,$bam_3 \
+        -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
         -t $sv_type \
         -d 10 \
@@ -61,7 +61,7 @@ rm -f $out_file_name
 run common_insert_size_scale \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1,$bam_2,$bam_3 \
+        -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
         -d 10 \
         --common_insert_size
