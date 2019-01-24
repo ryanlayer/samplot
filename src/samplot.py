@@ -1462,8 +1462,17 @@ def set_plot_dimensions(start, end, sv_type, arg_plot_height, arg_plot_width,
 
     return plot_height,plot_width,window
 
-def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only, 
-        long_read_length, same_yaxis_scales, max_depth, z_score):
+def get_read_data(chrom,
+        start,
+        end,
+        bams,
+        reference,
+        min_mqual,
+        coverage_only, 
+        long_read_length,
+        same_yaxis_scales,
+        max_depth,
+        z_score):
     """Reads alignment files to extract reads for the region
 
     Region and alignment files given with chrom, start, end, bams
@@ -1482,8 +1491,9 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
     all_long_reads = []
     all_linked_reads = []
 
-    range_min = max(0,int(start) - window)
-    range_max = int(end) + window
+    ranges = [[max(0,int(start) - window), int(end) + window]]]
+    #range_min = max(0,int(start) - window)
+    #range_max = int(end) + window
     min_insert_size = None
     max_insert_size = None
     max_coverage = 0
@@ -1504,7 +1514,7 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
         linked_reads = {}
         
         for read in bam_file.fetch(chrom,
-                                   max(0,range_min-1000), 
+                                   max(0,ranges[0][0]-1000), 
                                    range_max+1000):
             if min_mqual and int(read.mapping_quality) < min_mqual:
                 continue
@@ -1513,7 +1523,7 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
                 if read.query_length >= long_read_length:
                     add_long_reads(read, 
                         long_reads, 
-                        range_min, 
+                        ranges[0][0], 
                         range_max, 
                         options.min_event_size)
                 else:
@@ -1597,7 +1607,11 @@ def set_haplotypes(curr_coverage):
     return hps
 
 
-def plot_samples(read_data, 
+def plot_samples(sv_chrom, 
+        sv_start, 
+        sv_end, 
+        ranges,
+        read_data, 
         grid, 
         ax_i, 
         number_of_axes, 
@@ -1658,42 +1672,37 @@ def plot_samples(read_data,
 
             cover_ax = plot_coverage(curr_coverage, 
                     curr_ax, 
-                    range_min, 
-                    range_max,
+                    ranges,
                     len(hps), 
                     max_coverage, 
                     coverage_tracktype, 
                     yaxis_label_fontsize)
             
-            curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
-                    curr_splits,
-                    curr_linked_reads,
-                    curr_ax,
-                    range_min,
-                    range_max,
-                    curr_min_insert_size,
-                    curr_max_insert_size)
-
-            curr_min_insert_size,curr_max_insert_size = plot_long_reads(curr_long_reads,
-                    curr_ax,
-                    range_min,
-                    range_max,
-                    curr_min_insert_size,
-                    curr_max_insert_size)
-            
-            curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
-                     curr_ax,
-                     range_min,
-                     range_max,
-                     curr_min_insert_size,
-                     curr_max_insert_size)
-
-            curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
-                     curr_ax,
-                     range_min,
-                     range_max,
-                     curr_min_insert_size,
-                     curr_max_insert_size)
+#            curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
+#                    curr_splits,
+#                    curr_linked_reads,
+#                    curr_ax,
+#                    ranges,
+#                    curr_min_insert_size,
+#                    curr_max_insert_size)
+#
+#            curr_min_insert_size,curr_max_insert_size = plot_long_reads(curr_long_reads,
+#                    curr_ax,
+#                    ranges,
+#                    curr_min_insert_size,
+#                    curr_max_insert_size)
+#            
+#            curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
+#                     curr_ax,
+#                     ranges,
+#                     curr_min_insert_size,
+#                     curr_max_insert_size)
+#
+#            curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
+#                     curr_ax,
+#                     ranges,
+#                     curr_min_insert_size,
+#                     curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
             if curr_max_insert_size > max_insert_size:
@@ -1754,7 +1763,7 @@ def plot_samples(read_data,
         
         if (ax_i == last_sample_num):
             curr_ax = axs[ hps[-1] ]
-            labels = [int(range_min + l*(range_max-range_min)) \
+            labels = [int(ranges[0][0] + l*(ranges[0][1]-ranges[0][0])) \
                     for l in curr_ax.xaxis.get_majorticklocs()]
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             curr_ax.set_xlabel('Chromosomal position on ' + chrom, fontsize=8)
@@ -2099,19 +2108,24 @@ if __name__ == '__main__':
             options.end_ci)
     
     # Plot each sample
-    current_axis_idx = plot_samples(read_data, 
-        grid, 
-        current_axis_idx, 
-        num_ax, 
-        options.bams, 
-        options.chrom,  
-        options.coverage_tracktype, 
-        options.titles, 
-        options.same_yaxis_scales, 
-        options.xaxis_label_fontsize, 
-        options.yaxis_label_fontsize, 
-        options.annotation_files, 
-        options.transcript_file)
+    current_axis_idx = plot_samples(options.chrom, 
+            options.start, 
+            options.end, 
+            range_min, 
+            range_max, 
+            read_data, 
+            grid, 
+            current_axis_idx, 
+            num_ax, 
+            options.bams, 
+            options.chrom,  
+            options.coverage_tracktype, 
+            options.titles, 
+            options.same_yaxis_scales, 
+            options.xaxis_label_fontsize, 
+            options.yaxis_label_fontsize, 
+            options.annotation_files, 
+            options.transcript_file)
 
     # plot legend
     plot_legend(fig, options.legend_fontsize)
