@@ -1910,27 +1910,37 @@ def plot_transcript(transcript_file, chrom, start, end,
 
     # fetch and parse data from the tabixed gff file
     itr = get_tabix_iter(chrom, start, end, transcript_file)
-     
+    
     for row in itr:
-        A = row.split()
+        gene_annotation = row.split()
 
-        if A[2] == 'gene':
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        if gene_annotation[2] == 'gene':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
 
-            genes[info['Name']] = [A[0],int(A[3]), int(A[4]),info]
+            genes[info['Name']] = [
+                gene_annotation[0],
+                int(gene_annotation[3]), 
+                int(gene_annotation[4]),
+                info
+            ]
 
-        elif A[2] == 'transcript':
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        elif gene_annotation[2] == 'transcript':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
             
             if info['Parent'] not in transcripts:
                 transcripts[info['Parent']] = {}
+            transcripts[info['Parent']][info['ID']] = [
+                gene_annotation[0],
+                int(gene_annotation[3]), 
+                int(gene_annotation[4]),
+                info
+            ]
 
-            transcripts[info['Parent']][info['ID']] = \
-                    [A[0],int(A[3]), int(A[4]),info]
-
-        elif A[2] == 'CDS':
-
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        elif gene_annotation[2] == 'CDS':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
             
             if info['Parent'] not in cdss:
                 cdss[info['Parent']] = {}
@@ -1938,13 +1948,14 @@ def plot_transcript(transcript_file, chrom, start, end,
             if info['ID'] not in cdss[info['Parent']]:
                 cdss[info['Parent']][info['ID']] = []
 
-            cdss[info['Parent']][info['ID']].append([A[0], \
-                                                     int(A[3]), \
-                                                     int(A[4]), \
+            cdss[info['Parent']][info['ID']].append([gene_annotation[0], \
+                                                     int(gene_annotation[3]), \
+                                                     int(gene_annotation[4]), \
                                                      info])
     ax =  matplotlib.pyplot.subplot(grid[-1])
 
-    t_i = 0
+    transcript_idx = 0
+    arrow_loc = 0.02
     for gene in genes:
         gene_id = genes[gene][3]['ID']
         if gene_id not in transcripts: continue
@@ -1953,26 +1964,41 @@ def plot_transcript(transcript_file, chrom, start, end,
             t_end = min(range_max, transcripts[gene_id][transcript][2])
             r=[float(t_start - range_min)/float(range_max - range_min), \
                float(t_end - range_min)/float(range_max - range_min)]
-            ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
+            
+            ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=0.5)
 
             ax.text(r[0],
-                    t_i + 0.02,
+                    transcript_idx + 0.02,
                     gene,
-                    color='cornflowerblue', 
+                    color='blue', 
                     fontsize=annotation_fontsize)
 
+            if genes[gene][3]['strand']:
+                ax.annotate("",
+                    xy=(1,transcript_idx), 
+                    xytext=(1-arrow_loc, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
+            else:
+                ax.annotate("",
+                    xy=(1-arrow_loc,transcript_idx), 
+                    xytext=(1, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
         
             if transcript in cdss:
                 for cds in cdss[transcript]:
                     for exon in cdss[transcript][cds]:
                         e_start = max(range_min,exon[1])
                         e_end = min(range_max,exon[2])
+
                         r=[float(e_start - range_min)/float(range_max - range_min), \
                             float(e_end - range_min)/float(range_max - range_min)]
-                        ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
-
-                t_i += 1
-
+                        ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=4)
+                transcript_idx += 1
+        
     # set axis parameters
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
@@ -2138,8 +2164,9 @@ if __name__ == '__main__':
     
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
-    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.00001, w_pad=.00001)
-    try:
+    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.1, w_pad=.1)
+     try:
         matplotlib.pyplot.savefig(options.output_file)
     except:
         print ("Failed to save figure " + options.output_file + ". Region may be too large")
+   matplotlib.pyplot.savefig(options.output_file)
