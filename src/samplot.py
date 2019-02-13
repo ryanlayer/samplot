@@ -158,7 +158,7 @@ def add_coverage(read, coverage, minq):
 
     for op,length in read.cigartuples:
         if op in [CIGAR_MAP['M'], CIGAR_MAP['='], CIGAR_MAP['X']]:
-            for pos in range(curr_pos, curr_pos+length+1):
+            for pos in range(curr_pos, curr_pos+length):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = [0,0]
 
