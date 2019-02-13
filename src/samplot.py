@@ -1502,7 +1502,6 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
         long_reads = {}
         coverage = {}
         linked_reads = {}
-        
         for read in bam_file.fetch(chrom,
                                    max(0,range_min-1000), 
                                    range_max+1000):
@@ -2140,4 +2139,7 @@ if __name__ == '__main__':
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
     matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.00001, w_pad=.00001)
-    matplotlib.pyplot.savefig(options.output_file)
+    try:
+        matplotlib.pyplot.savefig(options.output_file)
+    except:
+        print ("Failed to save figure " + options.output_file + ". Region may be too large")
