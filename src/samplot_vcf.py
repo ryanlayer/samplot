@@ -260,6 +260,7 @@ def main(args, pass_through_args):
         # save these for the html.
         n_samples = len(variant_samples)
         sample_str = ",".join(variant_samples)
+
         # try to get family members
         if args.ped is not None:
             # do DN samples first so we can see parents.
@@ -288,11 +289,10 @@ def main(args, pass_through_args):
               hom_ref_idxs = hom_ref_idxs[:3]
 
             hom_ref_samples = []
-            for i in idxs:
+            for i in hom_ref_idxs:
                 if vcf_samples[i] in names_to_bams:
                     hom_ref_samples.append(vcf_samples[i])
 
-            #hsamples = [vcf_samples[i] for i in hom_ref_idxs]
             bams.extend(names_to_bams[s] for s in hom_ref_samples)
             variant_samples += ["control-sample:" + s for s in hom_ref_samples]
 
