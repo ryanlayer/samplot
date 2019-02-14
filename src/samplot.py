@@ -1547,7 +1547,7 @@ def get_read_data(chrom, start, end, bams, reference, min_mqual, coverage_only,
 
         if same_yaxis_scales:
             for i in coverage:
-                curr_max = max(coverage[i].values())
+                curr_max = max(max(coverage[i].values()))
                 if curr_max > max_coverage:
                     max_coverage = curr_max
         all_coverages.append(coverage)
@@ -1608,7 +1608,8 @@ def plot_samples(read_data,
         xaxis_label_fontsize, 
         yaxis_label_fontsize, 
         annotation_files, 
-        transcript_file):
+        transcript_file,
+        max_coverage):
     """Plots all samples
     """
     max_insert_size = 0
@@ -1620,7 +1621,6 @@ def plot_samples(read_data,
                                                      subplot_spec=grid[ax_i],
                                                      wspace=0.0,
                                                      hspace=0.5)
-        max_coverage = 0
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
@@ -2136,7 +2136,8 @@ if __name__ == '__main__':
         options.xaxis_label_fontsize, 
         options.yaxis_label_fontsize, 
         options.annotation_files, 
-        options.transcript_file)
+        options.transcript_file,
+        max_coverage)   
 
     # plot legend
     plot_legend(fig, options.legend_fontsize)
