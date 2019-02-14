@@ -2165,8 +2165,8 @@ if __name__ == '__main__':
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
     matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.1, w_pad=.1)
-     try:
+    try:
         matplotlib.pyplot.savefig(options.output_file)
     except:
         print ("Failed to save figure " + options.output_file + ". Region may be too large")
-   matplotlib.pyplot.savefig(options.output_file)
+    matplotlib.pyplot.savefig(options.output_file)
