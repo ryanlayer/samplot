@@ -534,7 +534,18 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
 
     curr = alignments[0]
 
-    primary_strand = alignments[0].strand
+    # we set the primary strand to be the one with the longest alignment
+    # this will affect which alignment is inverted. There are clearly edge
+    # cases here that we will need to address as we get more examples 
+    # of inversions
+
+    longest_alignment = 0
+    longest_alignment_i = -1
+    for i in range(len(alignments)):
+        if longest_alignment < alignments[i].end - alignments[i].start:
+            longest_alignment = alignments[i].end - alignments[i].start
+            longest_alignment_i = i
+    primary_strand = alignments[longest_alignment_i].strand
 
     steps = []
     steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
@@ -543,17 +554,46 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
         last = alignments[i-1]
         curr = alignments[i]
 
+        gap = 0
+
         # figure out what the event is
 
         # INV
         if (curr.strand != last.strand):
-            gap = abs(curr.end - last.end)
+            gap = 0
+
+            # it is possible that we have a complex even that 
+            # is an inverted DUP
+            if (curr.start  < last.end):
+                steps.append( [ [last.end,curr.start], 'DUP' ] )
 
             if (curr.strand != primary_strand):
-                steps.append( [ [curr.end,last.end], 'INVIN' ] )
-            else:
-                steps.append( [ [curr.start,last.start], 'INVOUT' ] )
+                # last (primary) | curr 
+                # +++++++++++++++|-------
+                #               ^.......^
+                #             end           end
 
+                # last (primary) | curr 
+                # ---------------|+++++++
+                #               ^.......^
+                #             end           end
+                steps.append( [ [last.end, curr.end], 'INVIN' ] )
+                gap = abs(curr.end - last.end)
+            else:
+                if (curr.start  < last.end):
+                    steps.append( [ [last.end,curr.start], 'DUP' ] )
+
+                # last   | curr (primary)
+                # +++++++|-------------
+                # ^.......^
+                # start   start
+
+                # last   | curr (primary)
+                # -------|+++++++++++++++
+                # ^.......^
+                # start   start
+                steps.append( [ [last.start, curr.start], 'INVOUT' ] )
+                gap = abs(curr.start - last.start)
             steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
         # DUP
         elif (curr.start  < last.end):
@@ -669,8 +709,7 @@ def points_in_window(points):
 
     Points is a list of one start, one end coordinate (ints)
     """
-    #if greater than 1 or less than 0, outside the range
-    if points[0] < 0 or points[1] < 0 or points[0] > 1 or points[1] > 1:
+    if points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
         return False
     return True
 
@@ -989,6 +1028,9 @@ def plot_long_reads(long_reads,
                         color=colors[step_type],
                         alpha=0.25,
                         lw=1)
+
+                if max_gap > curr_max_insert_size:
+                    curr_max_insert_size = max_gap
             else:
                 x1 = float(step_cords[0]-range_min)/float(range_max-range_min)
                 x2 = float(step_cords[1]-range_min)/float(range_max-range_min)
@@ -1005,6 +1047,10 @@ def plot_long_reads(long_reads,
                         lw=1,
                         ls=':')
                 ax.add_patch(pp)
+
+                # all some room for the bend line
+                if max_gap*1.1 > curr_max_insert_size:
+                    curr_max_insert_size = max_gap*1.1
 
     return [curr_min_insert_size, curr_max_insert_size]
 
