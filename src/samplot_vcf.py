@@ -211,19 +211,27 @@ def main(args, pass_through_args):
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
         if svtype in ("BND", "INS"): continue
+        #remove this when the zoomed view is working
         if variant.stop - variant.start > args.max_mb * 1000000: continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
-
+        
+        #count the number of samples with no call and if more than call rate, move on
+        #TODO only apply this filter if set by the user
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
-        # requisite hets/hom-alts
+
+        #count the number of samples with a het or homalt gt and if greater than the max_hets arg, move on
+        #TODO only apply this filter if set by the user
         if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: continue
+
+        #if there are no samples with the variant, move on
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
         test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
-
+        
+        #if there are filters, use them to remove some of the samples that have the variant
         if len(filters) == 0:
             idxs = test_idxs
         else:
@@ -238,9 +246,10 @@ def main(args, pass_through_args):
         if len(idxs) == 0: continue
         is_dn = []
 
-        # we call it a de novo if the sample passed the filters but the mom and
-        # dad were not even with the genotype before filtering. so stringent
-        # filtering on the kid and lenient on parents.
+        # we call it a de novo if the sample passed the filters, but the mom and
+        # dad did not have the genotype before filtering, so filters were not applied.
+        # So, stringent filtering on the kid and lenient on parents. 
+        # TODO run filters on the parents as well
         variant_samples = []
         for i in idxs:
             if vcf_samples[i] in names_to_bams:
@@ -280,7 +289,8 @@ def main(args, pass_through_args):
 
                     if len(bams) > 1.5 * args.max_hets: break
                 if len(bams) > 1.5 * args.max_hets: break
-
+        
+        #TODO make this optional
         elif len(bams) < 6:
             # extend with some controls:
             hom_ref_idxs = [i for i, gt in enumerate(gts) if len(gt) == 2 and gt[0] == 0 and gt[1] == 0]
