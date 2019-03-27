@@ -49,6 +49,30 @@ CIGAR_MAP = {
     'B' : 9
 }
 
+class minmax:
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+    def __str__(self):
+        return '(' + str(self.min) + ',' + str(self.max)+ ')'
+
+def map_genome_point_to_range_points(ranges, genome_point):
+    range_hit = -1
+    for j in range(len(ranges)):
+        if genome_point >= ranges[j].min and \
+           genome_point <= ranges[j].max :
+            range_hit = j
+
+    if range_hit == -1:
+        return None
+
+    p = 1.0/len(ranges)*range_hit + \
+        (1.0/len(ranges))* \
+        (float(genome_point - ranges[range_hit].min) / \
+         float(ranges[range_hit].max - ranges[range_hit].min))
+
+    return p
+
 def calc_query_pos_from_cigar(cigar, strand):
     """Uses the CIGAR string to determine the query position of a read
 
@@ -458,10 +482,10 @@ def merge_alignments(min_gap, alignments):
                 merged_alignments.append(alignment)
     return merged_alignments
 
-def add_long_reads(read, long_reads, range_min, range_max, min_event_size):
+def add_long_reads(read, long_reads, min_event_size):
     """Adds a (primary, non-supplementary, long) read to the long_reads list
 
-    Read added to long_reads if within the inteval defined by range_min, range_max
+    Read added to long_reads if within the inteval defined by ranges
     Alignments belonging to the LongRead instance combined if within the min_event_size distance apart
     """
     READ_TYPES_USED["Aligned long read"] = True
@@ -509,7 +533,7 @@ def add_long_reads(read, long_reads, range_min, range_max, min_event_size):
                                                     read.reference_end,
                                                     merged_alignments))
 
-def get_long_read_plan(read_name, long_reads, range_min, range_max):
+def get_long_read_plan(read_name, long_reads, ranges):
     """Create a plan to render a long read
 
     Plan consists of the largest event within the read 
@@ -569,8 +593,8 @@ def get_long_read_plan(read_name, long_reads, range_min, range_max):
             steps.append( [ [last.end,curr.start], 'DEL' ] )
             steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
 
-        if not (min(curr.start,last.end) < range_min or \
-                max(curr.start,last.end) > range_max ):
+        if not (min(curr.start,last.end) < ranges[0].min or \
+                max(curr.start,last.end) > ranges[0].max ):
             gaps.append(gap)
 
 
@@ -600,13 +624,17 @@ def get_long_read_max_gap(read_name, long_reads):
         max_gap = max(max_gap,curr_gap)
     return max_gap
 
-def plot_variant(start, end, sv_type, ax, range_min, range_max):
+def plot_variant(start, end, sv_type, ax, ranges):
     """Plots the variant bar at the top of the image
 
     """
-    r=[float(int(start) - range_min)/float(range_max - range_min), \
-        float(int(end) - range_min)/float(range_max - range_min)]
-    ax.plot(r,[0,0],'-',color='black',lw=8,solid_capstyle="butt",alpha=0.5)
+
+    r = [map_genome_point_to_range_points(ranges, int(start)), \
+         map_genome_point_to_range_points(ranges, int(end))]
+
+    ax.plot(r,[0,0],
+            '-',color='black',lw=8,solid_capstyle="butt",alpha=0.5)
+
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -631,11 +659,12 @@ def plot_variant(start, end, sv_type, ax, range_min, range_max):
     sv_title = str(sv_size) + ' ' + sv_size_unit + ' ' + sv_type
     ax.set_title(sv_title, fontsize=8)
 
-def plot_confidence_interval(breakpoint,ci, ax, range_min, range_max):
+def plot_confidence_interval(breakpoint,ci, ax, ranges):
     """Plots a confidence interval on the variant bar
     """
-    r=[float(int(breakpoint)-int(ci[0]) - range_min)/float(range_max - range_min), \
-        float(int(breakpoint)+int(ci[1]) - range_min)/float(range_max - range_min)]
+
+    r = [map_genome_point_to_range_points(ranges, int(breakpoint)-int(ci[0])), \
+         map_genome_point_to_range_points(ranges, int(breakpoint)+int(ci[1]))]
     
     
     ax.plot(r,[0,0],'-',color='black',lw=.5, alpha=1)
@@ -675,17 +704,14 @@ def points_in_window(points):
     return True
 
 
-def plot_pair(pair, y, ax, range_min, range_max):
+def plot_pair(pair, y, ax, ranges):
     """Plots a PairedEnd read at the y-position corresponding to insert size
 
     If read lies outside the range-min or range_max, it is not plotted
     """
-    
-    if pair[0].end < range_min or pair[1].start > range_max:
-        return
 
-    p = [float(pair[0].start - range_min)/float(range_max - range_min), \
-         float(pair[1].end - range_min)/float(range_max - range_min)]
+    p = [map_genome_point_to_range_points(ranges, pair[0].start), \
+         map_genome_point_to_range_points(ranges, pair[1].end)]
 
     # some points are far outside of the printable area, so we ignore them 
     if not points_in_window(p):
@@ -706,8 +732,7 @@ def plot_pair(pair, y, ax, range_min, range_max):
 
 def plot_pairs(pairs,
                ax,
-               range_min,
-               range_max,
+               ranges,
                curr_min_insert_size,
                curr_max_insert_size):
     """Plots all PairedEnd reads for the region
@@ -724,15 +749,32 @@ def plot_pairs(pairs,
         # y value is the insert size
         insert_size = pair[1].end - pair[0].start
         # use this to scale the y-axis
-        points = [float(pair[0].start - range_min)/float(range_max - range_min), \
-         float(pair[1].end - range_min)/float(range_max - range_min)]
+
+        range_hit = [-1] * len(pair)
+        for i in range(len(pair)):
+            for j in range(len(ranges)):
+                if pair[i].start >= ranges[j].min and \
+                   pair[i].end <= ranges[j].max :
+                    range_hit[i] = j
+
+        if -1 in range_hit:
+            continue
+
+        p1 = 0.5*range_hit[0] + (1.0/len(ranges))*( \
+             float(pair[0].start - ranges[range_hit[0]].min)  / \
+             float(ranges[range_hit[0]].max - ranges[range_hit[0]].min) )
+        p2 = 0.5*range_hit[1] + (1.0/len(ranges))*( \
+             float(pair[1].start - ranges[range_hit[1]].min)  / \
+             float(ranges[range_hit[1]].max - ranges[range_hit[1]].min))
+        points = [p1,p2]
+
         if points_in_window(points):
             if not curr_min_insert_size or curr_min_insert_size > insert_size:
                 curr_min_insert_size = insert_size
             if not curr_max_insert_size or curr_max_insert_size < insert_size:
                 curr_max_insert_size = insert_size
 
-        plot_pair(pair, insert_size, ax, range_min, range_max)
+        plot_pair(pair, insert_size, ax, ranges)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -740,8 +782,7 @@ def plot_linked_reads(pairs,
                       splits,
                       linked_reads,
                       ax,
-                      range_min,
-                      range_max,
+                      ranges,
                       curr_min_insert_size,
                       curr_max_insert_size):
     """Plots all LinkedReads for the region
@@ -778,19 +819,23 @@ def plot_linked_reads(pairs,
         for linked_pair in linked_pairs:
             alignments.append([linked_pair[0].start,linked_pair[1].end])
 
-            if linked_pair[1].end > range_max or linked_pair[0].start < range_min:
+            if linked_pair[1].end > ranges[0].max or linked_pair[0].start < ranges[0].min:
                 continue
-            points = [float(linked_pair[0].start - range_min)/float(range_max - range_min), 
-                    float(linked_pair[1].end - range_min)/float(range_max - range_min)]
+            #points = [float(linked_pair[0].start - ranges[0].min)/float(ranges[0].max - ranges[0].min), 
+                    #float(linked_pair[1].end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+            points = [map_genome_point_to_range_points(ranges, linked_pair[0].start),
+                      map_genome_point_to_range_points(ranges, linked_pair[1].end)]
             if points_in_window(points):
                 gap_sizes.append(abs(linked_pair[1].end - linked_pair[0].start))
 
         for linked_split in linked_splits:
             alignments.append([linked_split[0].end,linked_split[1].start])
-            if linked_split[1].start > range_max or linked_split[0].end < range_min:
+            if linked_split[1].start > ranges[0].max or linked_split[0].end < ranges[0].min:
                 continue
-            points = [float(linked_split[0].start - range_min)/float(range_max - range_min), 
-                    float(linked_split[1].end - range_min)/float(range_max - range_min)]
+            #points = [float(linked_split[0].start - ranges[0].min)/float(ranges[0].max - ranges[0].min), 
+                    #float(linked_split[1].end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+            points = [map_genome_point_to_range_points(ranges, linked_split[0].start),
+                      map_genome_point_to_range_points(ranges, linked_split[1].end)]
             if points_in_window(points):
                 gap_sizes.append(abs(linked_split[1].start - linked_split[0].end))
 
@@ -820,8 +865,10 @@ def plot_linked_reads(pairs,
 
         start = alignments[0][0]
         end = alignments[-1][1]
-        p = [float(start - range_min)/float(range_max - range_min), \
-             float(end - range_min)/float(range_max - range_min)]
+        #p = [float(start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+             #float(end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+        p = [map_genome_point_to_range_points(ranges, start), \
+             map_genome_point_to_range_points(ranges, end)]
         
         #ignore points outside window
         if not points_in_window(p):
@@ -836,12 +883,12 @@ def plot_linked_reads(pairs,
         for name in linked_reads[linked_read][0]:
             if name in pairs and len(pairs[name]) == 2:
                 pair = pairs[name]
-                plot_pair(pair, insert_size, ax, range_min, range_max)
+                plot_pair(pair, insert_size, ax, ranges)
 
         for name in linked_reads[linked_read][1]:
             if name in splits:
                 split = splits[name]
-                plot_split(split, insert_size, ax, range_min, range_max)
+                plot_split(split, insert_size, ax, ranges)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -881,7 +928,7 @@ def get_split_event_type(split):
     return event_type
             
 
-def plot_split(split, y, ax, range_min, range_max):
+def plot_split(split, y, ax, ranges):
     """Plots a SplitRead at the y-position corresponding to insert size
 
     If read lies outside the range-min or range_max, it is not plotted
@@ -893,11 +940,13 @@ def plot_split(split, y, ax, range_min, range_max):
         start = split[1]
 
     # Do not plot pairs that extend beyond the current range
-    if range_min > start.end or range_max < end.start:
+    if ranges[0].min > start.end or ranges[0].max < end.start:
         return
 
-    p = [float(start.end - range_min)/float(range_max - range_min), \
-         float(end.start - range_min)/float(range_max - range_min)]
+    #p = [float(start.end - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+         #float(end.start - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+    p = [map_genome_point_to_range_points(ranges, start.end), \
+         map_genome_point_to_range_points(ranges, end.start) ]
 
     if not points_in_window(p):
         return
@@ -915,8 +964,7 @@ def plot_split(split, y, ax, range_min, range_max):
 
 def plot_splits(splits,
                 ax,
-                range_min,
-                range_max,
+                ranges,
                 curr_min_insert_size,
                 curr_max_insert_size):
     """Plots all SplitReads for the region
@@ -934,21 +982,24 @@ def plot_splits(splits,
         insert_size = abs(end.start - start.end - 1)
 
         # use this to scale the y-axis
-        points = [float(start.end - range_min)/float(range_max - range_min), \
-                float(end.start - range_min)/float(range_max - range_min)]
+        #points = [float(start.end - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+                #float(end.start - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+
+        points = [map_genome_point_to_range_points(ranges, start.end), 
+                  map_genome_point_to_range_points(ranges, start.start)]
+
         if points_in_window(points):
             if not curr_min_insert_size or curr_min_insert_size > insert_size:
                 curr_min_insert_size = insert_size
             if not curr_max_insert_size or curr_max_insert_size < insert_size:
                 curr_max_insert_size = insert_size
 
-        plot_split(split, insert_size, ax, range_min, range_max)
+        plot_split(split, insert_size, ax, ranges)
     return [curr_min_insert_size, curr_max_insert_size]
 
 def plot_long_reads(long_reads,
                     ax,
-                    range_min,
-                    range_max,
+                    ranges,
                     curr_min_insert_size,
                     curr_max_insert_size):
     """Plots all LongReads for the region
@@ -965,8 +1016,7 @@ def plot_long_reads(long_reads,
     for read_name in long_reads:
         long_read_plan = get_long_read_plan(read_name,
                                             long_reads,
-                                            range_min,
-                                            range_max)
+                                            ranges)
         if long_read_plan is None:
             continue
         max_gap = long_read_plan[0]
@@ -975,8 +1025,10 @@ def plot_long_reads(long_reads,
             step_cords = step[0]
             step_type = step[1]
 
-            p = [float(step_cords[0]-range_min)/float(range_max - range_min),
-                 float(step_cords[1]-range_min)/float(range_max - range_min)]
+            #p = [float(step_cords[0]-ranges[0].min)/float(ranges[0].max - ranges[0].min),
+                 #float(step_cords[1]-ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+            p = [map_genome_point_to_range_points(ranges, step_cords[0]), \
+                 map_genome_point_to_range_points(ranges, step_cords[1])]
 
             # some points are far outside of the printable area, so we ignore them 
             if not points_in_window(p):
@@ -990,8 +1042,10 @@ def plot_long_reads(long_reads,
                         alpha=0.25,
                         lw=1)
             else:
-                x1 = float(step_cords[0]-range_min)/float(range_max-range_min)
-                x2 = float(step_cords[1]-range_min)/float(range_max-range_min)
+                #x1 = float(step_cords[0]-ranges[0].min)/float(ranges[0].max-ranges[0].min)
+                x1 = map_genome_point_to_range_points(ranges, step_cords[0])
+                #x2 = float(step_cords[1]-ranges[0].min)/float(ranges[0].max-ranges[0].min)
+                x2 = map_genome_point_to_range_points(ranges, step_cords[1])
 
                 pp = mpatches.PathPatch(
                         Path([ (x1, max_gap),
@@ -1010,16 +1064,17 @@ def plot_long_reads(long_reads,
 
 def plot_coverage(coverage, 
                 ax, 
-                range_min, 
-                range_max, 
+                ranges,
                 hp_count,
                 max_coverage, 
                 tracktype,
                 yaxis_label_fontsize):
+
     """Plots high and low quality coverage for the region
 
     User may specify a preference between stacked and superimposed 
-        superimposed may cause unexpected behavior if low-quality depth is greater than high 
+    superimposed may cause unexpected behavior if low-quality depth is greater
+    than high 
     """
    
     cover_x = []
@@ -1027,19 +1082,21 @@ def plot_coverage(coverage,
     cover_y_highqual = []
     cover_y_all = []
 
-    for pos in range(range_min,range_max+1):
-        if pos in coverage:
-            cover_x.append(\
-                    float(pos-range_min)/float(range_max - range_min))
-            cover_y_all.append(coverage[pos][0] + coverage[pos][1])
-            cover_y_highqual.append(coverage[pos][0])
-            cover_y_lowqual.append(coverage[pos][1])
-        else:
-            cover_x.append(\
-                    float(pos-range_min)/float(range_max - range_min))
-            cover_y_lowqual.append(0)
-            cover_y_highqual.append(0)
-            cover_y_all.append(0)
+    offset = 0
+    scale=float(1.0/len(ranges))
+    for i in range(len(ranges)):
+        r = ranges[i]
+        for pos in range(r.min,r.max+1):
+            cover_x.append(offset+scale*float(pos-r.min)/float(r.max-r.min))
+            if pos in coverage:
+                cover_y_all.append(coverage[pos][0] + coverage[pos][1])
+                cover_y_highqual.append(coverage[pos][0])
+                cover_y_lowqual.append(coverage[pos][1])
+            else:
+                cover_y_lowqual.append(0)
+                cover_y_highqual.append(0)
+                cover_y_all.append(0)
+        offset+=scale
     cover_y_lowqual = np.array(cover_y_lowqual)
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
@@ -1047,7 +1104,8 @@ def plot_coverage(coverage,
     if max_coverage > 0:
         max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
-        max_plot_depth = max(np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5))
+        max_plot_depth = max(np.percentile(cover_y_all, 99.5), \
+                             np.percentile(cover_y_all, 99.5))
     else:
         max_plot_depth = max(cover_y_all.max(), cover_y_all.max())
     ax2 = ax.twinx()
@@ -1101,6 +1159,7 @@ def plot_coverage(coverage,
     tick_count = 5 if hp_count==1 else 2
     tick_count = max(int(max_plot_depth/tick_count), 1)
 
+
     # set axis parameters
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis='y', colors='grey', labelsize=yaxis_label_fontsize)
@@ -1110,6 +1169,11 @@ def plot_coverage(coverage,
     ax2.spines['right'].set_visible(False)
     ax2.tick_params(axis='x',length=0)
     ax2.tick_params(axis='y',length=0)
+
+    #fix
+    # break the variant plot when we have multiple ranges
+    for i in range(1,len(ranges)):
+        ax2.axvline(x=1.0/len(ranges), color='white', linewidth=5)
 
     return ax2
 
@@ -1141,8 +1205,8 @@ def get_split_insert_size(splits):
 
             for i in range(1, len(splits[hp][read_name])):
                 curr = splits[hp][read_name][i].start
-                if curr >= range_min and curr <= range_max and \
-                    last >= range_min and last <= range_max:
+                if curr >= ranges[0].min and curr <= ranges[0].max and \
+                    last >= ranges[0].min and last <= ranges[0].max:
                     split_insert_sizes.append(abs(curr - last))
                 last = curr
     return split_insert_sizes
@@ -1413,6 +1477,12 @@ def setup_arguments():
                       default=False,
                       help="Set the scales of the Y axes to the max of all",
                       required=False)
+
+    parser.add_argument("--zoom",
+                      type=int,
+                      help="Only show +- zoom amount around breakpoints",
+                      required=False)
+
     options = parser.parse_args()
     
     if options.print_args or options.json_only:
@@ -1472,7 +1542,8 @@ def get_read_data(chrom,
         long_read_length,
         same_yaxis_scales,
         max_depth,
-        z_score):
+        z_score,
+        ranges):
     """Reads alignment files to extract reads for the region
 
     Region and alignment files given with chrom, start, end, bams
@@ -1480,9 +1551,11 @@ def get_read_data(chrom,
     Reads with mapping quality below min_mqual will not be retrieved
     If coverage_only, reads are not kept and used only for checking coverage
     Reads longer than long_read_length will be treated as long reads
-    Max coverages values will be set to same value for all samples if same_yaxis_scales
-    If max_depth, only max_depth reads will be retrieved, although all will be included in coverage
-    If PairedEnd read insert size is greater than z_score standard deviations from mean, read will be treated as discordant
+    Max coverages values will be set to same value for all samples if
+    same_yaxis_scales If max_depth, only max_depth reads will be retrieved,
+    although all will be included in coverage
+    If PairedEnd read insert size is greater than z_score standard deviations
+    from mean, read will be treated as discordant
     """
     
     all_pairs = []
@@ -1491,9 +1564,6 @@ def get_read_data(chrom,
     all_long_reads = []
     all_linked_reads = []
 
-    ranges = [[max(0,int(start) - window), int(end) + window]]]
-    #range_min = max(0,int(start) - window)
-    #range_max = int(end) + window
     min_insert_size = None
     max_insert_size = None
     max_coverage = 0
@@ -1512,24 +1582,23 @@ def get_read_data(chrom,
         long_reads = {}
         coverage = {}
         linked_reads = {}
-        
-        for read in bam_file.fetch(chrom,
-                                   max(0,ranges[0][0]-1000), 
-                                   range_max+1000):
-            if min_mqual and int(read.mapping_quality) < min_mqual:
-                continue
-            
-            if not coverage_only:
-                if read.query_length >= long_read_length:
-                    add_long_reads(read, 
-                        long_reads, 
-                        ranges[0][0], 
-                        range_max, 
-                        options.min_event_size)
-                else:
-                    add_pair_end(read, pairs, linked_reads)
-                    add_split(read, splits, bam_file, linked_reads)
-            add_coverage(read, coverage, options.minq)
+
+        for r in ranges:
+            for read in bam_file.fetch(chrom,
+                                       max(0,r.min-1000), 
+                                       r.max+1000):
+                if min_mqual and int(read.mapping_quality) < min_mqual:
+                    continue
+                
+                if not coverage_only:
+                    if read.query_length >= long_read_length:
+                        add_long_reads(read, 
+                            long_reads, 
+                            options.min_event_size)
+                    else:
+                        add_pair_end(read, pairs, linked_reads)
+                        add_split(read, splits, bam_file, linked_reads)
+                add_coverage(read, coverage, options.minq)
 
         pair_insert_sizes = get_pair_insert_sizes(pairs)
         split_insert_sizes = get_split_insert_size(splits)
@@ -1561,8 +1630,10 @@ def get_read_data(chrom,
                 curr_max = max(coverage[i].values())
                 if curr_max > max_coverage:
                     max_coverage = curr_max
+
         all_coverages.append(coverage)
         all_pairs.append(pairs)
+        #FIX
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
@@ -1577,16 +1648,21 @@ def get_read_data(chrom,
 
     # Sample +/- pairs in the normal insert size range
     if max_depth:
-        read_data['all_pairs'] = downsample_pairs(max_depth, z_score, read_data['all_pairs'])
+        read_data['all_pairs'] = downsample_pairs(max_depth, \
+                                                  z_score, \
+                                                  read_data['all_pairs'])
     
     return read_data,max_coverage
 
 def downsample_pairs(max_depth, z_score, all_pairs):
     """Downsamples to keep only max_depth normal pairs from all PairedEnd reads 
     """
-    for i in range(len(all_pairs)):
-        for hp in all_pairs[i]:
-            all_pairs[i][hp] = sample_normal(max_depth,all_pairs[i][hp],z_score)
+    for bam_i in range(len(all_pairs)):
+        for hp_i in all_pairs[bam_i]:
+            all_pairs[bam_i][hp_i] = \
+                    sample_normal(max_depth, \
+                                  all_pairs[bam_i][hp_i], \
+                                  z_score)
     return all_pairs
 
 def set_haplotypes(curr_coverage):
@@ -1635,6 +1711,7 @@ def plot_samples(sv_chrom,
                                                      subplot_spec=grid[ax_i],
                                                      wspace=0.0,
                                                      hspace=0.5)
+
         max_coverage = 0
         axs = {}
         for j in range(len(hps)):
@@ -1650,10 +1727,6 @@ def plot_samples(sv_chrom,
         for hp in hps:
             curr_ax = axs[hp]
 
-            curr_pairs = []
-            if hp in read_data['all_pairs'][i]:
-                curr_pairs = read_data['all_pairs'][i][hp]
-
             curr_splits = []
             if hp in read_data['all_splits'][i]:
                 curr_splits = read_data['all_splits'][i][hp]
@@ -1666,9 +1739,14 @@ def plot_samples(sv_chrom,
             if hp in read_data['all_long_reads'][i]:
                 curr_long_reads = read_data['all_long_reads'][i][hp]
 
+            curr_pairs = []
+            if hp in read_data['all_pairs'][i]:
+                curr_pairs = read_data['all_pairs'][i][hp]
+
             curr_coverage = []
             if hp in read_data['all_coverages'][i]:
                 curr_coverage = read_data['all_coverages'][i][hp]
+
 
             cover_ax = plot_coverage(curr_coverage, 
                     curr_ax, 
@@ -1677,6 +1755,7 @@ def plot_samples(sv_chrom,
                     max_coverage, 
                     coverage_tracktype, 
                     yaxis_label_fontsize)
+
             
 #            curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
 #                    curr_splits,
@@ -1692,17 +1771,17 @@ def plot_samples(sv_chrom,
 #                    curr_min_insert_size,
 #                    curr_max_insert_size)
 #            
-#            curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
-#                     curr_ax,
-#                     ranges,
-#                     curr_min_insert_size,
-#                     curr_max_insert_size)
-#
-#            curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
-#                     curr_ax,
-#                     ranges,
-#                     curr_min_insert_size,
-#                     curr_max_insert_size)
+            curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
+                     curr_ax,
+                     ranges,
+                     curr_min_insert_size,
+                     curr_max_insert_size)
+
+            curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
+                     curr_ax,
+                     ranges,
+                     curr_min_insert_size,
+                     curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
             if curr_max_insert_size > max_insert_size:
@@ -1763,8 +1842,10 @@ def plot_samples(sv_chrom,
         
         if (ax_i == last_sample_num):
             curr_ax = axs[ hps[-1] ]
-            labels = [int(ranges[0][0] + l*(ranges[0][1]-ranges[0][0])) \
+            labels = [int(ranges[0].min + l*(ranges[0].max-ranges[0].min)) \
                     for l in curr_ax.xaxis.get_majorticklocs()]
+            print(labels)
+            print([str(x) for x in ranges])
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             curr_ax.set_xlabel('Chromosomal position on ' + chrom, fontsize=8)
 
@@ -1843,7 +1924,7 @@ def get_tabix_iter(chrom, pos, end, datafile):
     tbx = pysam.TabixFile(datafile)
     itr = None
     try:
-        itr = tbx.fetch(chrom, max(0,range_min-1000), range_max+1000)
+        itr = tbx.fetch(chrom, max(0,ranges[0].min-1000), ranges[0].max+1000)
     except ValueError:
         # try and account for chr/no chr prefix
         if chrom[:3] == 'chr':
@@ -1853,8 +1934,7 @@ def get_tabix_iter(chrom, pos, end, datafile):
 
         try:
             itr = tbx.fetch(chrom,
-                            max(0,range_min-1000), 
-                            range_max+1000)
+                            max(0,ranges[0].min-1000),ranges[0].max+1000)
         except ValueError:
             sys.exit('Warning: Could not fetch ' + \
                     chrom + ':' + pos + '-' + end + \
@@ -1875,11 +1955,11 @@ def plot_annotations(annotation_files, chrom, start, end,
 
         for row in itr:
             A = row.rstrip().split()
-            t_start = max(range_min, int(A[1]))
-            t_end = min(range_max, int(A[2]))
+            t_start = max(ranges[0].min, int(A[1]))
+            t_end = min(ranges[0].max, int(A[2]))
 
-            r=[float(t_start - range_min)/float(range_max - range_min), \
-               float(t_end - range_min)/float(range_max - range_min)]
+            r=[float(t_start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+               float(t_end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
 
             if len(A) > 3 :
                 try:
@@ -1959,10 +2039,10 @@ def plot_transcript(transcript_file, chrom, start, end,
         gene_id = genes[gene][3]['ID']
         if gene_id not in transcripts: continue
         for transcript in transcripts[gene_id]:
-            t_start = max(range_min, transcripts[gene_id][transcript][1])
-            t_end = min(range_max, transcripts[gene_id][transcript][2])
-            r=[float(t_start - range_min)/float(range_max - range_min), \
-               float(t_end - range_min)/float(range_max - range_min)]
+            t_start = max(ranges[0].min, transcripts[gene_id][transcript][1])
+            t_end = min(ranges[0].max, transcripts[gene_id][transcript][2])
+            r=[float(t_start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+               float(t_end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
             ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
 
             ax.text(r[0],
@@ -1975,10 +2055,10 @@ def plot_transcript(transcript_file, chrom, start, end,
             if transcript in cdss:
                 for cds in cdss[transcript]:
                     for exon in cdss[transcript][cds]:
-                        e_start = max(range_min,exon[1])
-                        e_end = min(range_max,exon[2])
-                        r=[float(e_start - range_min)/float(range_max - range_min), \
-                            float(e_end - range_min)/float(range_max - range_min)]
+                        e_start = max(ranges[0].min,exon[1])
+                        e_end = min(ranges[0].max,exon[2])
+                        r=[float(e_start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
+                            float(e_end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
                         ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
 
                 t_i += 1
@@ -2001,20 +2081,32 @@ def create_variant_plot(grid,
         start, 
         end, 
         sv_type, 
-        range_min, 
-        range_max, 
+        ranges,
         start_ci, 
         end_ci):
     """Plots the pieces of the variant bar at the top, including bar and confidence intervals
     """
     ax = matplotlib.pyplot.subplot(grid[ax_i])
-    plot_variant(start, end, sv_type, ax, range_min, range_max)
+    plot_variant(start, end, sv_type, ax, ranges)
     ax_i += 1
     #plot confidence intervals if provided
     if start_ci and start_ci != None:
-        plot_confidence_interval(start, start_ci, ax, range_min, range_max)
+        plot_confidence_interval(start, start_ci, ax, ranges)
     if end_ci and end_ci != None:
-        plot_confidence_interval(end, end_ci, ax, range_min, range_max)
+        plot_confidence_interval(end, end_ci, ax, ranges)
+
+    # break the variant plot when we have multiple ranges
+    for i in range(1,len(ranges)):
+        ax.axvline(x=1.0/len(ranges), color='white', linewidth=5)
+        ax.text(1.0/len(ranges),
+                0, 
+                "...", 
+                fontsize=6, 
+                fontdict=None, 
+                withdash=False,
+                horizontalalignment='center')
+
+
     return ax_i
 
 def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
@@ -2048,6 +2140,7 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
         ratios += [.3]*len(annotation_files)
     if transcript_file:
         ratios.append(2)
+
     return gridspec.GridSpec(num_ax, 1, height_ratios = ratios), num_ax
 
 ########################################################################
@@ -2055,6 +2148,7 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
 ########################################################################
 if __name__ == '__main__':
     options = setup_arguments()
+
     
     # set up plot 
     plot_height,plot_width,window = set_plot_dimensions(options.start, 
@@ -2068,8 +2162,17 @@ if __name__ == '__main__':
             options.window)
 
     marker_size = options.marker_size
-    range_min = max(0,int(options.start) - window)
-    range_max = int(options.end) + window
+
+    ranges = [minmax(max(0,int(options.start) - window),
+              int(options.end) + window)]
+
+    if options.zoom:
+        ranges = [minmax(max(0,int(options.start) - options.zoom),
+                         int(options.start) + options.zoom), 
+                  minmax(max(0,int(options.end) - options.zoom),
+                         int(options.end) + options.zoom)]
+
+    print(ranges)
 
     # set up sub plots
     matplotlib.rcParams.update({'font.size': 12})
@@ -2086,7 +2189,8 @@ if __name__ == '__main__':
             options.long_read, 
             options.same_yaxis_scales, 
             options.max_depth, 
-            options.z)
+            options.z,
+            ranges)
     
     # set up grid organizer
     grid,num_ax = create_gridspec(options.bams, 
@@ -2102,8 +2206,7 @@ if __name__ == '__main__':
             options.start, 
             options.end, 
             options.sv_type, 
-            range_min, 
-            range_max, 
+            ranges,
             options.start_ci, 
             options.end_ci)
     
@@ -2111,8 +2214,7 @@ if __name__ == '__main__':
     current_axis_idx = plot_samples(options.chrom, 
             options.start, 
             options.end, 
-            range_min, 
-            range_max, 
+            ranges,
             read_data, 
             grid, 
             current_axis_idx, 
