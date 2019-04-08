@@ -1893,7 +1893,7 @@ def get_tabix_iter(chrom, pos, end, datafile):
                             range_max+1000)
         except ValueError:
             sys.exit('Warning: Could not fetch ' + \
-                    chrom + ':' + pos + '-' + end + \
+                    chrom + ':' + str(pos) + '-' + str(end) + \
                     ' from ' + datafile)
     return itr
         
