@@ -306,9 +306,21 @@ def main(args, pass_through_args):
                 **data_dict))
         tabledata.append(data_dict)
 
-        print("python {here}/samplot.py {extra_args} -z 3 --minq 0 -n {titles} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
+        if "CIPOS" in variant.info:
+            v = variant.info["CIPOS"]
+            cipos = "--start_ci '%s,%s'" % (abs(v[0]), abs(v[1]))
+        else:
+            cipos = ""
+        if "CIEND" in variant.info:
+            v = variant.info["CIEND"]
+            ciend = "--end_ci '%s,%s'" % (abs(v[0]), abs(v[1]))
+        else:
+            ciend = ""
+
+        print("python {here}/samplot.py {extra_args} -z 3 --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
             titles=" ".join(variant_samples),
+            cipos=cipos, ciend=ciend,
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
             chrom=variant.chrom, start=variant.start, end=variant.stop))
