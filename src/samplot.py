@@ -49,6 +49,19 @@ CIGAR_MAP = {
     'B' : 9
 }
 
+#class plan
+class plan_step:
+    def __init__(self, start, stop, event):
+        self.start = start
+        self.stop = stop
+        self.event = event
+    def __str__(self):
+        return 'Step(' + str(self.start) + ', ' \
+                   + str(self.stop)+ ', ' \
+                   + self.event + ')'
+    def __repr__(self):
+        return str(self)
+
 class minmax:
     def __init__(self, min, max):
         self.min = min
@@ -56,7 +69,7 @@ class minmax:
     def __str__(self):
         return '(' + str(self.min) + ',' + str(self.max)+ ')'
 
-def map_genome_point_to_range_points(ranges, genome_point):
+def get_range_hit(ranges, genome_point):
     range_hit = -1
     for j in range(len(ranges)):
         if genome_point >= ranges[j].min and \
@@ -64,6 +77,15 @@ def map_genome_point_to_range_points(ranges, genome_point):
             range_hit = j
 
     if range_hit == -1:
+        return None
+
+    return range_hit
+
+
+def map_genome_point_to_range_points(ranges, genome_point):
+    range_hit = get_range_hit(ranges, genome_point)
+    
+    if range_hit == None:
         return None
 
     p = 1.0/len(ranges)*range_hit + \
@@ -182,7 +204,7 @@ def add_coverage(read, coverage, minq):
 
     for op,length in read.cigartuples:
         if op in [CIGAR_MAP['M'], CIGAR_MAP['='], CIGAR_MAP['X']]:
-            for pos in range(curr_pos, curr_pos+length+1):
+            for pos in range(curr_pos, curr_pos+length):
                 if pos not in coverage[hp]:
                     coverage[hp][pos] = [0,0]
 
@@ -546,22 +568,44 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
     alignments = []
 
+    #FIX for multiple chromosome
+    seen = {}
     for long_read in long_reads[read_name]:
         for alignment in long_read.alignments:
+            if alignment.query_position in seen:
+                continue
+            seen[alignment.query_position] = 1
+            if alignment.end < ranges[0].min or \
+               alignment.start > ranges[-1].max:
+                   continue
             alignments.append(alignment)
+
 
     if len(alignments) <= 0:
         return None
     alignments.sort(key=lambda x: x.query_position)
 
-    gaps = []
 
     curr = alignments[0]
 
-    primary_strand = alignments[0].strand
+    # we set the primary strand to be the one with the longest alignment
+    # this will affect which alignment is inverted. There are clearly edge
+    # cases here that we will need to address as we get more examples 
+    # of inversions
+    longest_alignment = 0
+    longest_alignment_i = -1
+    for i in range(len(alignments)):
+        if longest_alignment < alignments[i].end - alignments[i].start:
+            longest_alignment = alignments[i].end - alignments[i].start
+            longest_alignment_i = i
+    primary_strand = alignments[longest_alignment_i].strand
 
     steps = []
-    steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+    # long aglinments may spill over the edges, so we will clip that starts 
+    # and ends base on the reanges
+    steps.append( plan_step(max(curr.start,ranges[0].min), \
+                           min(curr.end,ranges[-1].max), \
+                           'ALIGN'))
 
     for i in range(1,len(alignments)):
         last = alignments[i-1]
@@ -571,36 +615,61 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
         # INV
         if (curr.strand != last.strand):
-            gap = abs(curr.end - last.end)
+            # it is possible that we have a complex even that 
+            # is an inverted DUP
+            if (curr.start  < last.end):
+                steps.append( plan_step(last.end, curr.start, 'DUP') )
 
             if (curr.strand != primary_strand):
-                steps.append( [ [curr.end,last.end], 'INVIN' ] )
-            else:
-                steps.append( [ [curr.start,last.start], 'INVOUT' ] )
+                # last (primary) | curr 
+                # +++++++++++++++|-------
+                #               ^.......^
+                #             end           end
 
-            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+                # last (primary) | curr 
+                # ---------------|+++++++
+                #               ^.......^
+                #             end           end
+                steps.append( plan_step(last.end, curr.end, 'INVIN') )
+            else:
+                if (curr.start  < last.end):
+                    steps.append( plan_step(last.end, curr.start, 'DUP') )
+
+                # last   | curr (primary)
+                # +++++++|-------------
+                # ^.......^
+                # start   start
+
+                # last   | curr (primary)
+                # -------|+++++++++++++++
+                # ^.......^
+                # start   start
+                steps.append( plan_step(last.start, curr.start, 'INVOUT') )
+            steps.append( plan_step(max(curr.start,ranges[0].min), \
+                                    min(curr.end,ranges[-1].max), \
+                                    'ALIGN')  )
         # DUP
         elif (curr.start  < last.end):
-            gap = abs(last.end - curr.start)
-
-            steps.append( [ [last.end,curr.start], 'DUP' ] )
-            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+            steps.append( plan_step(last.end, curr.start, 'DUP'))
+            steps.append( plan_step(max(curr.start,ranges[0].min), \
+                                    min(curr.end,ranges[-1].max), \
+                                   'ALIGN'))
 
         # DEL
         else:
-            gap = abs(curr.start - last.end)
+            steps.append( plan_step(last.end, curr.start, 'DEL') )
+            steps.append( plan_step(max(curr.start,ranges[0].min), \
+                                    min(curr.end,ranges[-1].max),  \
+                                    'ALIGN'))
 
-            steps.append( [ [last.end,curr.start], 'DEL' ] )
-            steps.append( [ [curr.start,curr.end], 'ALIGN' ] )
+        # if either end is in a range, then add its gap to the list
 
-        if not (min(curr.start,last.end) < ranges[0].min or \
-                max(curr.start,last.end) > ranges[0].max ):
-            gaps.append(gap)
+    step_sizes= [abs(step.stop-step.start) for step in steps \
+            if step.event != 'ALIGN' \
+            and get_range_hit(ranges, step.start) != None \
+            and get_range_hit(ranges, step.stop) != None]
 
-
-    max_gap = 0
-    if len(gaps) > 0:
-        max_gap = max(gaps)
+    max_gap = max(step_sizes) if len(step_sizes) > 0 else 0
 
     plan = [max_gap, steps]
 
@@ -698,8 +767,7 @@ def points_in_window(points):
 
     Points is a list of one start, one end coordinate (ints)
     """
-    #if greater than 1 or less than 0, outside the range
-    if points[0] < 0 or points[1] < 0 or points[0] > 1 or points[1] > 1:
+    if points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
         return False
     return True
 
@@ -778,6 +846,7 @@ def plot_pairs(pairs,
 
     return [curr_min_insert_size, curr_max_insert_size]
 
+
 def plot_linked_reads(pairs,
                       splits,
                       linked_reads,
@@ -790,10 +859,12 @@ def plot_linked_reads(pairs,
 
     for linked_read in linked_reads:
         linked_pairs = []
+        #collect all the splits in a gem
         for name in linked_reads[linked_read][0]:
             if name in pairs and len(pairs[name]) == 2:
                 linked_pairs.append(pairs[name])
 
+        #collect all the splits in a gem
         linked_splits = []
         for name in linked_reads[linked_read][1]:
             if name in splits:
@@ -819,30 +890,31 @@ def plot_linked_reads(pairs,
         for linked_pair in linked_pairs:
             alignments.append([linked_pair[0].start,linked_pair[1].end])
 
-            if linked_pair[1].end > ranges[0].max or linked_pair[0].start < ranges[0].min:
+            if linked_pair[1].end > ranges[0].max \
+               or linked_pair[0].start < ranges[0].min:
                 continue
-            #points = [float(linked_pair[0].start - ranges[0].min)/float(ranges[0].max - ranges[0].min), 
-                    #float(linked_pair[1].end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-            points = [map_genome_point_to_range_points(ranges, linked_pair[0].start),
-                      map_genome_point_to_range_points(ranges, linked_pair[1].end)]
+            points = [map_genome_point_to_range_points(ranges,
+                                                       linked_pair[0].start),
+                      map_genome_point_to_range_points(ranges,
+                                                       linked_pair[1].end)]
             if points_in_window(points):
                 gap_sizes.append(abs(linked_pair[1].end - linked_pair[0].start))
 
         for linked_split in linked_splits:
             alignments.append([linked_split[0].end,linked_split[1].start])
-            if linked_split[1].start > ranges[0].max or linked_split[0].end < ranges[0].min:
+            if linked_split[1].start > ranges[0].max \
+               or linked_split[0].end < ranges[0].min:
                 continue
-            #points = [float(linked_split[0].start - ranges[0].min)/float(ranges[0].max - ranges[0].min), 
-                    #float(linked_split[1].end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-            points = [map_genome_point_to_range_points(ranges, linked_split[0].start),
-                      map_genome_point_to_range_points(ranges, linked_split[1].end)]
+            points = [map_genome_point_to_range_points(ranges, \
+                                                       linked_split[0].start),
+                      map_genome_point_to_range_points(ranges,
+                                                       linked_split[1].end)]
             if points_in_window(points):
                 gap_sizes.append(abs(linked_split[1].start - linked_split[0].end))
 
         if len(gap_sizes) == 0 : continue
 
         insert_size = max(gap_sizes)
-        
 
         if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
@@ -863,17 +935,15 @@ def plot_linked_reads(pairs,
 
         alignments=compressed_alignments
 
-        start = alignments[0][0]
-        end = alignments[-1][1]
-        #p = [float(start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
-             #float(end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
+        start = max(ranges[0].min, alignments[0][0])
+        end = min(ranges[-1].max, alignments[-1][1])
         p = [map_genome_point_to_range_points(ranges, start), \
              map_genome_point_to_range_points(ranges, end)]
-        
         #ignore points outside window
         if not points_in_window(p):
             continue
 
+        
         ax.plot(p,
                 [insert_size,insert_size],\
                 '-',color='green', \
@@ -917,7 +987,8 @@ def get_split_event_type(split):
     
     #if same strand, need query position info
     if orientations[0] == orientations[1]:
-        #first query position smaller than second query position, normal for forward strand
+        #first query position smaller than second query position, 
+        #normal for forward strand
         orientations.append(first.query_pos < second.query_pos)
         
         #reverse strand requires start position info
@@ -943,8 +1014,6 @@ def plot_split(split, y, ax, ranges):
     if ranges[0].min > start.end or ranges[0].max < end.start:
         return
 
-    #p = [float(start.end - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
-         #float(end.start - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
     p = [map_genome_point_to_range_points(ranges, start.end), \
          map_genome_point_to_range_points(ranges, end.start) ]
 
@@ -982,17 +1051,16 @@ def plot_splits(splits,
         insert_size = abs(end.start - start.end - 1)
 
         # use this to scale the y-axis
-        #points = [float(start.end - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
-                #float(end.start - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-
         points = [map_genome_point_to_range_points(ranges, start.end), 
-                  map_genome_point_to_range_points(ranges, start.start)]
+                  map_genome_point_to_range_points(ranges, end.start)]
 
-        if points_in_window(points):
-            if not curr_min_insert_size or curr_min_insert_size > insert_size:
-                curr_min_insert_size = insert_size
-            if not curr_max_insert_size or curr_max_insert_size < insert_size:
-                curr_max_insert_size = insert_size
+        if not points_in_window(points):
+            continue
+
+        if not curr_min_insert_size or curr_min_insert_size > insert_size:
+            curr_min_insert_size = insert_size
+        if not curr_max_insert_size or curr_max_insert_size < insert_size:
+            curr_max_insert_size = insert_size
 
         plot_split(split, insert_size, ax, ranges)
     return [curr_min_insert_size, curr_max_insert_size]
@@ -1017,35 +1085,36 @@ def plot_long_reads(long_reads,
         long_read_plan = get_long_read_plan(read_name,
                                             long_reads,
                                             ranges)
+
         if long_read_plan is None:
             continue
         max_gap = long_read_plan[0]
         steps = long_read_plan[1]
         for step in steps:
-            step_cords = step[0]
-            step_type = step[1]
+            #step_cords = step[0]
+            #step_type = step[1]
 
-            #p = [float(step_cords[0]-ranges[0].min)/float(ranges[0].max - ranges[0].min),
-                 #float(step_cords[1]-ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-            p = [map_genome_point_to_range_points(ranges, step_cords[0]), \
-                 map_genome_point_to_range_points(ranges, step_cords[1])]
+            p = [map_genome_point_to_range_points(ranges, step.start), \
+                 map_genome_point_to_range_points(ranges, step.stop)]
 
-            # some points are far outside of the printable area, so we ignore them 
+            # some points are far outside of the printable area, so we ignore
+            # them 
             if not points_in_window(p):
                 continue
 
-            if step_type == 'ALIGN':
+            if step.event == 'ALIGN':
                 ax.plot(p,
                         [max_gap,max_gap],
                         '-', 
-                        color=colors[step_type],
+                        color=colors[step.event],
                         alpha=0.25,
                         lw=1)
+
+                if max_gap > curr_max_insert_size:
+                    curr_max_insert_size = max_gap
             else:
-                #x1 = float(step_cords[0]-ranges[0].min)/float(ranges[0].max-ranges[0].min)
-                x1 = map_genome_point_to_range_points(ranges, step_cords[0])
-                #x2 = float(step_cords[1]-ranges[0].min)/float(ranges[0].max-ranges[0].min)
-                x2 = map_genome_point_to_range_points(ranges, step_cords[1])
+                x1 = map_genome_point_to_range_points(ranges, step.start)
+                x2 = map_genome_point_to_range_points(ranges, step.stop)
 
                 pp = mpatches.PathPatch(
                         Path([ (x1, max_gap),
@@ -1054,11 +1123,15 @@ def plot_long_reads(long_reads,
                                (x2, max_gap)],
                         [ Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]),
                         fc="none",
-                        color=colors[step_type],
+                        color=colors[step.event],
                         alpha=0.25,
                         lw=1,
                         ls=':')
                 ax.add_patch(pp)
+
+                # add some room for the bend line
+                if max_gap*1.1 > curr_max_insert_size:
+                    curr_max_insert_size = max_gap*1.1
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -1483,8 +1556,14 @@ def setup_arguments():
                       help="Only show +- zoom amount around breakpoints",
                       required=False)
 
+    parser.add_argument("--debug",
+                      type=str,
+                      help="Print debug statements",
+                      required=False)
+
+
     options = parser.parse_args()
-    
+
     if options.print_args or options.json_only:
         print_arguments(options)
         if options.json_only:
@@ -1587,7 +1666,10 @@ def get_read_data(chrom,
             for read in bam_file.fetch(chrom,
                                        max(0,r.min-1000), 
                                        r.max+1000):
-                if min_mqual and int(read.mapping_quality) < min_mqual:
+                if read.is_qcfail \
+                   or read.is_qcfail \
+                   or read.is_duplicate \
+                   or min_mqual and int(read.mapping_quality) < min_mqual:
                     continue
                 
                 if not coverage_only:
@@ -1627,13 +1709,12 @@ def get_read_data(chrom,
 
         if same_yaxis_scales:
             for i in coverage:
-                curr_max = max(coverage[i].values())
+                curr_max = max(max(coverage[i].values()))
                 if curr_max > max_coverage:
                     max_coverage = curr_max
 
         all_coverages.append(coverage)
         all_pairs.append(pairs)
-        #FIX
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
@@ -1683,10 +1764,7 @@ def set_haplotypes(curr_coverage):
     return hps
 
 
-def plot_samples(sv_chrom, 
-        sv_start, 
-        sv_end, 
-        ranges,
+def plot_samples(ranges,
         read_data, 
         grid, 
         ax_i, 
@@ -1699,7 +1777,8 @@ def plot_samples(sv_chrom,
         xaxis_label_fontsize, 
         yaxis_label_fontsize, 
         annotation_files, 
-        transcript_file):
+        transcript_file,
+        max_coverage):
     """Plots all samples
     """
     max_insert_size = 0
@@ -1711,8 +1790,6 @@ def plot_samples(sv_chrom,
                                                      subplot_spec=grid[ax_i],
                                                      wspace=0.0,
                                                      hspace=0.5)
-
-        max_coverage = 0
         axs = {}
         for j in range(len(hps)):
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
@@ -1747,7 +1824,6 @@ def plot_samples(sv_chrom,
             if hp in read_data['all_coverages'][i]:
                 curr_coverage = read_data['all_coverages'][i][hp]
 
-
             cover_ax = plot_coverage(curr_coverage, 
                     curr_ax, 
                     ranges,
@@ -1757,31 +1833,36 @@ def plot_samples(sv_chrom,
                     yaxis_label_fontsize)
 
             
-#            curr_min_insert_size,curr_max_insert_size = plot_linked_reads(curr_pairs,
-#                    curr_splits,
-#                    curr_linked_reads,
-#                    curr_ax,
-#                    ranges,
-#                    curr_min_insert_size,
-#                    curr_max_insert_size)
-#
-#            curr_min_insert_size,curr_max_insert_size = plot_long_reads(curr_long_reads,
-#                    curr_ax,
-#                    ranges,
-#                    curr_min_insert_size,
-#                    curr_max_insert_size)
-#            
-            curr_min_insert_size,curr_max_insert_size = plot_pairs(curr_pairs,
-                     curr_ax,
-                     ranges,
-                     curr_min_insert_size,
-                     curr_max_insert_size)
+            if len(curr_linked_reads) > 0 :
+                curr_min_insert_size,curr_max_insert_size = plot_linked_reads(
+                        curr_pairs,
+                        curr_splits,
+                        curr_linked_reads,
+                        curr_ax,
+                        ranges,
+                        curr_min_insert_size,
+                        curr_max_insert_size)
+            elif len(curr_long_reads) > 0 :
+                curr_min_insert_size,curr_max_insert_size = plot_long_reads(
+                        curr_long_reads,
+                        curr_ax,
+                        ranges,
+                        curr_min_insert_size,
+                        curr_max_insert_size)
+            else:
+                curr_min_insert_size,curr_max_insert_size = plot_pairs(
+                        curr_pairs,
+                        curr_ax,
+                        ranges,
+                        curr_min_insert_size,
+                        curr_max_insert_size)
 
-            curr_min_insert_size,curr_max_insert_size = plot_splits(curr_splits,
-                     curr_ax,
-                     ranges,
-                     curr_min_insert_size,
-                     curr_max_insert_size)
+                curr_min_insert_size,curr_max_insert_size = plot_splits(
+                        curr_splits,
+                        curr_ax,
+                        ranges,
+                        curr_min_insert_size,
+                        curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
             if curr_max_insert_size > max_insert_size:
@@ -1844,8 +1925,6 @@ def plot_samples(sv_chrom,
             curr_ax = axs[ hps[-1] ]
             labels = [int(ranges[0].min + l*(ranges[0].max-ranges[0].min)) \
                     for l in curr_ax.xaxis.get_majorticklocs()]
-            print(labels)
-            print([str(x) for x in ranges])
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             curr_ax.set_xlabel('Chromosomal position on ' + chrom, fontsize=8)
 
@@ -2000,27 +2079,37 @@ def plot_transcript(transcript_file, chrom, start, end,
 
     # fetch and parse data from the tabixed gff file
     itr = get_tabix_iter(chrom, start, end, transcript_file)
-     
+    
     for row in itr:
-        A = row.split()
+        gene_annotation = row.split()
 
-        if A[2] == 'gene':
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        if gene_annotation[2] == 'gene':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
 
-            genes[info['Name']] = [A[0],int(A[3]), int(A[4]),info]
+            genes[info['Name']] = [
+                gene_annotation[0],
+                int(gene_annotation[3]), 
+                int(gene_annotation[4]),
+                info
+            ]
 
-        elif A[2] == 'transcript':
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        elif gene_annotation[2] == 'transcript':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
             
             if info['Parent'] not in transcripts:
                 transcripts[info['Parent']] = {}
+            transcripts[info['Parent']][info['ID']] = [
+                gene_annotation[0],
+                int(gene_annotation[3]), 
+                int(gene_annotation[4]),
+                info
+            ]
 
-            transcripts[info['Parent']][info['ID']] = \
-                    [A[0],int(A[3]), int(A[4]),info]
-
-        elif A[2] == 'CDS':
-
-            info =  dict([list(val.split('=')) for val in A[8].split(';')])
+        elif gene_annotation[2] == 'CDS':
+            info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
+            info['strand'] = gene_annotation[6] == "+"
             
             if info['Parent'] not in cdss:
                 cdss[info['Parent']] = {}
@@ -2028,13 +2117,14 @@ def plot_transcript(transcript_file, chrom, start, end,
             if info['ID'] not in cdss[info['Parent']]:
                 cdss[info['Parent']][info['ID']] = []
 
-            cdss[info['Parent']][info['ID']].append([A[0], \
-                                                     int(A[3]), \
-                                                     int(A[4]), \
+            cdss[info['Parent']][info['ID']].append([gene_annotation[0], \
+                                                     int(gene_annotation[3]), \
+                                                     int(gene_annotation[4]), \
                                                      info])
     ax =  matplotlib.pyplot.subplot(grid[-1])
 
-    t_i = 0
+    transcript_idx = 0
+    arrow_loc = 0.02
     for gene in genes:
         gene_id = genes[gene][3]['ID']
         if gene_id not in transcripts: continue
@@ -2043,14 +2133,28 @@ def plot_transcript(transcript_file, chrom, start, end,
             t_end = min(ranges[0].max, transcripts[gene_id][transcript][2])
             r=[float(t_start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
                float(t_end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-            ax.plot(r,[t_i,t_i],'--',color='cornflowerblue',lw=1)
+            ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=0.5)
 
             ax.text(r[0],
-                    t_i + 0.02,
+                    transcript_idx + 0.02,
                     gene,
-                    color='cornflowerblue', 
+                    color='blue', 
                     fontsize=annotation_fontsize)
 
+            if genes[gene][3]['strand']:
+                ax.annotate("",
+                    xy=(1,transcript_idx), 
+                    xytext=(1-arrow_loc, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
+            else:
+                ax.annotate("",
+                    xy=(1-arrow_loc,transcript_idx), 
+                    xytext=(1, transcript_idx),
+                    arrowprops=dict(arrowstyle="->",color="cornflowerblue", lw=1), 
+                    annotation_clip=True
+                )
         
             if transcript in cdss:
                 for cds in cdss[transcript]:
@@ -2059,10 +2163,9 @@ def plot_transcript(transcript_file, chrom, start, end,
                         e_end = min(ranges[0].max,exon[2])
                         r=[float(e_start - ranges[0].min)/float(ranges[0].max - ranges[0].min), \
                             float(e_end - ranges[0].min)/float(ranges[0].max - ranges[0].min)]
-                        ax.plot(r,[t_i,t_i],'-',color='cornflowerblue',lw=4)
-
-                t_i += 1
-
+                        ax.plot(r,[transcript_idx,transcript_idx],'-',color='cornflowerblue',lw=4)
+                transcript_idx += 1
+        
     # set axis parameters
     ax.set_xlim([0,1])
     ax.spines['top'].set_visible(False)
@@ -2167,12 +2270,15 @@ if __name__ == '__main__':
               int(options.end) + window)]
 
     if options.zoom:
-        ranges = [minmax(max(0,int(options.start) - options.zoom),
-                         int(options.start) + options.zoom), 
-                  minmax(max(0,int(options.end) - options.zoom),
-                         int(options.end) + options.zoom)]
-
-    print(ranges)
+        if window < options.zoom:
+            sys.stderr.write("Ignoring zoom command. " + \
+                             "Zoom (" + str(options.zoom) + ")"\
+                             " > Window (" + str(window) + ")\n")
+        else:
+            ranges = [minmax(max(0,int(options.start) - options.zoom),
+                             int(options.start) + options.zoom), 
+                      minmax(max(0,int(options.end) - options.zoom),
+                             int(options.end) + options.zoom)]
 
     # set up sub plots
     matplotlib.rcParams.update({'font.size': 12})
@@ -2211,10 +2317,7 @@ if __name__ == '__main__':
             options.end_ci)
     
     # Plot each sample
-    current_axis_idx = plot_samples(options.chrom, 
-            options.start, 
-            options.end, 
-            ranges,
+    current_axis_idx = plot_samples(ranges,
             read_data, 
             grid, 
             current_axis_idx, 
@@ -2227,8 +2330,8 @@ if __name__ == '__main__':
             options.xaxis_label_fontsize, 
             options.yaxis_label_fontsize, 
             options.annotation_files, 
-            options.transcript_file)
-
+            options.transcript_file,
+            max_coverage)
     # plot legend
     plot_legend(fig, options.legend_fontsize)
 
@@ -2255,5 +2358,9 @@ if __name__ == '__main__':
     
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
-    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.00001, w_pad=.00001)
+    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.1, w_pad=.1)
+    try:
+        matplotlib.pyplot.savefig(options.output_file)
+    except:
+        print ("Failed to save figure " + options.output_file + ". Region may be too large")
     matplotlib.pyplot.savefig(options.output_file)

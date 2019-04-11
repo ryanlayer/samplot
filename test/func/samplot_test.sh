@@ -25,6 +25,22 @@ run basic_operation \
         -t $sv_type
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="test_zoom.png"
+rm -f $out_file_name
+run basic_operation_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $out_file_name \
+        -t $sv_type \
+        --zoom 500
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sample_out_file_name="sample.png"
 run sampling_normal \
@@ -36,6 +52,22 @@ run sampling_normal \
         -d 10
 assert_exit_code 0
 assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+sample_out_file_name="sample_zoom.png"
+run sampling_normal_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $sample_out_file_name \
+        -t $sv_type \
+        -d 10 \
+        --zoom 500
+assert_exit_code 0
+assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=chrX
 sv_start=101055330
@@ -54,11 +86,30 @@ run common_insert_size_scale \
         --common_insert_size
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="dup_zoom.png"
+rm -f $out_file_name
+run common_insert_size_scale_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10 \
+        --zoom 500 \
+        --common_insert_size
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
 
 out_file_name="no_sv_type.png"
 rm -f $out_file_name
 
-run common_insert_size_scale \
+run no_sv_type \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
@@ -67,7 +118,24 @@ run common_insert_size_scale \
         --common_insert_size
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
+out_file_name="no_sv_type_zoom.png"
+rm -f $out_file_name
+
+run no_sv_type_zoom  \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $out_file_name \
+        -d 10 \
+        --zoom 500 \
+        --common_insert_size
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 rm -rf img/
 mkdir img
@@ -80,8 +148,9 @@ run from_vcf \
     $bam_1 $bam_2 $bam_3
 assert_in_stdout "img/DEL_chr4_115928726-115931880.png"
 assert_in_stdout "img/DUP_chrX_101055330-101067156.png"
-assert_no_stderr
 assert_exit_code 0
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=X
 sv_start=101055330
@@ -100,6 +169,23 @@ run nanopore_dup \
         -d 10 
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="longread_nanopore_dup_zoom.png"
+rm -f $out_file_name
+run nanopore_dup_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10  \
+        --zoom 1000
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=4
 sv_start=115928730
@@ -117,6 +203,23 @@ run nanopore_del \
         -d 10 
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="longread_nanopore_del_zoom.png"
+rm -f $out_file_name
+run nanopore_del_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10  \
+        --zoom 500
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=chr1
 sv_start=58343117
@@ -134,6 +237,39 @@ run longread_del \
         -d 10 
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="longread_del_zoom_big_zoom.png"
+rm -f $out_file_name
+run longread_del_zoom_big_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10  \
+        --zoom 500
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_in_stderr "Ignoring zoom command."
+assert_no_stdout
+
+
+out_file_name="longread_del_zoom_zoom.png"
+rm -f $out_file_name
+run longread_del_zoom_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10  \
+        --zoom 200
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=chr21
 sv_start=27373431
@@ -151,6 +287,23 @@ run longread_inv \
         -d 10 
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="longread_inv_zoom.png"
+rm -f $out_file_name
+run longread_inv_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10  \
+        --zoom 750
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
 
 sv_chrm=1
 sv_start=89475845
@@ -159,7 +312,7 @@ sv_type=DEL
 out_file_name="linkedread_del.png"
 bam=../data/HG002_1_89475845-89478561_DEL.tenx.bam
 rm -f $out_file_name
-run longread_inv \
+run linkedread_del \
     python ../../src/samplot.py \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
@@ -168,3 +321,20 @@ run longread_inv \
         -d 10 
 assert_exit_code 0
 assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
+
+out_file_name="linkedread_del_zoom.png"
+rm -f $out_file_name
+run linkedread_del_zoom \
+    python ../../src/samplot.py \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -d 10 \
+        --zoom 500
+assert_exit_code 0
+assert_equal $out_file_name $( ls $out_file_name )
+assert_no_stdout
+assert_no_stderr
