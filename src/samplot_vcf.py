@@ -316,10 +316,19 @@ def main(args, pass_through_args):
             ciend = "--end_ci '%s,%s'" % (abs(v[0]), abs(v[1]))
         else:
             ciend = ""
+        # dynamically set Z to speed drawing and remove noise for larger events
+        z = 3
+        if variant.stop - variant.start > 2000:
+            z = 4
+        if variant.stop - variant.start > 10000:
+            z = 6
+        if variant.stop - variant.start > 20000:
+            z = 9
 
-        print("python {here}/samplot.py {extra_args} -z 3 --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
+        print("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
             titles=" ".join(variant_samples),
+            z=z,
             cipos=cipos, ciend=ciend,
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
