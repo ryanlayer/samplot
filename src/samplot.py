@@ -1971,7 +1971,7 @@ def plot_transcript(transcript_file, chrom, start, end,
                 info
             ]
 
-        elif gene_annotation[2] == 'transcript':
+        elif gene_annotation[2] in ('transcript', 'mRNA'):
             info =  dict([list(val.split('=')) for val in gene_annotation[8].split(';')])
             info['strand'] = gene_annotation[6] == "+"
 
@@ -2000,11 +2000,13 @@ def plot_transcript(transcript_file, chrom, start, end,
                                                      info])
     ax =  matplotlib.pyplot.subplot(grid[-1])
 
-    transcript_idx = 0
     arrow_loc = 0.02
     for gene in genes:
+        transcript_idx = 0
         gene_id = genes[gene][3]['ID']
-        if gene_id not in transcripts: continue
+        if gene_id not in transcripts:
+            continue
+
         for transcript in transcripts[gene_id]:
             t_start = max(range_min, transcripts[gene_id][transcript][1])
             t_end = min(range_max, transcripts[gene_id][transcript][2])
