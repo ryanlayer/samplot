@@ -245,8 +245,10 @@ def main(args, pass_through_args):
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
-        # requisite hets/hom-alts
-        if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: continue
+        if args.max_hets:
+            # requisite hets/hom-alts
+            if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: 
+                continue
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
 
@@ -306,9 +308,10 @@ def main(args, pass_through_args):
                     if not kid.id in variant_samples and kid.id in vcf_samples_set:
                         variant_samples.append("kid-of-%s[%s]" % (variant_sample, kid.id))
                         bams.append(names_to_bams[kid.id])
-
+                    if args.max_hets:
+                        if len(bams) > 1.5 * args.max_hets: break
+                if args.max_hets:
                     if len(bams) > 1.5 * args.max_hets: break
-                if len(bams) > 1.5 * args.max_hets: break
 
         elif len(bams) < 6:
             # extend with some controls:
@@ -324,6 +327,7 @@ def main(args, pass_through_args):
 
             bams.extend(names_to_bams[s] for s in hom_ref_samples)
             variant_samples += ["control-sample:" + s for s in hom_ref_samples]
+        
 
         data_dict = {"chrom": variant.chrom, "start": variant.start, "end": variant.stop,
                 "SVTYPE": svtype, "size": variant.stop - variant.start, "samples":
@@ -353,6 +357,10 @@ def main(args, pass_through_args):
             z = 6
         if variant.stop - variant.start > 20000:
             z = 9
+
+        if args.max_entries:
+            bams = bams[:args.max_entries]
+            variant_samples = variant_samples[:args.max_entries]
 
         print("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
@@ -396,7 +404,8 @@ if __name__ == "__main__":
             " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'" +
             " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
     p.add_argument("-O", "--output-type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
-    p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", default=10)
+    p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", required=False)
+    p.add_argument("--max-entries", type=int, help="only plot at most this many heterozygotes", default=10)
     p.add_argument("--max-mb", type=int, help="skip variants longer than this many megabases", default=1)
     p.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     p.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
