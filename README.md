@@ -38,14 +38,19 @@ Options:
   --common_insert_size  Set common insert size for all plots
 ```
 
-## Dependencies
+## Installing
+Since samplot runs as a Python script, the only requirements to use it are a working version of Python (2 or 3) and the required Python [libraries](https://raw.githubusercontent.com/jbelyeu/samplot/vcf/requirements.txt). Installation of these libraries can be performed easily by using conda:
+```
+conda install -y --file https://raw.githubusercontent.com/jbelyeu/samplot/vcf/requirements.txt
+```
 
-* numpy
-* matplotlib
-* pysam
-* statistics
+All of these libraries are also available from [pip](https://pypi.python.org/pypi/pip). 
 
-All of these are available from [pip](https://pypi.python.org/pypi/pip).
+You can download samplot by cloning the git repository:
+```
+git clone https://github.com/jbelyeu/samplot.git
+```
+No other installation is required.
 
 ## Examples: 
 
@@ -177,12 +182,12 @@ sys 0m0.129s
 
 <img src="/doc/imgs/4_115928726_115931880.d100.genes_reps_map.png">
 
-### Generating images from a VCF file
+## Generating images from a VCF file
 To plot images from all structural variants in a VCF file, use samplot's
 `samplot_vcf.py` script. This accepts a VCF file and the BAM files of samples
 you wish to plot, outputting images and the index for a web page to a directory for review.
 
-## Usage
+### Usage
 ```
 python samplot_vcf.py -h
 usage: note that additional arguments are passed through to samplot.py
@@ -219,7 +224,7 @@ optional arguments:
 
 `samplot_vcf.py` can be used to quickly apply some basic filters to variants. Filters are applied via the `--filter` argument, which may be repeated as many times as desired. Each expression specified with the `--filter` option is applied separately in an OR fashion, which `&` characters may be used within a statement for AND operations.
 
-## Examples:
+### Example:
 ```
 python samplot_vcf.py \
     --filter "DHBFC > 1.25 & SVTYPE == 'DUP'" \
@@ -229,9 +234,27 @@ python samplot_vcf.py \
     -d test/\
     -O png\
     --important_regions regions.bed\
-    -b example.bam
+    -b example.bam > samplot_commands.sh
 ```
+This example will create a directory named test (in the current working directory). A file named `index.html` will be created inside that directory. Samplot commands will be printed out for the creation of plots for all samples/variants that pass the above filters, assuming that the `samplot.py` script is in the same directory as the `samplot_vcf.py` script.
 
+**Filters:** The above filters will remove all samples/variants from output except:
+* `DUP` variants with at least `DHBFC` of 1.25
+* `DEL` variants with at most `DHBFC` of 0.7
+* `INV` variants with `SU` of at least 5
+
+The specific `FORMAT` fields available in your VCF file may be different. I recommend SV VCF annotation with [duphold](https://github.com/brentp/duphold) by [brentp](https://github.com/brentp), which provides the `DHBFC` field used in this example. 
+
+For more complex expression-based VCF filtering, try brentp's [slivar](https://github.com/brentp/slivar), which provides similar but more broad options for filter expressions.
+
+**Region restriction.** Variants can also be filtered by overlap with a set of region (for example, gene coordinates for genes correlated with a disease). The `important_regions` argument provides a BED file of such regions for this example.
+
+**Family-based filtering** 
+
+**Additional notes.** 
+* Variants where fewer than 95% of samples have a call (whether reference or alternate) will be excluded by default. This can be altered via the command-line argument `min_call_rate`.
+* If you're primarily interested in rare variants, you can use the `max_hets` filter to remove variants that appear in more than `max_hets` samples.
+* Large variants can now be plotted easily by samplot through use of `samplot.py`'s `zoom` argument. However, you can still choose to only plot variants larger than a given size using the `max_mb` argument.
 
 
 #### CRAM inputs
