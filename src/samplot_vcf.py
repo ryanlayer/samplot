@@ -190,6 +190,28 @@ def get_dn_row(ped_samples):
             return '{title:"de novo", field:"dn"}'
     return ''
 
+def read_important_regions(bedfilename):
+    important_regions = {}
+    with open(bedfilename, 'r') as bedfile:
+        for line in bedfile:
+            pos_fields = line.strip().split()
+            region_string = "_".join(pos_fields[1:3])
+            if pos_fields[0] not in important_regions:
+                important_regions[pos_fields[0]] = []
+            important_regions[pos_fields[0]].append(region_string)
+
+    return important_regions
+
+def var_in_important_regions(important_regions, chrom, start, end):
+    if chrom in important_regions:
+        for region in important_regions[chrom]:
+            region_st,region_end = [int(x) for x in region.split("_")]
+            if region_st <= start <= region_end or\
+                    region_st <= end <= region_end or\
+                    start <= region_st <= end:
+                return True
+    return False
+
 
 def main(args, pass_through_args):
     vcf = pysam.VariantFile(args.vcf)
@@ -206,32 +228,31 @@ def main(args, pass_through_args):
       os.makedirs(args.out_dir)
 
     names_to_bams = get_names_to_bams(args.bams)
+    important_regions = None
+    if args.important_regions:
+        important_regions = read_important_regions(args.important_regions)
     tabledata = []
 
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
+        if args.important_regions:
+            if not var_in_important_regions(important_regions, variant.chrom, variant.start, variant.stop): 
+                continue
+
         if svtype in ("BND", "INS"): continue
-        #remove this when the zoomed view is working
         if variant.stop - variant.start > args.max_mb * 1000000: continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
-        
-        #count the number of samples with no call and if more than call rate, move on
-        #TODO only apply this filter if set by the user
+
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
-
-        #count the number of samples with a het or homalt gt and if greater than the max_hets arg, move on
-        #TODO only apply this filter if set by the user
+        # requisite hets/hom-alts
         if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: continue
-
-        #if there are no samples with the variant, move on
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
         test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
-        
-        #if there are filters, use them to remove some of the samples that have the variant
+
         if len(filters) == 0:
             idxs = test_idxs
         else:
@@ -246,10 +267,9 @@ def main(args, pass_through_args):
         if len(idxs) == 0: continue
         is_dn = []
 
-        # we call it a de novo if the sample passed the filters, but the mom and
-        # dad did not have the genotype before filtering, so filters were not applied.
-        # So, stringent filtering on the kid and lenient on parents. 
-        # TODO run filters on the parents as well
+        # we call it a de novo if the sample passed the filters but the mom and
+        # dad were not even with the genotype before filtering. so stringent
+        # filtering on the kid and lenient on parents.
         variant_samples = []
         for i in idxs:
             if vcf_samples[i] in names_to_bams:
@@ -289,8 +309,7 @@ def main(args, pass_through_args):
 
                     if len(bams) > 1.5 * args.max_hets: break
                 if len(bams) > 1.5 * args.max_hets: break
-        
-        #TODO make this optional
+
         elif len(bams) < 6:
             # extend with some controls:
             hom_ref_idxs = [i for i, gt in enumerate(gts) if len(gt) == 2 and gt[0] == 0 and gt[1] == 0]
@@ -379,6 +398,7 @@ if __name__ == "__main__":
     p.add_argument("-O", "--output-type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
     p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", default=10)
     p.add_argument("--max-mb", type=int, help="skip variants longer than this many megabases", default=1)
+    p.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     p.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
 
     a, pass_through_args = p.parse_known_args()
