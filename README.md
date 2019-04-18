@@ -179,34 +179,59 @@ sys 0m0.129s
 
 ### Generating images from a VCF file
 To plot images from all structural variants in a VCF file, use samplot's
-`samplot_vcf.sh` script. This accepts a VCF file and the BAM files of samples
-you wish to plot, outputting images and related metadata to a directory of your
-choosing.
+`samplot_vcf.py` script. This accepts a VCF file and the BAM files of samples
+you wish to plot, outputting images and the index for a web page to a directory for review.
 
-This script is especially useful as part of the 
-[SV-plaudit pipeline](https://github.com/jbelyeu/SV-plaudit) and creates
-metadata files for
-all images which SV-plaudit requires.
-
+## Usage
 ```
-samplot/src/samplot_vcf.sh \
-    -o output_dir \
-    -B $HOME/bin/bcftools \
-    -S samplot/src/samplot.py \
-    -v samplot/test/data/NA12878.trio.svt.subset.vcf \
-    samplot/test/data/NA12878_restricted.bam \
-    samplot/test/data/NA12889_restricted.bam \
-    samplot/test/data/NA12890_restricted.bam
+python samplot_vcf.py -h
+usage: note that additional arguments are passed through to samplot.py
+       [-h] [--vcf VCF] [-d OUT_DIR] [--ped PED]
+       [--min-call-rate MIN_CALL_RATE] [--filter FILTER]
+       [-O {png,pdf,eps,jpg}] [--max-hets MAX_HETS]
+       [--max-entries MAX_ENTRIES] [--max-mb MAX_MB]
+       [--important_regions IMPORTANT_REGIONS] -b BAMS [BAMS ...]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --vcf VCF, -v VCF     VCF file containing structural variants
+  -d OUT_DIR, --out-dir OUT_DIR
+                        path to write output PNGs
+  --ped PED             path ped (or .fam) file
+  --min-call-rate MIN_CALL_RATE
+                        only plot variants with at least this call-rate
+  --filter FILTER       simple filter that samples must meet. Join multiple
+                        filters with '&' and specify --filter multiple times
+                        for 'or' e.g. DHFFC < 0.7 & SVTYPE = 'DEL'
+  -O {png,pdf,eps,jpg}, --output-type {png,pdf,eps,jpg}
+                        type of output figure
+  --max-hets MAX_HETS   only plot variants with at most this many
+                        heterozygotes
+  --max-entries MAX_ENTRIES
+                        only plot at most this many heterozygotes
+  --max-mb MAX_MB       skip variants longer than this many megabases
+  --important_regions IMPORTANT_REGIONS
+                        only report variants that overlap regions in this bed
+                        file
+  -b BAMS [BAMS ...], --bams BAMS [BAMS ...]
+                        Space-delimited list of BAM/CRAM file names
 ```
-The arguments used above are:
 
-`-o` output directory (make this directory before executing)
+`samplot_vcf.py` can be used to quickly apply some basic filters to variants. Filters are applied via the `--filter` argument, which may be repeated as many times as desired. Each expression specified with the `--filter` option is applied separately in an OR fashion, which `&` characters may be used within a statement for AND operations.
 
-`-B` Executable file of [bcftools](https://samtools.github.io/bcftools/)
+## Examples:
+```
+python samplot_vcf.py \
+    --filter "DHBFC > 1.25 & SVTYPE == 'DUP'" \
+    --filter "DHBFC < 0.7 & SVTYPE == 'DEL'" \
+    --filter "SVTYPE == 'INV' & SU >= 5" \
+    --vcf example.vcf\
+    -d test/\
+    -O png\
+    --important_regions regions.bed\
+    -b example.bam
+```
 
-`-S` samplot.py script
-
-`-v` VCF file with variants to plot
 
 
 #### CRAM inputs
@@ -228,6 +253,7 @@ samplot/src/samplot.py \
     -t DUP \
     -r hg19.fa
 ```
+
 
 The arguments used above are the same as those used for the basic use case, with the addition of the following:
 
