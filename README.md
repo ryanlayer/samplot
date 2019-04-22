@@ -189,13 +189,14 @@ you wish to plot, outputting images and the index for a web page for review.
 
 ### Usage
 ```
-python samplot_vcf.py -h
+$ python samplot_jon/src/samplot_vcf.py -h
 usage: note that additional arguments are passed through to samplot.py
-       [-h] [--vcf VCF] [-d OUT_DIR] [--ped PED]
-       [--min-call-rate MIN_CALL_RATE] [--filter FILTER]
-       [-O {png,pdf,eps,jpg}] [--max-hets MAX_HETS]
-       [--max-entries MAX_ENTRIES] [--max-mb MAX_MB]
-       [--important_regions IMPORTANT_REGIONS] -b BAMS [BAMS ...]
+       [-h] [--vcf VCF] [-d OUT_DIR] [--ped PED] [--dn_only]
+       [--min_call_rate MIN_CALL_RATE] [--filter FILTER]
+       [-O {png,pdf,eps,jpg}] [--max_hets MAX_HETS]
+       [--min_entries MIN_ENTRIES] [--max_entries MAX_ENTRIES]
+       [--max_mb MAX_MB] [--important_regions IMPORTANT_REGIONS] -b BAMS
+       [BAMS ...]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -203,18 +204,23 @@ optional arguments:
   -d OUT_DIR, --out-dir OUT_DIR
                         path to write output PNGs
   --ped PED             path ped (or .fam) file
-  --min-call-rate MIN_CALL_RATE
+  --dn_only             plots only putative de novo variants (PED file
+                        required)
+  --min_call_rate MIN_CALL_RATE
                         only plot variants with at least this call-rate
   --filter FILTER       simple filter that samples must meet. Join multiple
                         filters with '&' and specify --filter multiple times
                         for 'or' e.g. DHFFC < 0.7 & SVTYPE = 'DEL'
-  -O {png,pdf,eps,jpg}, --output-type {png,pdf,eps,jpg}
+  -O {png,pdf,eps,jpg}, --output_type {png,pdf,eps,jpg}
                         type of output figure
-  --max-hets MAX_HETS   only plot variants with at most this many
+  --max_hets MAX_HETS   only plot variants with at most this many
                         heterozygotes
-  --max-entries MAX_ENTRIES
+  --min_entries MIN_ENTRIES
+                        try to include homref samples as controls to get this
+                        many samples in plot
+  --max_entries MAX_ENTRIES
                         only plot at most this many heterozygotes
-  --max-mb MAX_MB       skip variants longer than this many megabases
+  --max_mb MAX_MB       skip variants longer than this many megabases
   --important_regions IMPORTANT_REGIONS
                         only report variants that overlap regions in this bed
                         file
