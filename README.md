@@ -183,9 +183,9 @@ sys 0m0.129s
 <img src="/doc/imgs/4_115928726_115931880.d100.genes_reps_map.png">
 
 ## Generating images from a VCF file
-To plot images from all structural variants in a VCF file, use samplot's
+To plot images from structural variant calls in a VCF file, use samplot's
 `samplot_vcf.py` script. This accepts a VCF file and the BAM files of samples
-you wish to plot, outputting images and the index for a web page to a directory for review.
+you wish to plot, outputting images and the index for a web page for review. 
 
 ### Usage
 ```
@@ -227,8 +227,7 @@ optional arguments:
 ### Example:
 ```
 python samplot_vcf.py \
-    --filter "DHBFC > 1.25 & SVTYPE == 'DUP'" \
-    --filter "DHBFC < 0.7 & SVTYPE == 'DEL'" \
+    --filter "SVTYPE == 'DEL' & SU >= 8" \
     --filter "SVTYPE == 'INV' & SU >= 5" \
     --vcf example.vcf\
     -d test/\
@@ -239,11 +238,10 @@ python samplot_vcf.py \
 This example will create a directory named test (in the current working directory). A file named `index.html` will be created inside that directory. Samplot commands will be printed out for the creation of plots for all samples/variants that pass the above filters, assuming that the `samplot.py` script is in the same directory as the `samplot_vcf.py` script.
 
 **Filters:** The above filters will remove all samples/variants from output except:
-* `DUP` variants with at least `DHBFC` of 1.25
-* `DEL` variants with at most `DHBFC` of 0.7
+* `DUP` variants with at least `SU` of 8
 * `INV` variants with `SU` of at least 5
 
-The specific `FORMAT` fields available in your VCF file may be different. I recommend SV VCF annotation with [duphold](https://github.com/brentp/duphold) by [brentp](https://github.com/brentp), which provides the `DHBFC` field used in this example. 
+The specific `FORMAT` fields available in your VCF file may be different. I recommend SV VCF annotation with [duphold](https://github.com/brentp/duphold) by [brentp](https://github.com/brentp).
 
 For more complex expression-based VCF filtering, try brentp's [slivar](https://github.com/brentp/slivar), which provides similar but more broad options for filter expressions.
 
