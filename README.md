@@ -248,7 +248,7 @@ For more complex expression-based VCF filtering, try brentp's [slivar](https://g
 **Region restriction.** Variants can also be filtered by overlap with a set of region (for example, gene coordinates for genes correlated with a disease). The `important_regions` argument provides a BED file of such regions for this example.
 
 **Filtering for de novo SVs** 
-Using a [PED](https://gatkforums.broadinstitute.org/gatk/discussion/7696/pedigree-ped-files) file with `samplot_vcf.py` allows filtering for variants that may be spontaneous/de novo variants. This filter is a simple Mendelian violation test. If a sample 1) has valid parent IDs in the PED file, 2) has a non-homref genotype (1/0, 0/1, or 1/1 in VCF) and, 3) both parents have homref genotypes (0/0 in VCF), the sample may have a de novo variant. The sample is plotted along with both parents, which are labeled as father and mother in the image. 
+Using a [PED](https://gatkforums.broadinstitute.org/gatk/discussion/7696/pedigree-ped-files) file with `samplot_vcf.py` allows filtering for variants that may be spontaneous/de novo variants. This filter is a simple Mendelian violation test. If a sample 1) has valid parent IDs in the PED file, 2) has a non-homref genotype (1/0, 0/1, or 1/1 in VCF), 3) passes filters, and 4) both parents have homref genotypes (0/0 in VCF), the sample may have a de novo variant. Filter parameters are not applied to the parents. The sample is plotted along with both parents, which are labeled as father and mother in the image. 
 
 Example call with the addition of a PED file:
 
