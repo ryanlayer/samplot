@@ -254,7 +254,7 @@ For more complex expression-based VCF filtering, try brentp's [slivar](https://g
 **Additional notes.** 
 * Variants where fewer than 95% of samples have a call (whether reference or alternate) will be excluded by default. This can be altered via the command-line argument `min_call_rate`.
 * If you're primarily interested in rare variants, you can use the `max_hets` filter to remove variants that appear in more than `max_hets` samples.
-* Large variants can now be plotted easily by samplot through use of `samplot.py`'s `zoom` argument. However, you can still choose to only plot variants larger than a given size using the `max_mb` argument.
+* Large variants can now be plotted easily by samplot through use of `samplot.py`'s `zoom` argument. However, you can still choose to only plot variants larger than a given size using the `max_mb` argument. The `zoom` argument takes an integer parameter and shows only the intervals within +/- that parameter on either side of the breakpoints. A dotted line connects the ends of the variant call bar at the top of the window, showing that the region between breakpoint intervals is not shown.
 
 
 #### CRAM inputs
