@@ -275,6 +275,7 @@ python samplot_vcf.py \
 * If you're primarily interested in rare variants, you can use the `max_hets` filter to remove variants that appear in more than `max_hets` samples.
 * Large variants can now be plotted easily by samplot through use of `samplot.py`'s `zoom` argument. However, you can still choose to only plot variants larger than a given size using the `max_mb` argument. The `zoom` argument takes an integer parameter and shows only the intervals within +/- that parameter on either side of the breakpoints. A dotted line connects the ends of the variant call bar at the top of the window, showing that the region between breakpoint intervals is not shown.
 * By default, if fewer than 6 samples have a variant and additional homref samples are given, control samples will be added from the homref group to reach a total of 6 samples in the plot. This number may be altered using the `min_entries` argument.
+* Arguments that are optional in `samplot.py` can by given as arguments to `samplot_vcf.py`. They will be applied to each image generated.
 
 
 #### CRAM inputs
