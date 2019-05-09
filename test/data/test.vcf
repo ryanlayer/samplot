@@ -1,0 +1,81 @@
+##fileformat=VCFv4.1
+##fileDate=20170929
+##reference=ftp://ftp.1000genomes.ebi.ac.uk//vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
+##INFO=<ID=TSD,Number=1,Type=String,Description="Precise Target Site Duplication for bases, if unknown, value will be NULL">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=MSTART,Number=1,Type=Integer,Description="Mitochondrial start coordinate of inserted sequence">
+##INFO=<ID=MLEN,Number=1,Type=Integer,Description="Estimated length of mitochondrial insert">
+##INFO=<ID=MEND,Number=1,Type=Integer,Description="Mitochondrial end coordinate of inserted sequence">
+##INFO=<ID=MEINFO,Number=4,Type=String,Description="Mobile element info of the form NAME,START,END<POLARITY; If there is only 5' OR 3' support for this call, will be NULL NULL for START and END">
+##INFO=<ID=SVLEN,Number=.,Type=Integer,Description="Difference in length between REF and ALT alleles">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=CIEND,Number=2,Type=Integer,Description="Confidence interval around END for imprecise variants">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="Confidence interval around POS for imprecise variants">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End coordinate of this variant">
+##ALT=<ID=INV,Description="Inversion">
+##ALT=<ID=INS:ME:SVA,Description="Insertion of SVA element">
+##ALT=<ID=INS:ME:LINE1,Description="Insertion of LINE1 element">
+##ALT=<ID=INS:ME:ALU,Description="Insertion of ALU element">
+##ALT=<ID=DUP,Description="Duplication">
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=CNV,Description="Copy Number Polymorphism">
+##ALT=<ID=CN9,Description="Copy number allele: 9 copies">
+##ALT=<ID=CN8,Description="Copy number allele: 8 copies">
+##ALT=<ID=CN7,Description="Copy number allele: 7 copies">
+##ALT=<ID=CN6,Description="Copy number allele: 6 copies">
+##ALT=<ID=CN5,Description="Copy number allele: 5 copies">
+##ALT=<ID=CN4,Description="Copy number allele: 4 copies">
+##ALT=<ID=CN3,Description="Copy number allele: 3 copies">
+##ALT=<ID=CN2,Description="Copy number allele: 2 copies">
+##ALT=<ID=CN1,Description="Copy number allele: 1 copy">
+##ALT=<ID=CN0,Description="Copy number allele: 0 copies">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
+##FORMAT=<ID=SQ,Number=1,Type=Float,Description="Phred-scaled probability that this site is variant (non-reference in this sample">
+##FORMAT=<ID=GL,Number=G,Type=Float,Description="Genotype Likelihood, log10-scaled likelihoods of the data given the called genotype for each possible genotype generated from the reference and alternate alleles given the sample ploidy">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=RO,Number=1,Type=Integer,Description="Reference allele observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=AO,Number=A,Type=Integer,Description="Alternate allele observations, with partial observations recorded fractionally">
+##FORMAT=<ID=QR,Number=1,Type=Integer,Description="Sum of quality of reference observations">
+##FORMAT=<ID=QA,Number=A,Type=Integer,Description="Sum of quality of alternate observations">
+##FORMAT=<ID=RS,Number=1,Type=Integer,Description="Reference allele split-read observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=AS,Number=A,Type=Integer,Description="Alternate allele split-read observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=ASC,Number=A,Type=Integer,Description="Alternate allele clipped-read observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=RP,Number=1,Type=Integer,Description="Reference allele paired-end observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=AP,Number=A,Type=Integer,Description="Alternate allele paired-end observation count, with partial observations recorded fractionally">
+##FORMAT=<ID=AB,Number=A,Type=Float,Description="Allele balance, fraction of observations from alternate allele, QA/(QR+QA)">
+##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=1,length=249250621>
+##contig=<ID=2,length=243199373>
+##contig=<ID=3,length=198022430>
+##contig=<ID=4,length=191154276>
+##contig=<ID=5,length=180915260>
+##contig=<ID=6,length=171115067>
+##contig=<ID=7,length=159138663>
+##contig=<ID=8,length=146364022>
+##contig=<ID=9,length=141213431>
+##contig=<ID=10,length=135534747>
+##contig=<ID=11,length=135006516>
+##contig=<ID=12,length=133851895>
+##contig=<ID=13,length=115169878>
+##contig=<ID=14,length=107349540>
+##contig=<ID=15,length=102531392>
+##contig=<ID=16,length=90354753>
+##contig=<ID=17,length=81195210>
+##contig=<ID=18,length=78077248>
+##contig=<ID=19,length=59128983>
+##contig=<ID=20,length=63025520>
+##contig=<ID=21,length=48129895>
+##contig=<ID=22,length=51304566>
+##contig=<ID=X,length=155270560>
+##contig=<ID=Y,length=59373566>
+##bcftools_viewVersion=1.3.1-1-g4d44e83-dirty+htslib-1.3.1-12-g0454d47
+##bcftools_viewCommand=view -c 1 -s NA12878 ALL.wgs.mergedSV.v8.20130502.svs.genotypes.vcf.gz
+##bcftools_viewCommand=view -i '(SVTYPE="DEL" || SVTYPE="DUP" || SVTYPE="INV" || SVTYPE="INS")' test.vcf
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	HG002	HG003	HG004
+1	24804398	1	T	<DEL>	2087.90	PASS	SVTYPE=DEL;CIEND=0,0;CIPOS=0,0;END=24807302;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	0/1:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	0/0:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	1/0:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
+1	43059290	2	T	<DEL>	2087.90	PASS	SVTYPE=DEL;CIEND=0,0;CIPOS=0,0;END=43059950;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	0/0:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	0/0:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	0/0:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
+4	99813787	3	T	<DUP>	2087.90	PASS	SVTYPE=DUP;CIEND=0,0;CIPOS=0,0;END=99817098;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	1/1:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	1/1:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	1/1:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
+11	67974432	4	T	<DUP>	2087.90	PASS	SVTYPE=DUP;CIEND=0,0;CIPOS=0,0;END=67975639;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	0/1:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	0/1:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	0/0:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
+12	12544868	5	T	<INV>	2087.90	PASS	SVTYPE=INV;CIEND=0,0;CIPOS=0,0;END=12546613;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	0/1:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	0/1:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	1/0:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
+19	12694867	6	T	<DEL>	2087.90	PASS	SVTYPE=DEL;CIEND=0,0;CIPOS=0,0;END=12698924;	GT:GQ:SQ:GL:DP:RO:AO:QR:QA:RS:AS:ASC:RP:AP:AB	1/1:146:581.24:-64,-6,-51:109:77:31:76:30:52:9:2:24:18:0.28	1/1:130:1506.66:-153,-15,-2:52:0:52:0:51:0:23:3:0:24:1	1/1:200:0.00:-0,-54,-181:182:182:0:181:0:120:0:0:61:0:0
