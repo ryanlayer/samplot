@@ -6,12 +6,15 @@ samtools view -h -b -L examples_padded.bed ftp://ftp-trace.ncbi.nlm.nih.gov/giab
 #download example regions from GIAB 300X Illumina Ashkenazi Trio Son
 samtools view -h -b -L examples_padded.bed ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/PacBio_MtSinai_NIST/Baylor_NGMLR_bam_GRCh37/HG002_PB_70x_RG_HP10XtrioRTG.bam > HG002_PacBio.bam
 samtools view -h -b -L examples_padded.bed ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/analysis/10XGenomics_ChromiumGenome_LongRanger2.2_Supernova2.0.1_04122018/GRCh37/NA24385_300G/HG002_10x_84x_RG_HP10xtrioRTG.bam > HG002_10X.bam
-samtools view -h -b -C -L examples_padded.bed ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/Ultralong_OxfordNanopore/combined_2018-08-10/HG002_ONTrel2_16x_RG_HP10xtrioRTG.cram > HG002_ONT.bam
+samtools view -h -b -C -L examples_padded.bed ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/HG002_NA24385_son/Ultralong_OxfordNanopore/combined_2018-08-10/HG002_ONTrel2_16x_RG_HP10xtrioRTG.cram > HG002_ONT.cram
 
 #index new alignment files
 samtools index HG002_10X.bam
 samtools index HG002_Illumina.bam
-samtools index HG002_ONT.bam
+samtools index HG002_ONT.cram
 samtools index HG002_PacBio.bam
 samtools index HG003_Illumina.bam
 samtools index HG004_Illumina.bam
+
+#download hg19 reference for cram
+wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
