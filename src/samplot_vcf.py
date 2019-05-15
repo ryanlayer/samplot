@@ -93,16 +93,27 @@ def parse_ped(path, vcf_samples=None):
     return {s.id: s for s in samples}
 
 
-def get_names_to_bams(bams):
+def get_names_to_bams(bams, name_list=None):
     """
     get mapping from names (read group samples) to bam paths)
     this is useful because the VCF has the names and we'll want the bam paths
     for those samples
+    if name_list is passed in as a parameter those will be used instead
     """
     names = {}
-    for p in bams:
-        b = pysam.AlignmentFile(p)
-        names[b.header["RG"][0]['SM']] = p
+    if name_list:
+        if len(name_list) != len(bams):
+            sys.exit("List of sample IDs does not match list of alignment files.")
+        for i,p in enumerate(bams):
+            names[name_list[i]] = p
+    else:
+        for p in bams:
+            b = pysam.AlignmentFile(p)
+            try:
+                names[b.header["RG"][0]['SM']] = p
+            except:
+                sys.exit("No RG field in alignment file "+ p+ 
+                    ". \nInclude ordered list of sample IDs to avoid this error")
     return names
 
 
@@ -239,7 +250,7 @@ def main(args, pass_through_args):
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
-    names_to_bams = get_names_to_bams(args.bams)
+    names_to_bams = get_names_to_bams(args.bams, args.sample_ids)
     important_regions = None
     if args.important_regions:
         important_regions = read_important_regions(args.important_regions)
@@ -426,6 +437,9 @@ if __name__ == "__main__":
     parser.add_argument("--max_mb", type=int, help="skip variants longer than this many megabases", default=1)
     parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
+    parser.add_argument("--sample_ids", type=str, nargs="+", 
+            help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", 
+            required=False)
 
     args, pass_through_args = parser.parse_known_args()
     if args.dn_only and not args.ped:
