@@ -18,3 +18,5 @@ samtools index HG004_Illumina.bam
 
 #download hg19 reference for cram
 wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+gunzip hg19.fa.gz
+bgzip hg19.fa
