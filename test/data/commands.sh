@@ -7,6 +7,9 @@ python ../../src/samplot.py -n Illumina PacBio ONT 10X -t DUP -c 4 -s 99813786 -
 python ../../src/samplot.py -n Illumina PacBio ONT 10X -t DUP -c 11 -s 67974431 -e 67975639 -o test_imgs/DUP_11_67974431_67975639.png -b HG002_Illumina.bam HG002_PacBio.bam HG002_ONT.cram HG002_10X.bam -r hg19.fa.gz
 python ../../src/samplot.py -n Illumina PacBio ONT 10X -t INV -c 12 -s 12544867 -e 12546613 -o test_imgs/INV_12_12544867_12546613.png -b HG002_Illumina.bam HG002_PacBio.bam HG002_ONT.cram HG002_10X.bam -r hg19.fa.gz
 
+#zoom example
+python ../../src/samplot.py -n Illumina PacBio ONT 10X -t DUP -c 4 -s 99813786 -e 99817098 -o test_imgs/DUP_4_99813786_99817098_zoom.png -b HG002_Illumina.bam HG002_PacBio.bam HG002_ONT.cram HG002_10X.bam -r hg19.fa.gz --zoom 1000
+
 #trios with no variant
 python ../../src/samplot.py -n HG002 HG003 HG004 -c 1 -s 43059290 -e 43059950 -o test_imgs/1_43059290_43059950.png -b HG002_Illumina.bam HG003_Illumina.bam HG004_Illumina.bam
 
