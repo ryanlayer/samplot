@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8'>
+    <title>samplot</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.9.2/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.4.7/crossfilter.min.js" type='text/javascript'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.js" type='text/javascript'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.8/FileSaver.min.js" type='text/javascript'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" type='text/javascript'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/slideout/1.0.1/slideout.min.js" type='text/javascript'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/js/bootstrap.bundle.min.js" type='text/javascript'></script>
+
+    <link href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" rel='stylesheet' type='text/css'>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel='stylesheet' type='text/css'>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.css" rel='stylesheet' type='text/css'>
+    <style type="text/css">
+        #variant-table th span {float: right; font-size: 1em; color: #0080bf; display: inline-block;}
+        #variant-table th {cursor: pointer;}
+        tr.dc-table-row.sel-rows {background-color: #cfd8dc;}
+        tr.dc-table-row.sel-rows:hover {background-color: #cfd8dc;}
+
+        body {width: 100%; height: 100%;}
+        .slideout-menu {position: fixed; top: 48px; bottom: 0; width: 600px; min-height: 50vh; overflow-x: hidden; overflow-y: scroll; -webkit-overflow-scrolling: touch; z-index: 100; display: none; background-color: #eceff1}
+        .slideout-menu-left {left: 0;}
+        .slideout-menu-right {right: 0;}
+        .slideout-panel {position: relative; z-index: 1; will-change: transform; background-color: #FFF; min-height: 100vh;}
+        .slideout-open, .slideout-open body, .slideout-open .slideout-panel {overflow: hidden;}
+        .slideout-open .slideout-menu {display: block;}
+
+        .panel:before {content: ''; display: block; background-color: rgba(0,0,0,0); transition: background-color 0.5s ease-in-out;}
+        .panel-open:before {position: absolute; top: 0; bottom: 0; width: 100%; background-color: rgba(0,0,0,.5); z-index: 99;}
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-light bg-light justify-content-end pt-1 pb-1">
+        <a class="navbar-brand">samplot</a>
+
+        <div class="ml-auto">
+            <button title="Table filters" onclick="javascript:slideout.toggle()" type="button" class="btn btn-primary" aria-label="menu">
+                <span class="fas fa-filter" aria-hidden="true"></span>
+            </button>
+            <button title="Reset all filters" onclick="javascript:dc.filterAll();dc.redrawAll()" type="button" class="btn btn-primary mr-3" aria-label="reset">
+                <span class="fas fa-redo-alt" aria-hidden="true"></span>
+            </button>
+            <span class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" title="Download table" id="download-menu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="fas fa-download" aria-hidden="true"></span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="download-menu">
+                    <button class="dropdown-item" type="button" onclick="javascript:download_all()">
+                        All data (<span id="download-all-size"></span> rows)
+                    </button>
+                    <button class="dropdown-item" type="button" onclick="javascript:download_filtered()">
+                        Filtered data (<span id="download-filtered-size"></span> rows)
+                    </button>
+                </div>
+            </span>
+        </div>
+    </nav>
+
+    <nav id="menu">
+        <div class="container">
+            <div class="row pt-2">
+                <div class="col">
+                    <h5>Sample</h5>
+                </div>
+            </div>
+            <div class="row pb-3">
+                <div class="col-12">
+                    <div id="sample-search"></div>
+                </div>
+            </div>
+
+            <div class="row" id="chrom-chart">
+                <div class="col-4">
+                    <h5>Chromosome</h5>
+                </div>
+                <div class="col-8 text-right">
+                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                    <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+                </div>
+            </div>
+            <div class="row" id="size-chart">
+                <div class="col-4">
+                    <h5>Size</h5>
+                </div>
+                <div class="col-8 text-right">
+                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                    <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+                </div>
+            </div>
+            <div class="row" id="type-chart">
+                <div class="col-4">
+                    <h5>SV Type</h5>
+                </div>
+                <div class="col-8 text-right">
+                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                    <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+                </div>
+            </div>
+            <div class="row" id="nsamples-chart">
+                <div class="col-4">
+                    <h5># of Samples</h5>
+                </div>
+                <div class="col-8 text-right">
+                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                    <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid bg-light" id="panel">
+        <div class="container-fluid">
+            <div class="row" style="height:380px">
+                <div class="col-12" id="variant-table-placeholder">
+                    <div class="d-flex justify-content-center align-items-center text-muted h-100">
+                        <div class="d-flex flex-column">
+                            <i class="fas fa-7x fa-table"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive" id="variant-table-div" hidden>
+                    <table class='table table-hover table-sm table-bordered' id='variant-table'>
+                        <thead>
+                            <tr class='table-header'></tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="row" style="font-size: .9em;">
+            <div class="col-12 justify-content-end d-flex align-items-right">
+                <span class="navbar-text text-dark">Showing <span style="font-weight:bold" id="begin"></span>-<span style="font-weight:bold" id="end"></span> of <span style="font-weight:bold" id="size"></span><span class="pr-3" id="totalsize"></span>
+                <button id="last" value="Prev" title="Previous page" onclick="javascript:last()" type="button" class="btn btn-secondary" aria-label="previous">
+                    <span class="fas fa-chevron-left" aria-hidden="true"></span>
+                </button>
+                <button id="next" value="Next" title="Next page" onclick="javascript:next()" type="button" class="btn btn-secondary" aria-label="next">
+                    <span class="fas fa-chevron-right" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+
+
+        <div class="row" id="samplot-area-placeholder">
+            <div class="col-12">
+                <div style="height:415px">
+                    <div class="d-flex justify-content-center align-items-center text-muted h-100">
+                        <div class="d-flex flex-column">
+                            <i class="fas fa-7x fa-chart-bar"></i>
+                            <ul class="small p-0 m-3">
+                                <li>
+                                    Select a variant </br>from the table
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="samplot-area" hidden>
+            <div class="row">
+                <div id="samplot-img"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+
+dc.config.defaultColors(d3.schemeSet1)
+
+const plotw = 585
+const ploth = 180
+var searchInput = dc.textFilterWidget("#sample-search")
+var variantTable = dc.dataTable("#variant-table")
+var chromChart = dc.barChart("#chrom-chart")
+var sizeChart = dc.barChart("#size-chart")
+var typeChart = dc.barChart("#type-chart")
+var nsamplesChart = dc.barChart("#nsamples-chart")
+var chromDimension
+// pagination
+var ofs = 0
+var pag = 10
+// crossfilter obj
+var ndx
+// data table functions to return
+var columnFunctions = [
+    function(d) { return d.chrom },
+    function(d) { return d.start },
+    function(d) { return d.end },
+    function(d) { return d.size },
+    function(d) { return d.SVTYPE },
+    function(d) { return d.n_samples },
+    function(d) { return d.samples }
+]
+var tableHeader
+var slideout = new Slideout({
+    'panel': document.getElementById('panel'),
+    'menu': document.getElementById('menu'),
+    'padding': 600,
+    'tolerance': 100,
+    'side': 'right',
+    'duration': 300
+})
+slideout
+    .on('beforeopen', function() {
+        this.panel.classList.add('panel-open')
+    })
+    .on('open', function() {
+        this.panel.addEventListener('click', close_sidebar)
+    })
+    .on('beforeclose', function() {
+        this.panel.classList.remove('panel-open')
+        this.panel.removeEventListener('click', close_sidebar)
+    })
+
+function close_sidebar(eve) {
+    eve.preventDefault()
+    slideout.close()
+}
+
+function tableHeaderCallback(d) {
+    // Highlight column header being sorted and show bootstrap glyphicon
+    var activeClass = "info"
+
+    d3.selectAll("#variant-table th") // Disable all highlighting and icons
+        .classed(activeClass, false)
+        .selectAll("span")
+        .style("visibility", "hidden") // Hide glyphicon
+
+    var activeSpan = d3.select(this) // Enable active highlight and icon for active column for sorting
+        .classed(activeClass, true)  // Set bootstrap "info" class on active header for highlight
+        .select("span")
+        .style("visibility", "visible")
+
+    // Toggle sort order state to user desired state
+    d.sort_state = d.sort_state === "ascending" ? "descending" : "ascending"
+
+    var isAscendingOrder = d.sort_state === "ascending"
+    variantTable
+        .order(isAscendingOrder ? d3.ascending : d3.descending)
+        .sortBy(function(datum) { return datum[d.field_name] })
+
+    // Reset glyph icon for all other headers and update this headers icon
+    activeSpan.node().className = '' // Remove all glyphicon classes
+
+    // Toggle glyphicon based on ascending/descending sort_state
+    activeSpan.classed(isAscendingOrder ? "fas fa-sort-amount-up" : "fas fa-sort-amount-down", true)
+    display()
+    variantTable.redraw()
+}
+
+function update_offset() {
+    var totFilteredRecs = ndx.groupAll().value()
+    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
+    ofs = ofs >= totFilteredRecs ? Math.floor((totFilteredRecs - 1) / pag) * pag : ofs
+    ofs = ofs < 0 ? 0 : ofs
+    variantTable.beginSlice(ofs)
+    variantTable.endSlice(ofs+pag)
+    display()
+}
+
+function display() {
+    var totFilteredRecs = ndx.groupAll().value()
+    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
+    d3.select('#begin')
+        .text(end === 0? ofs : ofs + 1)
+    d3.select('#end').text(end)
+    d3.select('#last').attr('disabled', ofs-pag<0 ? 'true' : null)
+    d3.select('#next').attr('disabled', ofs+pag>=totFilteredRecs ? 'true' : null)
+    d3.select('#size').text(totFilteredRecs)
+    d3.select('#download-all-size').text(ndx.size())
+    d3.select('#download-filtered-size').text(totFilteredRecs)
+    if(totFilteredRecs != ndx.size()){
+        d3.select('#totalsize').text(" filtered records (" + ndx.size() + " total)")
+    } else {
+        d3.select('#totalsize').text('')
+    }
+}
+
+function next() {
+    ofs += pag
+    update_offset()
+    variantTable.redraw()
+}
+
+function last() {
+    ofs -= pag
+    update_offset()
+    variantTable.redraw()
+}
+
+function remove_empty_bins(source_group) {
+    return {
+        all:function () {
+            return source_group.all().filter(function(d) {
+                return d.value != 0
+            })
+        }
+    }
+}
+
+// https://jsfiddle.net/gordonwoodhull/g34Ldwaz/8/
+// https://github.com/dc-js/dc.js/issues/348
+function index_group(group) {
+    return {
+        all: function() {
+            return group.all().map(function(kv, i) {
+                return {key: i, value: kv.value}
+            })
+        }
+    }
+}
+
+const table_click = (row) => {
+    $('#samplot-area-placeholder').prop("hidden", true)
+    $('#samplot-area').prop("hidden", false)
+
+    // load the image
+    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + ".png"
+    var i = jQuery("#samplot-img")
+    i.empty()
+    i.append('<img width="100%" src="' + img + '"/>"')
+
+    // update the selection title
+    d3.select('#samplot-chrom')
+        .text(row.chrom)
+    d3.select('#samplot-start')
+        .text(row.start)
+    d3.select('#samplot-end')
+        .text(row.end)
+}
+
+d3.json("data.json").then(function(data) {
+
+    ndx = crossfilter(data)
+    var all = ndx.groupAll()
+
+    chromDimension = ndx.dimension((d) => { return d.chrom })
+    var chromGroup = chromDimension.group().reduceCount()
+    var nonEmptyChromGroup = remove_empty_bins(chromGroup)
+
+    var searchDimension = ndx.dimension(function(d) {
+        return d.samples
+    })
+    searchInput
+        .dimension(searchDimension)
+        .on('renderlet', function() {
+            d3.selectAll(".dc-text-filter-input")
+                .classed("form-control", true)
+            d3.selectAll("#sample-search.dc-chart")
+                .classed("col-12", true)
+        })
+
+
+    var sizeDimension = ndx.dimension(function(d) {
+        var round
+        if (d.size < 100) {
+            round = 100
+        } else if (d.size < 1000) {
+            round = 100
+        } else if (d.size < 10000) {
+            round = 1000
+        } else if (d.size < 100000) {
+            round = 10000
+        } else if (d.size < 1000000) {
+            round = 100000
+        } else if (d.size < 10000000) {
+            round = 1000000
+        } else {
+            round = 10000000
+        }
+        return Math.round(d.size / round) * round
+    })
+    var sizeGroup = sizeDimension.group().reduceCount()
+    var nonEmptySizeGroup = remove_empty_bins(sizeGroup)
+    var sizeKeys = nonEmptySizeGroup.all().map(dc.pluck('key')).slice()
+
+    var typeDimension = ndx.dimension((d) => { return d.SVTYPE })
+    var typeGroup = typeDimension.group().reduceCount()
+    var nonEmptyTypeGroup = remove_empty_bins(typeGroup)
+
+    var nsamplesDimension = ndx.dimension((d) => { return d.n_samples })
+    var nsamplesDimension = ndx.dimension(function(d) {
+        var round
+        if (d.n_samples < 10) {
+            round = 1
+        } else if (d.n_samples < 100) {
+            round = 10
+        } else if (d.n_samples < 1000) {
+            round = 100
+        } else if (d.n_samples < 10000) {
+            round = 1000
+        } else {
+            round = 10000
+        }
+        return Math.round(d.n_samples / round) * round
+    })
+    var nsamplesGroup = nsamplesDimension.group().reduceCount()
+    var nonEmptyNsamplesGroup = remove_empty_bins(nsamplesGroup)
+    var nsamplesKeys = nonEmptyNsamplesGroup.all().map(dc.pluck('key')).slice()
+
+    // Programmatically insert header labels for table
+    tableHeader = d3.select(".table-header")
+        .selectAll("th")
+
+    // Bind data to tableHeader selection.
+    tableHeader = tableHeader.data(
+        [
+            {label: "Chrom", field_name: "chrom", sort_state: "ascending"},
+            {label: "Start", field_name: "start", sort_state: "ascending"},
+            {label: "End", field_name: "end", sort_state: "ascending"},
+            {label: "Size", field_name: "size", sort_state: "ascending"},
+            {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending"},
+            {label: "# of Samples", field_name: "n_samples", sort_state: "ascending"},
+            {label: "Samples", field_name: "samples", sort_state: "ascending"},
+        ]
+    )
+
+    tableHeader = tableHeader.enter()
+        .append("th")
+        .text(function (d) { return d.label })
+        .on("click", tableHeaderCallback)
+
+    tableHeader.filter(function(d) { return d.label === "Chrom" })
+        .classed("info", true)
+
+    var tableSpans = tableHeader
+        .append("span") // For Sort glyphicon on active table headers
+        .classed("fas fa-sort-amount-up", true)
+        .style("visibility", "hidden")
+        .filter(function(d) { return d.label === "Chrom" })
+        .style("visibility", "visible")
+
+    variantTable
+        .dimension(chromDimension)
+        .section(function(d) { return ""})
+        .size(Infinity)
+        .columns(columnFunctions)
+        .showSections(false)
+        // this sorts a string of these characters, so it's not actually sorted
+        .sortBy(function(d){ return [d.chrom, d.start] })
+        .on('preRender', update_offset)
+        .on('preRedraw', update_offset)
+        .on('pretransition', display)
+        // handle row clicks
+        .on('pretransition', function (table) {
+            table.selectAll('td.dc-table-column')
+                .on('click.my-event', function(d) {
+                    table_click(d)
+                    // de-select everything
+                    table.selectAll('tr.dc-table-row')
+                        .classed('sel-rows', false)
+                    // select the clicked row
+                    d3.selectAll("tr.dc-table-row").on("click", function() {
+                        d3.select(this).classed('sel-rows', true)
+                    })
+                })
+        })
+        .on('renderlet', function() {
+            d3.selectAll("#variant-table td")
+                .classed("text-truncate", true)
+                .style("max-width", "30px")
+        })
+
+    sizeChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        .x(d3.scaleLinear().domain([0, sizeKeys.length]))
+        .round(Math.floor)
+        .brushOn(true)
+        .elasticX(true)
+        .dimension(sizeDimension)
+        .group(index_group(nonEmptySizeGroup))
+        .elasticY(true)
+        .yAxisLabel('Count')
+        .filterPrinter(function (filters) {
+            var filter = filters[0]
+            return sizeKeys[filter[0]] + ' - ' + sizeKeys[filter[1]]
+        })
+        .on('renderlet', function() {
+            d3.selectAll("svg")
+                .classed("pl-3", true)
+        })
+    // limit the number of labels along x-axis
+    sizeChart.xAxis().ticks(10)
+    sizeChart.yAxis().ticks(5)
+    // update labels from keys
+    sizeChart.xAxis().tickFormat(function(v) {
+        return sizeKeys[v]
+    })
+    sizeChart.filterHandler(function (dimension, filters) {
+        if (filters.length === 0) {
+            // the empty case (no filtering)
+            dimension.filter(null)
+        } else {
+            dimension.filterRange([sizeKeys[filters[0][0]], sizeKeys[filters[0][1]]])
+        }
+        return filters
+    })
+
+    chromChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        // .transitionDuration(1000)
+        .x(d3.scaleBand())
+        .xUnits(dc.units.ordinal)
+        .yAxisLabel('Count')
+        .elasticX(true)
+        .elasticY(true)
+        .dimension(chromDimension)
+        .group(nonEmptyChromGroup)
+        .ordering((d) => {
+            v = parseInt(d.key)
+            if (v) {
+                return v
+            } else {
+                return d.key
+            }
+        })
+    chromChart.yAxis().ticks(5)
+
+    typeChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        // .transitionDuration(1000)
+        .x(d3.scaleBand())
+        .xUnits(dc.units.ordinal)
+        .elasticX(true)
+        .elasticY(true)
+        .dimension(typeDimension)
+        .group(nonEmptyTypeGroup)
+        .yAxisLabel('Count')
+    typeChart.yAxis().ticks(5)
+
+    nsamplesChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        .x(d3.scaleLinear().domain([0, nsamplesKeys.length]))
+        .round(Math.floor)
+        .brushOn(true)
+        .elasticX(true)
+        .dimension(nsamplesDimension)
+        .group(index_group(nonEmptyNsamplesGroup))
+        .elasticY(true)
+        .yAxisLabel('Count')
+        .filterPrinter(function (filters) {
+            var filter = filters[0]
+            return nsamplesKeys[filter[0]] + ' - ' + nsamplesKeys[filter[1]]
+        })
+    // limit the number of labels along x-axis
+    nsamplesChart.xAxis().ticks(20)
+    nsamplesChart.yAxis().ticks(5)
+    // update labels from keys
+    nsamplesChart.xAxis().tickFormat(function(v) {
+        return nsamplesKeys[v]
+    })
+    nsamplesChart.filterHandler(function (dimension, filters) {
+        if (filters.length === 0) {
+            // the empty case (no filtering)
+            dimension.filter(null)
+        } else {
+            dimension.filterRange([nsamplesKeys[filters[0][0]], nsamplesKeys[filters[0][1]]])
+        }
+        return filters
+    })
+
+    // hide the placeholder and show the datatable
+    $('#variant-table-placeholder').prop("hidden", true)
+    $('#variant-table-div').prop("hidden", false)
+
+    dc.renderAll()
+})
+
+function get_blob(data) {
+    data = data.map(function(d) {
+        var row = {}
+        variantTable.columns().forEach(function(c) {
+            // convert commas to semicolons
+            row[variantTable._doColumnHeaderFormat(c).split(" ")[3].split(".")[1]] = String(variantTable._doColumnValueFormat(c, d)).replace(/,/g, ';')
+        })
+        return row
+    })
+    let b = new Blob([d3.csvFormat(data)], {type: "text/csv;charset=utf-8"})
+    return b
+}
+
+function download_all() {
+    var data = chromDimension.top(Infinity)
+    var blob = get_blob(data)
+    saveAs(blob, 'samplot_all_data.csv')
+}
+
+function download_filtered() {
+    var data = chromDimension.top(Infinity)
+    data = data.sort(function(a, b) {
+        return variantTable.order()(variantTable.sortBy()(a), variantTable.sortBy()(b))
+    })
+    var blob = get_blob(data)
+    saveAs(blob, 'samplot_filtered_data.csv')
+}
+
+</script>
+
+</html>
+</body>
