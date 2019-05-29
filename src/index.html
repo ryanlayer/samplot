@@ -586,8 +586,8 @@ d3.json("data.json").then(function(data) {
     })
 
     // hide the placeholder and show the datatable
-    $('#variant-table-placeholder').prop("hidden", true)
-    $('#variant-table-div').prop("hidden", false)
+    d3.select('#variant-table-placeholder').property("hidden", true)
+    d3.select('#variant-table-div').property("hidden", false)
 
     dc.renderAll()
 })
