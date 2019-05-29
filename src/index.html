@@ -197,15 +197,6 @@ var pag = 10
 // crossfilter obj
 var ndx
 // data table functions to return
-var columnFunctions = [
-    function(d) { return d.chrom },
-    function(d) { return d.start },
-    function(d) { return d.end },
-    function(d) { return d.size },
-    function(d) { return d.SVTYPE },
-    function(d) { return d.n_samples },
-    function(d) { return d.samples }
-]
 var tableHeader
 var slideout = new Slideout({
     'panel': document.getElementById('panel'),
@@ -230,6 +221,36 @@ slideout
 function close_sidebar(eve) {
     eve.preventDefault()
     slideout.close()
+}
+
+function display() {
+    var totFilteredRecs = ndx.groupAll().value()
+    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
+    d3.select('#begin')
+        .text(end === 0? ofs : ofs + 1)
+    d3.select('#end').text(end)
+    d3.select('#last').attr('disabled', ofs-pag<0 ? 'true' : null)
+    d3.select('#next').attr('disabled', ofs+pag>=totFilteredRecs ? 'true' : null)
+    d3.select('#size').text(totFilteredRecs)
+    d3.select('#download-all-size').text(ndx.size())
+    d3.select('#download-filtered-size').text(totFilteredRecs)
+    if(totFilteredRecs != ndx.size()){
+        // update pages to show a filter is applied
+        d3.select('#totalsize').text(" filtered records (" + ndx.size() + " total)")
+        // show the clear/reset button
+
+        d3.select('#filtered-btn-grp')
+            .property("hidden", false)
+        d3.select('#unfiltered-btn-grp')
+            .property("hidden", true)
+    } else {
+        d3.select('#totalsize').text('')
+        // hide the clear button
+        d3.select('#filtered-btn-grp')
+            .property("hidden", true)
+        d3.select('#unfiltered-btn-grp')
+            .property("hidden", false)
+    }
 }
 
 function tableHeaderCallback(d) {
@@ -271,36 +292,6 @@ function update_offset() {
     variantTable.beginSlice(ofs)
     variantTable.endSlice(ofs+pag)
     display()
-}
-
-function display() {
-    var totFilteredRecs = ndx.groupAll().value()
-    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
-    d3.select('#begin')
-        .text(end === 0? ofs : ofs + 1)
-    d3.select('#end').text(end)
-    d3.select('#last').attr('disabled', ofs-pag<0 ? 'true' : null)
-    d3.select('#next').attr('disabled', ofs+pag>=totFilteredRecs ? 'true' : null)
-    d3.select('#size').text(totFilteredRecs)
-    d3.select('#download-all-size').text(ndx.size())
-    d3.select('#download-filtered-size').text(totFilteredRecs)
-    if(totFilteredRecs != ndx.size()){
-        // update pages to show a filter is applied
-        d3.select('#totalsize').text(" filtered records (" + ndx.size() + " total)")
-        // show the clear/reset button
-
-        d3.select('#filtered-btn-grp')
-            .property("hidden", false)
-        d3.select('#unfiltered-btn-grp')
-            .property("hidden", true)
-    } else {
-        d3.select('#totalsize').text('')
-        // hide the clear button
-        d3.select('#filtered-btn-grp')
-            .property("hidden", true)
-        d3.select('#unfiltered-btn-grp')
-            .property("hidden", false)
-    }
 }
 
 function next() {
@@ -426,13 +417,13 @@ d3.json("data.json").then(function(data) {
     // Bind data to tableHeader selection.
     tableHeader = tableHeader.data(
         [
-            {label: "Chrom", field_name: "chrom", sort_state: "ascending"},
-            {label: "Start", field_name: "start", sort_state: "ascending"},
-            {label: "End", field_name: "end", sort_state: "ascending"},
-            {label: "Size", field_name: "size", sort_state: "ascending"},
-            {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending"},
-            {label: "# of Samples", field_name: "n_samples", sort_state: "ascending"},
-            {label: "Samples", field_name: "samples", sort_state: "ascending"},
+            {label: "Chrom", field_name: "chrom", sort_state: "ascending", format: function(d) {return d.chrom} },
+            {label: "Start", field_name: "start", sort_state: "ascending", format: function(d) { return d.start} },
+            {label: "End", field_name: "end", sort_state: "ascending", format: function(d) { return d.end} },
+            {label: "Size", field_name: "size", sort_state: "ascending", format: function(d) { return d.size} },
+            {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending", format: function(d) { return d.SVTYPE} },
+            {label: "# of Samples", field_name: "n_samples", sort_state: "ascending", format: function(d) { return d.n_samples} },
+            {label: "Samples", field_name: "samples", sort_state: "ascending", format: function(d) { return d.samples } },
         ]
     )
 
@@ -455,10 +446,11 @@ d3.json("data.json").then(function(data) {
         .dimension(chromDimension)
         .section(function(d) { return ""})
         .size(Infinity)
-        .columns(columnFunctions)
+        .columns(tableHeader.data().map(function(i) {return i.format}))
         .showSections(false)
         // this sorts a string of these characters, so it's not actually sorted
         .sortBy(function(d){ return [d.chrom, d.start] })
+        .order(d3.ascending)
         .on('preRender', update_offset)
         .on('preRedraw', update_offset)
         .on('pretransition', display)
