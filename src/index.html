@@ -39,15 +39,23 @@
         <a class="navbar-brand">samplot</a>
 
         <div class="ml-auto">
-            <button title="Table filters" onclick="javascript:slideout.toggle()" type="button" class="btn btn-primary" aria-label="menu">
-                <span class="fas fa-filter" aria-hidden="true"></span>
-            </button>
-            <button title="Reset all filters" onclick="javascript:dc.filterAll();dc.redrawAll()" type="button" class="btn btn-primary mr-3" aria-label="reset">
-                <span class="fas fa-redo-alt" aria-hidden="true"></span>
-            </button>
+            <span id="unfiltered-btn-grp" class="btn-group mr-3">
+                <button type="button" class="btn btn-primary" id="filter-button" title="Show table filters" onclick="javascript:slideout.toggle()" aria-label="filters">
+                    Filters
+                </button>
+            </span>
+            <span id="filtered-btn-grp" class="btn-group mr-3" hidden>
+                <button type="button" class="btn btn-primary" id="filter-button" title="Show table filters" onclick="javascript:slideout.toggle()" aria-label="filters">
+                    Filters
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="clear-button" title="Clear all filters" onclick="javascript:dc.filterAll();dc.redrawAll()" aria-label="clear">
+                    <span class="fas fa-times"></span>
+                </button>
+            </span>
+
             <span class="dropdown">
-                <button class="btn btn-primary dropdown-toggle" type="button" title="Download table" id="download-menu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <span class="fas fa-download" aria-hidden="true"></span>
+                <button type="button" class="btn btn-primary dropdown-toggle" id="download-menu" title="Download table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Download
                 </button>
                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="download-menu">
                     <button class="dropdown-item" type="button" onclick="javascript:download_all()">
@@ -165,7 +173,7 @@
 
         <div id="samplot-area" hidden>
             <div class="row">
-                <div id="samplot-img"></div>
+                <div><img id="samplot-img" width="100%" src=""/></div>
             </div>
         </div>
     </div>
@@ -277,9 +285,21 @@ function display() {
     d3.select('#download-all-size').text(ndx.size())
     d3.select('#download-filtered-size').text(totFilteredRecs)
     if(totFilteredRecs != ndx.size()){
+        // update pages to show a filter is applied
         d3.select('#totalsize').text(" filtered records (" + ndx.size() + " total)")
+        // show the clear/reset button
+
+        d3.select('#filtered-btn-grp')
+            .property("hidden", false)
+        d3.select('#unfiltered-btn-grp')
+            .property("hidden", true)
     } else {
         d3.select('#totalsize').text('')
+        // hide the clear button
+        d3.select('#filtered-btn-grp')
+            .property("hidden", true)
+        d3.select('#unfiltered-btn-grp')
+            .property("hidden", false)
     }
 }
 
@@ -318,22 +338,15 @@ function index_group(group) {
 }
 
 const table_click = (row) => {
-    $('#samplot-area-placeholder').prop("hidden", true)
-    $('#samplot-area').prop("hidden", false)
+    d3.select('#samplot-area-placeholder')
+        .property("hidden", true)
+    d3.select('#samplot-area')
+        .property("hidden", false)
 
     // load the image
     var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + ".png"
-    var i = jQuery("#samplot-img")
-    i.empty()
-    i.append('<img width="100%" src="' + img + '"/>"')
-
-    // update the selection title
-    d3.select('#samplot-chrom')
-        .text(row.chrom)
-    d3.select('#samplot-start')
-        .text(row.start)
-    d3.select('#samplot-end')
-        .text(row.end)
+    d3.select("#samplot-img")
+        .property("src", img)
 }
 
 d3.json("data.json").then(function(data) {
@@ -379,6 +392,7 @@ d3.json("data.json").then(function(data) {
     })
     var sizeGroup = sizeDimension.group().reduceCount()
     var nonEmptySizeGroup = remove_empty_bins(sizeGroup)
+    // for brushing, need to track keys at numeric indexes
     var sizeKeys = nonEmptySizeGroup.all().map(dc.pluck('key')).slice()
 
     var typeDimension = ndx.dimension((d) => { return d.SVTYPE })
@@ -483,6 +497,7 @@ d3.json("data.json").then(function(data) {
             var filter = filters[0]
             return sizeKeys[filter[0]] + ' - ' + sizeKeys[filter[1]]
         })
+        // adds left padding to plots inside filtering panel
         .on('renderlet', function() {
             d3.selectAll("svg")
                 .classed("pl-3", true)
