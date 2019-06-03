@@ -7,153 +7,129 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.9.2/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.4.7/crossfilter.min.js" type='text/javascript'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.js" type='text/javascript'></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.8/FileSaver.min.js" type='text/javascript'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" type='text/javascript'></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slideout/1.0.1/slideout.min.js" type='text/javascript'></script>
+    <!-- 1.10.16 due to export fixes in latest -->
+    <script src="https://cdn.datatables.net/1.10.16/js/jquery.dataTables.js" type='text/javascript'></script>
+    <script src="https://cdn.datatables.net/1.10.16/js/dataTables.bootstrap4.min.js" type='text/javascript'></script>
+    <!-- export buttons -->
+    <script src="https://cdn.datatables.net/buttons/1.5.6/js/dataTables.buttons.min.js" type='text/javascript'></script>
+    <script src="https://cdn.datatables.net/buttons/1.5.6/js/buttons.html5.min.js" type='text/javascript'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/js/bootstrap.bundle.min.js" type='text/javascript'></script>
 
-    <link href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" rel='stylesheet' type='text/css'>
+    <link href="https://cdn.datatables.net/buttons/1.5.6/css/buttons.dataTables.min.css" rel="stylesheet" type="text/css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css" rel='stylesheet' type='text/css'>
+    <link href="https://cdn.datatables.net/v/bs4/dt-1.10.18/sl-1.3.0/datatables.min.css" rel="stylesheet" type="text/css"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel='stylesheet' type='text/css'>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.css" rel='stylesheet' type='text/css'>
+
     <style type="text/css">
-        #variant-table th span {float: right; font-size: 1em; color: #0080bf; display: inline-block;}
-        #variant-table th {cursor: pointer;}
-        tr.dc-table-row.sel-rows {background-color: #cfd8dc;}
-        tr.dc-table-row.sel-rows:hover {background-color: #cfd8dc;}
-
-        body {width: 100%; height: 100%;}
-        .slideout-menu {position: fixed; top: 48px; bottom: 0; width: 600px; min-height: 50vh; overflow-x: hidden; overflow-y: scroll; -webkit-overflow-scrolling: touch; z-index: 100; display: none; background-color: #eceff1}
-        .slideout-menu-left {left: 0;}
-        .slideout-menu-right {right: 0;}
-        .slideout-panel {position: relative; z-index: 1; will-change: transform; background-color: #FFF; min-height: 100vh;}
-        .slideout-open, .slideout-open body, .slideout-open .slideout-panel {overflow: hidden;}
-        .slideout-open .slideout-menu {display: block;}
-
-        .panel:before {content: ''; display: block; background-color: rgba(0,0,0,0); transition: background-color 0.5s ease-in-out;}
-        .panel-open:before {position: absolute; top: 0; bottom: 0; width: 100%; background-color: rgba(0,0,0,.5); z-index: 99;}
+        #filter-menu .dropdown-menu { min-height: 100px; max-height: 100vh; overflow-y: auto; overflow-x: hidden; background-color: #edf0f2; }
+        span.no-show { display: none; }
+        span.show-ellipsis:after { content: "..."; }
+        .datatable-info { font-size: .9em; }
+        #variant-table_info { padding-top: 8px; }
+        .resizable { resize: both; overflow: auto; }
+        table.dataTable thead th.sorting:after,
+        table.dataTable thead th.sorting_asc:after,
+        table.dataTable thead th.sorting_desc:after,
+        table.dataTable thead th.sorting:before,
+        table.dataTable thead th.sorting_asc:before,
+        table.dataTable thead th.sorting_desc:before {
+            font-family: FontAwesome !important;
+        }
     </style>
 </head>
 
 <body>
-    <nav class="navbar navbar-light bg-light justify-content-end pt-1 pb-1">
-        <a class="navbar-brand">samplot</a>
+    <nav class="navbar navbar-dark bg-dark pt-1 pb-1">
+        <a class="navbar-brand text-light">samplot</a>
 
-        <div class="ml-auto">
-            <span id="unfiltered-btn-grp" class="btn-group mr-3">
-                <button type="button" class="btn btn-primary" id="filter-button" title="Show table filters" onclick="javascript:slideout.toggle()" aria-label="filters">
-                    Filters
-                </button>
-            </span>
-            <span id="filtered-btn-grp" class="btn-group mr-3" hidden>
-                <button type="button" class="btn btn-primary" id="filter-button" title="Show table filters" onclick="javascript:slideout.toggle()" aria-label="filters">
-                    Filters
-                </button>
-                <button type="button" class="btn btn-outline-primary" id="clear-button" title="Clear all filters" onclick="javascript:dc.filterAll();dc.redrawAll()" aria-label="clear">
-                    <span class="fas fa-times"></span>
-                </button>
-            </span>
-
-            <span class="dropdown">
-                <button type="button" class="btn btn-primary dropdown-toggle" id="download-menu" title="Download table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    Download
-                </button>
-                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="download-menu">
-                    <button class="dropdown-item" type="button" onclick="javascript:download_all()">
-                        All data (<span id="download-all-size"></span> rows)
-                    </button>
-                    <button class="dropdown-item" type="button" onclick="javascript:download_filtered()">
-                        Filtered data (<span id="download-filtered-size"></span> rows)
-                    </button>
-                </div>
-            </span>
-        </div>
-    </nav>
-
-    <nav id="menu">
-        <div class="container">
-            <div class="row pt-2">
-                <div class="col">
-                    <h5>Sample</h5>
-                </div>
-            </div>
-            <div class="row pb-3">
-                <div class="col-12">
-                    <div id="sample-search"></div>
-                </div>
-            </div>
-
-            <div class="row" id="chrom-chart">
-                <div class="col-4">
-                    <h5>Chromosome</h5>
-                </div>
-                <div class="col-8 text-right">
-                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                    <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
-                </div>
-            </div>
-            <div class="row" id="size-chart">
-                <div class="col-4">
-                    <h5>Size</h5>
-                </div>
-                <div class="col-8 text-right">
-                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                    <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
-                </div>
-            </div>
-            <div class="row" id="type-chart">
-                <div class="col-4">
-                    <h5>SV Type</h5>
-                </div>
-                <div class="col-8 text-right">
-                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                    <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
-                </div>
-            </div>
-            <div class="row" id="nsamples-chart">
-                <div class="col-4">
-                    <h5># of Samples</h5>
-                </div>
-                <div class="col-8 text-right">
-                    <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                    <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">reset</a>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container-fluid bg-light" id="panel">
-        <div class="container-fluid">
-            <div class="row" style="height:380px">
-                <div class="col-12" id="variant-table-placeholder">
-                    <div class="d-flex justify-content-center align-items-center text-muted h-100">
-                        <div class="d-flex flex-column">
-                            <i class="fas fa-7x fa-table"></i>
+        <div class="dropdown" id="filter-menu">
+            <button type="button" class="navbar-toggler" title="Filter table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="dropdown-menu dropdown-menu-right shadow" aria-labelledby="filter-menu">
+                <div class="container">
+                    <div class="row">
+                        <div class="col-12 text-right" id="variant-count">
+                            <a href="javascript:dc.filterAll(); dc.renderAll();">Reset All</a>
+                        </div>
+                    </div>
+                    <div class="row pt-2">
+                        <div class="col">
+                            <h5>Sample</h5>
+                        </div>
+                    </div>
+                    <div class="row pb-3">
+                        <div class="col-12">
+                            <div id="sample-search"></div>
+                        </div>
+                    </div>
+                    <div class="row" id="nsamples-chart">
+                        <div class="col-4">
+                            <h5># of Samples</h5>
+                        </div>
+                        <div class="col-8 text-right">
+                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                            <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                        </div>
+                    </div>
+                    <div class="row" id="size-chart">
+                        <div class="col-4">
+                            <h5>Size</h5>
+                        </div>
+                        <div class="col-8 text-right">
+                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                            <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                        </div>
+                    </div>
+                    <div class="row" id="type-chart">
+                        <div class="col-4">
+                            <h5>SV Type</h5>
+                        </div>
+                        <div class="col-8 text-right">
+                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                            <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                        </div>
+                    </div>
+                    <div class="row" id="chrom-chart">
+                        <div class="col-4">
+                            <h5>Chromosome</h5>
+                        </div>
+                        <div class="col-8 text-right">
+                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                            <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
                         </div>
                     </div>
                 </div>
-
-                <div class="table-responsive" id="variant-table-div" hidden>
-                    <table class='table table-hover table-sm table-bordered' id='variant-table'>
-                        <thead>
-                            <tr class='table-header'></tr>
-                        </thead>
-                    </table>
+                <div class="container">
+                    <button type="button" class="btn btn-secondary float-right" data-toggle="dropdown">Apply</button>
                 </div>
             </div>
         </div>
-        <div class="row" style="font-size: .9em;">
-            <div class="col-12 justify-content-end d-flex align-items-right">
-                <span class="navbar-text text-dark">Showing <span style="font-weight:bold" id="begin"></span>-<span style="font-weight:bold" id="end"></span> of <span style="font-weight:bold" id="size"></span><span class="pr-3" id="totalsize"></span>
-                <button id="last" value="Prev" title="Previous page" onclick="javascript:last()" type="button" class="btn btn-secondary" aria-label="previous">
-                    <span class="fas fa-chevron-left" aria-hidden="true"></span>
-                </button>
-                <button id="next" value="Next" title="Next page" onclick="javascript:next()" type="button" class="btn btn-secondary" aria-label="next">
-                    <span class="fas fa-chevron-right" aria-hidden="true"></span>
-                </button>
+    </nav>
+
+    <div class="container-fluid bg-light">
+        <div class="row" id="variant-table-placeholder" style="height:435px">
+            <div class="col-12">
+                <div class="d-flex justify-content-center align-items-center text-muted h-100">
+                    <div class="d-flex flex-column">
+                        <i class="fas fa-7x fa-table"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
+        <div class="row pb-1" id="variant-table-div" hidden>
+            <div class="col-12">
+                <div class="table-responsive">
+                    <table id="variant-table" class="table table-hover table-sm table-bordered display nowrap" width="100%"></table>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <div class="container-fluid">
         <div class="row" id="samplot-area-placeholder">
             <div class="col-12">
                 <div style="height:415px">
@@ -170,10 +146,9 @@
                 </div>
             </div>
         </div>
-
-        <div id="samplot-area" hidden>
-            <div class="row">
-                <div><img id="samplot-img" width="100%" src=""/></div>
+        <div class="row resizable" id="samplot-area" hidden>
+            <div class="col-12">
+                <img id="samplot-img" width="100%" src=""/>
             </div>
         </div>
     </div>
@@ -183,128 +158,191 @@
 dc.config.defaultColors(d3.schemeSet1)
 
 const plotw = 585
-const ploth = 180
+const ploth = 150
 var searchInput = dc.textFilterWidget("#sample-search")
-var variantTable = dc.dataTable("#variant-table")
 var chromChart = dc.barChart("#chrom-chart")
 var sizeChart = dc.barChart("#size-chart")
 var typeChart = dc.barChart("#type-chart")
 var nsamplesChart = dc.barChart("#nsamples-chart")
+// need separate counters for use cases
+var variantCount = dc.dataCount("#variant-count")
+
 var chromDimension
-// pagination
-var ofs = 0
-var pag = 10
+var variant_table
 // crossfilter obj
 var ndx
-// data table functions to return
-var tableHeader
-var slideout = new Slideout({
-    'panel': document.getElementById('panel'),
-    'menu': document.getElementById('menu'),
-    'padding': 600,
-    'tolerance': 100,
-    'side': 'right',
-    'duration': 300
+
+// prevent dropdown from closing on click
+$(document).on('click', '#filter-menu .dropdown-menu', function (e) {
+    e.stopPropagation()
 })
-slideout
-    .on('beforeopen', function() {
-        this.panel.classList.add('panel-open')
+
+// update table when dropdown closed
+$('#filter-menu').on('hide.bs.dropdown', function () {
+    update_table()
+})
+
+$('#dropdown-apply').click(function() {
+  $(this).parents('.dropdown').find('button.dropdown-toggle').dropdown('toggle')
+})
+
+const table_click = (row) => {
+    d3.select('#samplot-area-placeholder')
+        .property("hidden", true)
+    d3.select('#samplot-area')
+        .property("hidden", false)
+
+    // load the image
+    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + ".png"
+    d3.select("#samplot-img")
+        .property("src", img)
+}
+
+function add_download_actions() {
+    $('#copy-button-download').on('click', function() {
+        variant_table.button('.buttons-copy').trigger()
     })
-    .on('open', function() {
-        this.panel.addEventListener('click', close_sidebar)
+    $('#csv-button-download').on('click', function() {
+        variant_table.button('.buttons-csv').trigger()
     })
-    .on('beforeclose', function() {
-        this.panel.classList.remove('panel-open')
-        this.panel.removeEventListener('click', close_sidebar)
+}
+
+function build_table(data) {
+
+    // hide the placeholder and show the datatable
+    d3.select('#variant-table-placeholder').property("hidden", true)
+    d3.select('#variant-table-div').property("hidden", false)
+
+    // let dim = chromDimension
+    let cols = [
+        {data: 'chrom', title: 'Chrom'},
+        {data: 'start', title: 'Start'},
+        {data: 'end', title: 'End'},
+        {data: 'size', title: 'Size'},
+        {data: 'SVTYPE', title: 'SV Type'},
+        {data: 'n_samples', title: '# of Samples'},
+        {data: 'samples', title: 'Samples'},
+    ]
+
+    variant_table = $("#variant-table").DataTable({
+        data: data,
+        columns: cols,
+        scrollX: true,
+        scrollCollapse: true,
+        paging: true,
+        pagingType: "full",
+        pageLength: 10,
+        info: true,
+        buttons: [
+            'copyHtml5', 'csvHtml5'
+        ],
+        fnInfoCallback: (oSettings, iStart, iEnd, iMax, iTotal, sPre) => {
+            // return '<span class="datatable-info">Showing <b>' + iStart + "</b> - <b>" + iEnd + "</b> of <b>" + iTotal + '</b> records</span><button id="custom-csv-button" type="button" class="btn btn-outline-secondary btn-sm">CSV</button>';
+
+            return `<span class="datatable-info">
+                <span class="dropdown">
+                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle text-dark" id="download-menu" title="Download table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Showing <b>${iStart}</b> - <b>${iEnd}</b> of <b>${iTotal}</b> records
+                    </button>
+                    <span class="dropdown-menu" aria-labelledby="download-menu">
+                        <button class="dropdown-item" type="button" id="copy-button-download">
+                            Copy table to clipboard
+                        </button>
+                        <button class="dropdown-item" type="button" id="csv-button-download">
+                            Save as CSV
+                        </button>
+                    </span>
+                </span>
+            </span>
+            `
+        },
+        columnDefs: [
+            {
+                targets: [0,1,2,3,4,5],
+                width: '15%'
+            },
+            // https://datatables.net/blog/2016-02-26
+            {
+                targets: 6,
+                render: function(data, type, row) {
+                    if (type === 'display' && data != null) {
+                        data = data.replace(/<(?:.|\\n)*?>/gm, '');
+                        if(data.length > 40) {
+                            return '<span class=\"show-ellipsis\">' + data.substr(0, 40) + '</span><span class=\"no-show\">' + data.substr(40) + '</span>';
+                        } else {
+                            return data;
+                        }
+                    } else {
+                        return data;
+                    }
+                }
+            }
+        ],
+        // search is applied using crossfilter
+        searching: false,
+        lengthChange: false,
+        order: [[0, 'asc'], [1, 'asc']]
     })
 
-function close_sidebar(eve) {
-    eve.preventDefault()
-    slideout.close()
+    // register table clicks on sample_column
+    variant_table.on('click', 'tr', function () {
+        if ( $(this).hasClass('selected') ) {
+            // do nothing for now
+        }
+        else {
+            // de-select all
+            variant_table.$('tr.selected').removeClass('selected')
+            // add select to clicked row
+            $(this).addClass('selected')
+            // update samplot area
+            table_click(variant_table.rows('.selected').data()[0])
+        }
+    })
+
+    add_download_actions()
 }
 
-function display() {
-    var totFilteredRecs = ndx.groupAll().value()
-    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
-    d3.select('#begin')
-        .text(end === 0? ofs : ofs + 1)
-    d3.select('#end').text(end)
-    d3.select('#last').attr('disabled', ofs-pag<0 ? 'true' : null)
-    d3.select('#next').attr('disabled', ofs+pag>=totFilteredRecs ? 'true' : null)
-    d3.select('#size').text(totFilteredRecs)
-    d3.select('#download-all-size').text(ndx.size())
-    d3.select('#download-filtered-size').text(totFilteredRecs)
-    if(totFilteredRecs != ndx.size()){
-        // update pages to show a filter is applied
-        d3.select('#totalsize').text(" filtered records (" + ndx.size() + " total)")
-        // show the clear/reset button
-
-        d3.select('#filtered-btn-grp')
-            .property("hidden", false)
-        d3.select('#unfiltered-btn-grp')
-            .property("hidden", true)
-    } else {
-        d3.select('#totalsize').text('')
-        // hide the clear button
-        d3.select('#filtered-btn-grp')
-            .property("hidden", true)
-        d3.select('#unfiltered-btn-grp')
-            .property("hidden", false)
-    }
+function update_table() {
+    // var total_filtered_recs = ndx.groupAll().value()
+    // if (total_filtered_recs != ndx.size()) { }
+    variant_table.clear()
+    variant_table.rows.add(chromDimension.top(Infinity))
+    variant_table.draw()
+    add_download_actions()
 }
 
-function tableHeaderCallback(d) {
-    // Highlight column header being sorted and show bootstrap glyphicon
-    var activeClass = "info"
 
-    d3.selectAll("#variant-table th") // Disable all highlighting and icons
-        .classed(activeClass, false)
-        .selectAll("span")
-        .style("visibility", "hidden") // Hide glyphicon
+// function tableHeaderCallback(d) {
+//     // Highlight column header being sorted and show bootstrap glyphicon
+//     var activeClass = "info"
+//
+//     d3.selectAll("#variant-table th") // Disable all highlighting and icons
+//         .classed(activeClass, false)
+//         .selectAll("span")
+//         .style("visibility", "hidden") // Hide glyphicon
+//
+//     var activeSpan = d3.select(this) // Enable active highlight and icon for active column for sorting
+//         .classed(activeClass, true)  // Set bootstrap "info" class on active header for highlight
+//         .select("span")
+//         .style("visibility", "visible")
+//
+//     // Toggle sort order state to user desired state
+//     d.sort_state = d.sort_state === "ascending" ? "descending" : "ascending"
+//
+//     var isAscendingOrder = d.sort_state === "ascending"
+//     variantTable
+//         .order(isAscendingOrder ? d3.ascending : d3.descending)
+//         .sortBy(function(datum) { return datum[d.field_name] })
+//
+//     // Reset glyph icon for all other headers and update this headers icon
+//     activeSpan.node().className = '' // Remove all glyphicon classes
+//
+//     // Toggle glyphicon based on ascending/descending sort_state
+//     activeSpan.classed(isAscendingOrder ? "fas fa-sort-amount-up" : "fas fa-sort-amount-down", true)
+//     display()
+//     variantTable.redraw()
+// }
 
-    var activeSpan = d3.select(this) // Enable active highlight and icon for active column for sorting
-        .classed(activeClass, true)  // Set bootstrap "info" class on active header for highlight
-        .select("span")
-        .style("visibility", "visible")
-
-    // Toggle sort order state to user desired state
-    d.sort_state = d.sort_state === "ascending" ? "descending" : "ascending"
-
-    var isAscendingOrder = d.sort_state === "ascending"
-    variantTable
-        .order(isAscendingOrder ? d3.ascending : d3.descending)
-        .sortBy(function(datum) { return datum[d.field_name] })
-
-    // Reset glyph icon for all other headers and update this headers icon
-    activeSpan.node().className = '' // Remove all glyphicon classes
-
-    // Toggle glyphicon based on ascending/descending sort_state
-    activeSpan.classed(isAscendingOrder ? "fas fa-sort-amount-up" : "fas fa-sort-amount-down", true)
-    display()
-    variantTable.redraw()
-}
-
-function update_offset() {
-    var totFilteredRecs = ndx.groupAll().value()
-    var end = ofs + pag > totFilteredRecs ? totFilteredRecs : ofs + pag
-    ofs = ofs >= totFilteredRecs ? Math.floor((totFilteredRecs - 1) / pag) * pag : ofs
-    ofs = ofs < 0 ? 0 : ofs
-    variantTable.beginSlice(ofs)
-    variantTable.endSlice(ofs+pag)
-    display()
-}
-
-function next() {
-    ofs += pag
-    update_offset()
-    variantTable.redraw()
-}
-
-function last() {
-    ofs -= pag
-    update_offset()
-    variantTable.redraw()
-}
 
 function remove_empty_bins(source_group) {
     return {
@@ -328,24 +366,17 @@ function index_group(group) {
     }
 }
 
-const table_click = (row) => {
-    d3.select('#samplot-area-placeholder')
-        .property("hidden", true)
-    d3.select('#samplot-area')
-        .property("hidden", false)
-
-    // load the image
-    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + ".png"
-    d3.select("#samplot-img")
-        .property("src", img)
-}
-
 d3.json("data.json").then(function(data) {
+
+    data.forEach(function (d) {
+        d.samples = d.samples.replace(/,/g, ';')
+    })
 
     ndx = crossfilter(data)
     var all = ndx.groupAll()
 
     chromDimension = ndx.dimension((d) => { return d.chrom })
+    build_table(chromDimension.top(Infinity))
     var chromGroup = chromDimension.group().reduceCount()
     var nonEmptyChromGroup = remove_empty_bins(chromGroup)
 
@@ -410,69 +441,73 @@ d3.json("data.json").then(function(data) {
     var nonEmptyNsamplesGroup = remove_empty_bins(nsamplesGroup)
     var nsamplesKeys = nonEmptyNsamplesGroup.all().map(dc.pluck('key')).slice()
 
-    // Programmatically insert header labels for table
-    tableHeader = d3.select(".table-header")
-        .selectAll("th")
+    // // Programmatically insert header labels for table
+    // tableHeader = d3.select(".table-header")
+    //     .selectAll("th")
+    //
+    // // Bind data to tableHeader selection.
+    // tableHeader = tableHeader.data(
+    //     [
+    //         {label: "Chrom", field_name: "chrom", sort_state: "ascending", format: function(d) {return d.chrom} },
+    //         {label: "Start", field_name: "start", sort_state: "ascending", format: function(d) { return d.start} },
+    //         {label: "End", field_name: "end", sort_state: "ascending", format: function(d) { return d.end} },
+    //         {label: "Size", field_name: "size", sort_state: "ascending", format: function(d) { return d.size} },
+    //         {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending", format: function(d) { return d.SVTYPE} },
+    //         {label: "# of Samples", field_name: "n_samples", sort_state: "ascending", format: function(d) { return d.n_samples} },
+    //         {label: "Samples", field_name: "samples", sort_state: "ascending", format: function(d) { return d.samples } },
+    //     ]
+    // )
+    //
+    // tableHeader = tableHeader.enter()
+    //     .append("th")
+    //     .text(function (d) { return d.label })
+    //     .on("click", tableHeaderCallback)
+    //
+    // tableHeader.filter(function(d) { return d.label === "Chrom" })
+    //     .classed("info", true)
+    //
+    // var tableSpans = tableHeader
+    //     .append("span") // For Sort glyphicon on active table headers
+    //     .classed("fas fa-sort-amount-up", true)
+    //     .style("visibility", "hidden")
+    //     .filter(function(d) { return d.label === "Chrom" })
+    //     .style("visibility", "visible")
 
-    // Bind data to tableHeader selection.
-    tableHeader = tableHeader.data(
-        [
-            {label: "Chrom", field_name: "chrom", sort_state: "ascending", format: function(d) {return d.chrom} },
-            {label: "Start", field_name: "start", sort_state: "ascending", format: function(d) { return d.start} },
-            {label: "End", field_name: "end", sort_state: "ascending", format: function(d) { return d.end} },
-            {label: "Size", field_name: "size", sort_state: "ascending", format: function(d) { return d.size} },
-            {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending", format: function(d) { return d.SVTYPE} },
-            {label: "# of Samples", field_name: "n_samples", sort_state: "ascending", format: function(d) { return d.n_samples} },
-            {label: "Samples", field_name: "samples", sort_state: "ascending", format: function(d) { return d.samples } },
-        ]
-    )
+    // variantTable
+    //     .dimension(chromDimension)
+    //     .section(function(d) { return ""})
+    //     .size(Infinity)
+    //     .columns(tableHeader.data().map(function(i) {return i.format}))
+    //     .showSections(false)
+    //     // this sorts a string of these characters, so it's not actually sorted
+    //     .sortBy(function(d){ return [d.chrom, d.start] })
+    //     .order(d3.ascending)
+    //     .on('preRender', update_offset)
+    //     .on('preRedraw', update_offset)
+    //     .on('pretransition', display)
+    //     // handle row clicks
+    //     .on('pretransition', function (table) {
+    //         table.selectAll('td.dc-table-column')
+    //             .on('click.my-event', function(d) {
+    //                 table_click(d)
+    //                 // de-select everything
+    //                 table.selectAll('tr.dc-table-row')
+    //                     .classed('sel-rows', false)
+    //                 // select the clicked row
+    //                 d3.selectAll("tr.dc-table-row").on("click", function() {
+    //                     d3.select(this).classed('sel-rows', true)
+    //                 })
+    //             })
+    //     })
+    //     .on('renderlet', function() {
+    //         d3.selectAll("#variant-table td")
+    //             .classed("text-truncate", true)
+    //             .style("max-width", "30px")
+    //     })
+    //     // .on('postRender', function() {
+    //     //     variant-table
+    //     // })
 
-    tableHeader = tableHeader.enter()
-        .append("th")
-        .text(function (d) { return d.label })
-        .on("click", tableHeaderCallback)
-
-    tableHeader.filter(function(d) { return d.label === "Chrom" })
-        .classed("info", true)
-
-    var tableSpans = tableHeader
-        .append("span") // For Sort glyphicon on active table headers
-        .classed("fas fa-sort-amount-up", true)
-        .style("visibility", "hidden")
-        .filter(function(d) { return d.label === "Chrom" })
-        .style("visibility", "visible")
-
-    variantTable
-        .dimension(chromDimension)
-        .section(function(d) { return ""})
-        .size(Infinity)
-        .columns(tableHeader.data().map(function(i) {return i.format}))
-        .showSections(false)
-        // this sorts a string of these characters, so it's not actually sorted
-        .sortBy(function(d){ return [d.chrom, d.start] })
-        .order(d3.ascending)
-        .on('preRender', update_offset)
-        .on('preRedraw', update_offset)
-        .on('pretransition', display)
-        // handle row clicks
-        .on('pretransition', function (table) {
-            table.selectAll('td.dc-table-column')
-                .on('click.my-event', function(d) {
-                    table_click(d)
-                    // de-select everything
-                    table.selectAll('tr.dc-table-row')
-                        .classed('sel-rows', false)
-                    // select the clicked row
-                    d3.selectAll("tr.dc-table-row").on("click", function() {
-                        d3.select(this).classed('sel-rows', true)
-                    })
-                })
-        })
-        .on('renderlet', function() {
-            d3.selectAll("#variant-table td")
-                .classed("text-truncate", true)
-                .style("max-width", "30px")
-        })
 
     sizeChart
         .width(plotw).height(ploth).gap(1)
@@ -493,6 +528,18 @@ d3.json("data.json").then(function(data) {
         .on('renderlet', function() {
             d3.selectAll("svg")
                 .classed("pl-3", true)
+        })
+        .on('filtered', function() {
+            // throttle();
+    		// //dc.redrawAll();
+    		// var throttleTimer;
+    		// function throttle() {
+    		// 	window.clearTimeout(throttleTimer);
+    		// 	throttleTimer = window.setTimeout(function() {
+    		// 			dc.redrawAll();
+    		// 	}, 3000);
+    		// }
+            // update_table()
         })
     // limit the number of labels along x-axis
     sizeChart.xAxis().ticks(10)
@@ -577,40 +624,20 @@ d3.json("data.json").then(function(data) {
         return filters
     })
 
-    // hide the placeholder and show the datatable
-    d3.select('#variant-table-placeholder').property("hidden", true)
-    d3.select('#variant-table-div').property("hidden", false)
+    variantCount
+        .crossfilter(ndx)
+        .groupAll(all)
+        // (_optional_) `.html` sets different html when some records or all records are selected.
+        // `.html` replaces everything in the anchor with the html given using the following function.
+        // `%filter-count` and `%total-count` are replaced with the values obtained.
+        .html({
+            some: '<strong>%filter-count</strong> selected out of <strong>%total-count</strong> records' +
+                ' | <a href=\'javascript:dc.filterAll(); dc.renderAll();\'>Reset All</a>',
+            all: '<strong>%total-count</strong> records'
+        });
 
     dc.renderAll()
 })
-
-function get_blob(data) {
-    data = data.map(function(d) {
-        var row = {}
-        variantTable.columns().forEach(function(c) {
-            // convert commas to semicolons
-            row[variantTable._doColumnHeaderFormat(c).split(" ")[3].split(".")[1]] = String(variantTable._doColumnValueFormat(c, d)).replace(/,/g, ';')
-        })
-        return row
-    })
-    let b = new Blob([d3.csvFormat(data)], {type: "text/csv;charset=utf-8"})
-    return b
-}
-
-function download_all() {
-    var data = chromDimension.top(Infinity)
-    var blob = get_blob(data)
-    saveAs(blob, 'samplot_all_data.csv')
-}
-
-function download_filtered() {
-    var data = chromDimension.top(Infinity)
-    data = data.sort(function(a, b) {
-        return variantTable.order()(variantTable.sortBy()(a), variantTable.sortBy()(b))
-    })
-    var blob = get_blob(data)
-    saveAs(blob, 'samplot_filtered_data.csv')
-}
 
 </script>
 
