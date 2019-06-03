@@ -53,7 +53,7 @@ table.setData(%s)
 class Sample(object):
     __slots__ = 'family_id id paternal_id maternal_id mom dad kids i'.split()
     def __init__(self, line):
-        toks = line.rstrip().split("\t")
+        toks = line.rstrip().split()
         self.family_id = toks[0]
         self.id = toks[1]
         self.paternal_id = toks[2]
@@ -62,7 +62,8 @@ class Sample(object):
         self.i = -1 # index in the vcf.
 
     def __repr__(self):
-        return "Sample(id:{id})".format(id=self.id)
+        return "Sample(id:{id},paternal_id:{pid},maternal_id:{mid})".format(
+                id=self.id,pid=self.paternal_id,mid=self.maternal_id)
 
 def parse_ped(path, vcf_samples=None):
     if path is None:
@@ -80,7 +81,6 @@ def parse_ped(path, vcf_samples=None):
         s.mom = look.get(s.maternal_id)
         if s.mom is not None:
             s.mom.kids.append(s)
-
     # match these samples to the ones in the VCF.
     if vcf_samples is not None:
         result = []
@@ -93,16 +93,27 @@ def parse_ped(path, vcf_samples=None):
     return {s.id: s for s in samples}
 
 
-def get_names_to_bams(bams):
+def get_names_to_bams(bams, name_list=None):
     """
     get mapping from names (read group samples) to bam paths)
     this is useful because the VCF has the names and we'll want the bam paths
     for those samples
+    if name_list is passed in as a parameter those will be used instead
     """
     names = {}
-    for p in bams:
-        b = pysam.AlignmentFile(p)
-        names[b.header["RG"][0]['SM']] = p
+    if name_list:
+        if len(name_list) != len(bams):
+            sys.exit("List of sample IDs does not match list of alignment files.")
+        for i,p in enumerate(bams):
+            names[name_list[i]] = p
+    else:
+        for p in bams:
+            b = pysam.AlignmentFile(p)
+            try:
+                names[b.header["RG"][0]['SM']] = p
+            except:
+                sys.exit("No RG field in alignment file "+ p+ 
+                    ". \nInclude ordered list of sample IDs to avoid this error")
     return names
 
 
@@ -190,8 +201,41 @@ def get_dn_row(ped_samples):
             return '{title:"de novo", field:"dn"}'
     return ''
 
+def read_important_regions(bedfilename):
+    important_regions = {}
+    with open(bedfilename, 'r') as bedfile:
+        for line in bedfile:
+            pos_fields = line.strip().split()
+            region_string = "_".join(pos_fields[1:3])
+            if pos_fields[0] not in important_regions:
+                important_regions[pos_fields[0]] = []
+            important_regions[pos_fields[0]].append(region_string)
+
+    return important_regions
+
+def var_in_important_regions(important_regions, chrom, start, end):
+    if chrom in important_regions:
+        for region in important_regions[chrom]:
+            region_st,region_end = [int(x) for x in region.split("_")]
+            if region_st <= start <= region_end or\
+                    region_st <= end <= region_end or\
+                    start <= region_st <= end:
+                return True
+    return False
+
+
+def cram_input(bams):
+    for bam in bams:
+        if bam.endswith(".cram"):
+            return True
+    return False
 
 def main(args, pass_through_args):
+    if cram_input(args.bams):
+        if '-r' not in pass_through_args and not "--reference" in pass_through_args:
+            sys.exit("ERROR: missing reference file required for CRAM. "+\
+                    "Use -r option. (Run `samplot.py -h` for more help)")
+
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
     vcf_samples_set = set(vcf_samples)
@@ -202,22 +246,32 @@ def main(args, pass_through_args):
 
     # this is empty unless we have a sample with both parents defined.
     dn_row = get_dn_row(ped_samples)
+
     if not os.path.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
-    names_to_bams = get_names_to_bams(args.bams)
+    names_to_bams = get_names_to_bams(args.bams, args.sample_ids)
+    important_regions = None
+    if args.important_regions:
+        important_regions = read_important_regions(args.important_regions)
     tabledata = []
 
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
+        if args.important_regions:
+            if not var_in_important_regions(important_regions, variant.chrom, variant.start, variant.stop): 
+                continue
+
         if svtype in ("BND", "INS"): continue
         if variant.stop - variant.start > args.max_mb * 1000000: continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples): continue
-        # requisite hets/hom-alts
-        if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: continue
+        if args.max_hets:
+            # requisite hets/hom-alts
+            if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets: 
+                continue
         if not any(sum(x) > 0 for x in gts if not None in x): continue
 
 
@@ -239,8 +293,8 @@ def main(args, pass_through_args):
         is_dn = []
 
         # we call it a de novo if the sample passed the filters but the mom and
-        # dad were not even with the genotype before filtering. so stringent
-        # filtering on the kid and lenient on parents.
+        # dad had homref genotypes before filtering. 
+        # so stringent filtering on the kid and lenient on parents.
         variant_samples = []
         for i in idxs:
             if vcf_samples[i] in names_to_bams:
@@ -255,6 +309,9 @@ def main(args, pass_through_args):
                 if sample.mom is None or sample.dad is None: continue
                 if not sample.mom.id in test_sample_names and not sample.dad.id in test_sample_names:
                     is_dn.append(sample.id)
+
+        if len(is_dn) <= 0 and args.dn_only:
+            continue
 
 
         # save these for the html.
@@ -277,11 +334,11 @@ def main(args, pass_through_args):
                     if not kid.id in variant_samples and kid.id in vcf_samples_set:
                         variant_samples.append("kid-of-%s[%s]" % (variant_sample, kid.id))
                         bams.append(names_to_bams[kid.id])
-
+                    if args.max_hets:
+                        if len(bams) > 1.5 * args.max_hets: break
+                if args.max_hets:
                     if len(bams) > 1.5 * args.max_hets: break
-                if len(bams) > 1.5 * args.max_hets: break
-
-        elif len(bams) < 6:
+        elif args.min_entries and len(bams) < args.min_entries:
             # extend with some controls:
             hom_ref_idxs = [i for i, gt in enumerate(gts) if len(gt) == 2 and gt[0] == 0 and gt[1] == 0]
             if len(hom_ref_idxs) > 3:
@@ -292,9 +349,11 @@ def main(args, pass_through_args):
             for i in hom_ref_idxs:
                 if vcf_samples[i] in names_to_bams:
                     hom_ref_samples.append(vcf_samples[i])
-
-            bams.extend(names_to_bams[s] for s in hom_ref_samples)
-            variant_samples += ["control-sample:" + s for s in hom_ref_samples]
+            
+            to_add_count = args.min_entries - len(bams)
+            bams.extend(names_to_bams[s] for s in hom_ref_samples[:to_add_count])
+            variant_samples += ["control-sample:" + s for s in hom_ref_samples[:to_add_count]]
+        
 
         data_dict = {"chrom": variant.chrom, "start": variant.start, "end": variant.stop,
                 "SVTYPE": svtype, "size": variant.stop - variant.start, "samples":
@@ -324,6 +383,10 @@ def main(args, pass_through_args):
             z = 6
         if variant.stop - variant.start > 20000:
             z = 9
+
+        if args.max_entries:
+            bams = bams[:args.max_entries]
+            variant_samples = variant_samples[:args.max_entries]
 
         print("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
@@ -358,18 +421,28 @@ if __name__ == "__main__":
         print(r)
         sys.exit(r.failed)
 
-    p = argparse.ArgumentParser("note that additional arguments are passed through to samplot.py")
-    p.add_argument("--vcf", "-v", help="VCF file containing structural variants")
-    p.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
-    p.add_argument("--ped", help="path ped (or .fam) file")
-    p.add_argument("--min-call-rate", type=float, help="only plot variants with at least this call-rate", default=0.95)
-    p.add_argument("--filter", action="append", help="simple filter that samples" +
+    parser = argparse.ArgumentParser("note that additional arguments are passed through to samplot.py")
+    parser.add_argument("--vcf", "-v", help="VCF file containing structural variants")
+    parser.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
+    parser.add_argument("--ped", help="path ped (or .fam) file")
+    parser.add_argument("--dn_only", help="plots only putative de novo variants (PED file required)", action='store_true')
+    parser.add_argument("--min_call_rate", type=float, help="only plot variants with at least this call-rate", default=0.95)
+    parser.add_argument("--filter", action="append", help="simple filter that samples" +
             " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'" +
             " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
-    p.add_argument("-O", "--output-type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
-    p.add_argument("--max-hets", type=int, help="only plot variants with at most this many heterozygotes", default=10)
-    p.add_argument("--max-mb", type=int, help="skip variants longer than this many megabases", default=1)
-    p.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
+    parser.add_argument("-O", "--output_type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
+    parser.add_argument("--max_hets", type=int, help="only plot variants with at most this many heterozygotes", required=False)
+    parser.add_argument("--min_entries", type=int, help="try to include homref samples as controls to get this many samples in plot", default=6)
+    parser.add_argument("--max_entries", type=int, help="only plot at most this many heterozygotes", default=10)
+    parser.add_argument("--max_mb", type=int, help="skip variants longer than this many megabases", default=1)
+    parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
+    parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
+    parser.add_argument("--sample_ids", type=str, nargs="+", 
+            help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", 
+            required=False)
 
-    a, pass_through_args = p.parse_known_args()
-    main(a, pass_through_args)
+    args, pass_through_args = parser.parse_known_args()
+    if args.dn_only and not args.ped:
+        sys.exit("Missing --ped, required when using --dn_only")
+
+    main(args, pass_through_args)
