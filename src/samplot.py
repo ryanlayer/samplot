@@ -132,7 +132,7 @@ def points_in_window(points):
 
     Points is a list of one start, one end coordinate (ints)
     """
-    if points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
+    if None in points or points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
         return False
     return True
 #}}}
@@ -197,7 +197,7 @@ def add_coverage(bam_file, read, coverage, minq):
 
                 #the two coverage tracks are [0] high-quality and [1]
                 #low-quality
-                if read.mapping_quality > minq:
+                if minq and (read.mapping_quality > minq):
                     coverage[hp][chrm][pos][0] += 1
                 else:
                     coverage[hp][chrm][pos][1] += 1
@@ -1888,7 +1888,7 @@ def plot_long_reads(long_reads,
                         alpha=0.25,
                         lw=1)
 
-                if max_gap > curr_max_insert_size:
+                if curr_max_insert_size and (max_gap > curr_max_insert_size):
                     curr_max_insert_size = max_gap
             else:
                 x1 = p[0]
@@ -1911,7 +1911,7 @@ def plot_long_reads(long_reads,
                 ax.add_patch(pp)
 
                 # add some room for the bend line
-                if max_gap*1.1 > curr_max_insert_size:
+                if (curr_max_insert_size is None ) or max_gap*1.1 > curr_max_insert_size:
                     curr_max_insert_size = max_gap*1.1
 
     return [curr_min_insert_size, curr_max_insert_size]
@@ -2577,7 +2577,7 @@ def plot_samples(ranges,
                                     curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
-            if curr_max_insert_size > max_insert_size:
+            if curr_max_insert_size and(curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
 
         #{{{ set axis parameters
