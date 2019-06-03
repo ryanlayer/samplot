@@ -2642,14 +2642,17 @@ def plot_samples(ranges,
                         for l in curr_ax.xaxis.get_majorticklocs()]
             elif len(ranges) == 2:
                 x_ticks = curr_ax.xaxis.get_majorticklocs()
-                labels_per_range = len(curr_ax.xaxis.get_majorticklocs()) / \
-                        len(ranges)
+                labels_per_range = int(len(curr_ax.xaxis.get_majorticklocs()) / \
+                        len(ranges))
                 labels = [int(ranges[0].start + \
                         l*(ranges[0].end-ranges[0].start)) \
                         for l in x_ticks[:labels_per_range]]
-                labels += [int(ranges[-1].start + \
-                        l*(ranges[-1].end-ranges[-1].start)) \
-                        for l in x_ticks[labels_per_range:]]
+                try:
+                    labels += [int(ranges[-1].start + \
+                            l*(ranges[-1].end-ranges[-1].start)) \
+                            for l in x_ticks[labels_per_range:]]
+                except:
+                    sys.exit(labels_per_range)
             else:
                 sys.stderr.write('Ranges greater than 2 are not supported\n')
                 sys.exit(1)
