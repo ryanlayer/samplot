@@ -256,6 +256,10 @@ def main(args, pass_through_args):
         important_regions = read_important_regions(args.important_regions)
     tabledata = []
 
+    out_file = sys.stdout
+    if args.command_file:
+        out_file = open(args.command_file, 'w')
+
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
         if args.important_regions:
@@ -388,7 +392,7 @@ def main(args, pass_through_args):
             bams = bams[:args.max_entries]
             variant_samples = variant_samples[:args.max_entries]
 
-        print("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(here=HERE,
+        out_file.write("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(here=HERE,
             extra_args=" ".join(pass_through_args), bams=" ".join(bams),
             titles=" ".join(variant_samples),
             z=z,
@@ -396,6 +400,9 @@ def main(args, pass_through_args):
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
             chrom=variant.chrom, start=variant.start, end=variant.stop))
+
+    if args.command_file:
+        out_file.close()
 
 
     rowFn = """
@@ -440,6 +447,7 @@ if __name__ == "__main__":
     parser.add_argument("--sample_ids", type=str, nargs="+", 
             help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", 
             required=False)
+    parser.add_argument("--command_file", help="store commands in this file, otheriwse STDOUT", required=False)
 
     args, pass_through_args = parser.parse_known_args()
     if args.dn_only and not args.ped:
