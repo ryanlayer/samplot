@@ -137,18 +137,25 @@ fi
 
 rm -rf img/
 mkdir img
-vcf_file=../data/NA12878.trio.svt.subset.vcf
+vcf_file=../data/test.vcf
+cmd_file=test.cmd
+test_dir=test_suite
+rm -f $cmd_file
+rm -rf $test_dir
 run from_vcf \
-    ../../src/samplot_vcf.sh \
-    -d 10 \
-    -o img \
-    -v $vcf_file \
-    $bam_1 $bam_2 $bam_3
+    python ../../src/samplot_vcf.py \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b ../data/HG002_Illumina.bam \
+        ../data/HG003_Illumina.bam \
+        ../data/HG004_Illumina.bam \
+        --command_file $cmd_file
 if [ $from_vcf ]; then
-    assert_in_stdout "img/DEL_chr4_115928726-115931880.png"
-    assert_in_stdout "img/DUP_chrX_101055330-101067156.png"
     assert_no_stderr
     assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
 fi
 
 sv_chrm=X
