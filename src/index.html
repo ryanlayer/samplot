@@ -37,77 +37,84 @@
         table.dataTable thead th.sorting_desc:before {
             font-family: FontAwesome !important;
         }
+        .modal-content { width: 610px; }
+        h7 { font-size: .95rem; }
     </style>
 </head>
 
 <body>
-    <nav class="navbar navbar-dark bg-dark pt-1 pb-1">
-        <a class="navbar-brand text-light">samplot</a>
+    <nav class="navbar navbar-dark bg-dark p-0 pl-2">
+        <a class="navbar-brand text-light p-0" href="https://github.com/ryanlayer/samplot">samplot</a>
+    </nav>
 
-        <div class="dropdown" id="filter-menu">
-            <button type="button" class="navbar-toggler" title="Filter table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="dropdown-menu dropdown-menu-right shadow" aria-labelledby="filter-menu">
-                <div class="container">
-                    <div class="row">
-                        <div class="col-12 text-right" id="variant-count">
+    <div class="modal fade" id="filter-modal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLongTitle" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="flex-column">
+                        <h5 class="modal-title" id="filter-modal">Filters</h5>
+                        <h7 class="pl-2 text-secondary" id="variant-count">
                             <a href="javascript:dc.filterAll(); dc.renderAll();">Reset All</a>
-                        </div>
+                        </h7>
                     </div>
-                    <div class="row pt-2">
-                        <div class="col">
-                            <h5>Sample</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="container">
+                        <div class="row pt-2">
+                            <div class="col">
+                                <h5>Sample</h5>
+                            </div>
                         </div>
-                    </div>
-                    <div class="row pb-3">
-                        <div class="col-12">
-                            <div id="sample-search"></div>
+                        <div class="row pb-3">
+                            <div class="col-12">
+                                <div id="sample-search"></div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="row" id="nsamples-chart">
-                        <div class="col-4">
-                            <h5># of Samples</h5>
+                        <div class="row" id="nsamples-chart">
+                            <div class="col-4">
+                                <h5># of Samples</h5>
+                            </div>
+                            <div class="col-8 text-right">
+                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                                <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                            </div>
                         </div>
-                        <div class="col-8 text-right">
-                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                            <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                        <div class="row" id="size-chart">
+                            <div class="col-4">
+                                <h5>Size</h5>
+                            </div>
+                            <div class="col-8 text-right">
+                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                                <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                            </div>
                         </div>
-                    </div>
-                    <div class="row" id="size-chart">
-                        <div class="col-4">
-                            <h5>Size</h5>
+                        <div class="row" id="type-chart">
+                            <div class="col-4">
+                                <h5>SV Type</h5>
+                            </div>
+                            <div class="col-8 text-right">
+                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                                <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                            </div>
                         </div>
-                        <div class="col-8 text-right">
-                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                            <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                        </div>
-                    </div>
-                    <div class="row" id="type-chart">
-                        <div class="col-4">
-                            <h5>SV Type</h5>
-                        </div>
-                        <div class="col-8 text-right">
-                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                            <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                        </div>
-                    </div>
-                    <div class="row" id="chrom-chart">
-                        <div class="col-4">
-                            <h5>Chromosome</h5>
-                        </div>
-                        <div class="col-8 text-right">
-                            <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                            <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                        <div class="row" id="chrom-chart">
+                            <div class="col-4">
+                                <h5>Chromosome</h5>
+                            </div>
+                            <div class="col-8 text-right">
+                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                                <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="container">
-                    <button type="button" class="btn btn-secondary float-right" data-toggle="dropdown">Apply</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" onclick="javascript:dc.filterAll(); dc.renderAll();" title="Clear selection and close">Cancel</button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" title="Apply filters">Apply</button>
                 </div>
             </div>
         </div>
-    </nav>
+    </div>
 
     <div class="container-fluid bg-light">
         <div class="row" id="variant-table-placeholder" style="height:435px">
@@ -172,18 +179,8 @@ var variant_table
 // crossfilter obj
 var ndx
 
-// prevent dropdown from closing on click
-$(document).on('click', '#filter-menu .dropdown-menu', function (e) {
-    e.stopPropagation()
-})
-
-// update table when dropdown closed
-$('#filter-menu').on('hide.bs.dropdown', function () {
+$('#filter-modal').on('hidden.bs.modal', function () {
     update_table()
-})
-
-$('#dropdown-apply').click(function() {
-  $(this).parents('.dropdown').find('button.dropdown-toggle').dropdown('toggle')
 })
 
 const table_click = (row) => {
@@ -208,7 +205,6 @@ function add_download_actions() {
 }
 
 function build_table(data) {
-
     // hide the placeholder and show the datatable
     d3.select('#variant-table-placeholder').property("hidden", true)
     d3.select('#variant-table-div').property("hidden", false)
@@ -237,19 +233,23 @@ function build_table(data) {
             'copyHtml5', 'csvHtml5'
         ],
         fnInfoCallback: (oSettings, iStart, iEnd, iMax, iTotal, sPre) => {
-            // return '<span class="datatable-info">Showing <b>' + iStart + "</b> - <b>" + iEnd + "</b> of <b>" + iTotal + '</b> records</span><button id="custom-csv-button" type="button" class="btn btn-outline-secondary btn-sm">CSV</button>';
-
-            return `<span class="datatable-info">
-                <span class="dropdown">
-                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle text-dark" id="download-menu" title="Download table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        Showing <b>${iStart}</b> - <b>${iEnd}</b> of <b>${iTotal}</b> records
+            return `
+            <span class="datatable-info">
+                <span class="pr-2">Showing <b>${iStart}</b> - <b>${iEnd}</b> of <b>${iTotal}</b> records</span>
+                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#filter-modal" title="Show filters">
+                    <span class="fas fa-filter"></span>
+                </button>
+                <span class="dropright">
+                    <button type="button" class="btn btn-sm btn-primary dropdown-toggle" id="download-menu" title="Save table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="fas fa-save"></span>
                     </button>
                     <span class="dropdown-menu" aria-labelledby="download-menu">
-                        <button class="dropdown-item" type="button" id="copy-button-download">
-                            Copy table to clipboard
-                        </button>
+                        <h6 class="dropdown-header">Save ${iTotal} rows as:</h6>
                         <button class="dropdown-item" type="button" id="csv-button-download">
-                            Save as CSV
+                            CSV
+                        </button>
+                        <button class="dropdown-item" type="button" id="copy-button-download">
+                            Copy
                         </button>
                     </span>
                 </span>
@@ -303,46 +303,12 @@ function build_table(data) {
 }
 
 function update_table() {
-    // var total_filtered_recs = ndx.groupAll().value()
-    // if (total_filtered_recs != ndx.size()) { }
     variant_table.clear()
     variant_table.rows.add(chromDimension.top(Infinity))
     variant_table.draw()
+    // gives function to new buttons each time table is redrawn
     add_download_actions()
 }
-
-
-// function tableHeaderCallback(d) {
-//     // Highlight column header being sorted and show bootstrap glyphicon
-//     var activeClass = "info"
-//
-//     d3.selectAll("#variant-table th") // Disable all highlighting and icons
-//         .classed(activeClass, false)
-//         .selectAll("span")
-//         .style("visibility", "hidden") // Hide glyphicon
-//
-//     var activeSpan = d3.select(this) // Enable active highlight and icon for active column for sorting
-//         .classed(activeClass, true)  // Set bootstrap "info" class on active header for highlight
-//         .select("span")
-//         .style("visibility", "visible")
-//
-//     // Toggle sort order state to user desired state
-//     d.sort_state = d.sort_state === "ascending" ? "descending" : "ascending"
-//
-//     var isAscendingOrder = d.sort_state === "ascending"
-//     variantTable
-//         .order(isAscendingOrder ? d3.ascending : d3.descending)
-//         .sortBy(function(datum) { return datum[d.field_name] })
-//
-//     // Reset glyph icon for all other headers and update this headers icon
-//     activeSpan.node().className = '' // Remove all glyphicon classes
-//
-//     // Toggle glyphicon based on ascending/descending sort_state
-//     activeSpan.classed(isAscendingOrder ? "fas fa-sort-amount-up" : "fas fa-sort-amount-down", true)
-//     display()
-//     variantTable.redraw()
-// }
-
 
 function remove_empty_bins(source_group) {
     return {
@@ -392,7 +358,6 @@ d3.json("data.json").then(function(data) {
                 .classed("col-12", true)
         })
 
-
     var sizeDimension = ndx.dimension(function(d) {
         var round
         if (d.size < 100) {
@@ -441,74 +406,6 @@ d3.json("data.json").then(function(data) {
     var nonEmptyNsamplesGroup = remove_empty_bins(nsamplesGroup)
     var nsamplesKeys = nonEmptyNsamplesGroup.all().map(dc.pluck('key')).slice()
 
-    // // Programmatically insert header labels for table
-    // tableHeader = d3.select(".table-header")
-    //     .selectAll("th")
-    //
-    // // Bind data to tableHeader selection.
-    // tableHeader = tableHeader.data(
-    //     [
-    //         {label: "Chrom", field_name: "chrom", sort_state: "ascending", format: function(d) {return d.chrom} },
-    //         {label: "Start", field_name: "start", sort_state: "ascending", format: function(d) { return d.start} },
-    //         {label: "End", field_name: "end", sort_state: "ascending", format: function(d) { return d.end} },
-    //         {label: "Size", field_name: "size", sort_state: "ascending", format: function(d) { return d.size} },
-    //         {label: "SV Type", field_name: "SVTYPE", sort_state: "ascending", format: function(d) { return d.SVTYPE} },
-    //         {label: "# of Samples", field_name: "n_samples", sort_state: "ascending", format: function(d) { return d.n_samples} },
-    //         {label: "Samples", field_name: "samples", sort_state: "ascending", format: function(d) { return d.samples } },
-    //     ]
-    // )
-    //
-    // tableHeader = tableHeader.enter()
-    //     .append("th")
-    //     .text(function (d) { return d.label })
-    //     .on("click", tableHeaderCallback)
-    //
-    // tableHeader.filter(function(d) { return d.label === "Chrom" })
-    //     .classed("info", true)
-    //
-    // var tableSpans = tableHeader
-    //     .append("span") // For Sort glyphicon on active table headers
-    //     .classed("fas fa-sort-amount-up", true)
-    //     .style("visibility", "hidden")
-    //     .filter(function(d) { return d.label === "Chrom" })
-    //     .style("visibility", "visible")
-
-    // variantTable
-    //     .dimension(chromDimension)
-    //     .section(function(d) { return ""})
-    //     .size(Infinity)
-    //     .columns(tableHeader.data().map(function(i) {return i.format}))
-    //     .showSections(false)
-    //     // this sorts a string of these characters, so it's not actually sorted
-    //     .sortBy(function(d){ return [d.chrom, d.start] })
-    //     .order(d3.ascending)
-    //     .on('preRender', update_offset)
-    //     .on('preRedraw', update_offset)
-    //     .on('pretransition', display)
-    //     // handle row clicks
-    //     .on('pretransition', function (table) {
-    //         table.selectAll('td.dc-table-column')
-    //             .on('click.my-event', function(d) {
-    //                 table_click(d)
-    //                 // de-select everything
-    //                 table.selectAll('tr.dc-table-row')
-    //                     .classed('sel-rows', false)
-    //                 // select the clicked row
-    //                 d3.selectAll("tr.dc-table-row").on("click", function() {
-    //                     d3.select(this).classed('sel-rows', true)
-    //                 })
-    //             })
-    //     })
-    //     .on('renderlet', function() {
-    //         d3.selectAll("#variant-table td")
-    //             .classed("text-truncate", true)
-    //             .style("max-width", "30px")
-    //     })
-    //     // .on('postRender', function() {
-    //     //     variant-table
-    //     // })
-
-
     sizeChart
         .width(plotw).height(ploth).gap(1)
         .margins({top: 10, right: 50, bottom: 30, left: 40})
@@ -529,18 +426,6 @@ d3.json("data.json").then(function(data) {
             d3.selectAll("svg")
                 .classed("pl-3", true)
         })
-        .on('filtered', function() {
-            // throttle();
-    		// //dc.redrawAll();
-    		// var throttleTimer;
-    		// function throttle() {
-    		// 	window.clearTimeout(throttleTimer);
-    		// 	throttleTimer = window.setTimeout(function() {
-    		// 			dc.redrawAll();
-    		// 	}, 3000);
-    		// }
-            // update_table()
-        })
     // limit the number of labels along x-axis
     sizeChart.xAxis().ticks(10)
     sizeChart.yAxis().ticks(5)
@@ -548,6 +433,7 @@ d3.json("data.json").then(function(data) {
     sizeChart.xAxis().tickFormat(function(v) {
         return sizeKeys[v]
     })
+    // update the status format for this chart
     sizeChart.filterHandler(function (dimension, filters) {
         if (filters.length === 0) {
             // the empty case (no filtering)
@@ -558,10 +444,10 @@ d3.json("data.json").then(function(data) {
         return filters
     })
 
+    // chromosome
     chromChart
         .width(plotw).height(ploth).gap(1)
         .margins({top: 10, right: 50, bottom: 30, left: 40})
-        // .transitionDuration(1000)
         .x(d3.scaleBand())
         .xUnits(dc.units.ordinal)
         .yAxisLabel('Count')
@@ -579,10 +465,10 @@ d3.json("data.json").then(function(data) {
         })
     chromChart.yAxis().ticks(5)
 
+    // sv type
     typeChart
         .width(plotw).height(ploth).gap(1)
         .margins({top: 10, right: 50, bottom: 30, left: 40})
-        // .transitionDuration(1000)
         .x(d3.scaleBand())
         .xUnits(dc.units.ordinal)
         .elasticX(true)
@@ -592,6 +478,7 @@ d3.json("data.json").then(function(data) {
         .yAxisLabel('Count')
     typeChart.yAxis().ticks(5)
 
+    // number of samples
     nsamplesChart
         .width(plotw).height(ploth).gap(1)
         .margins({top: 10, right: 50, bottom: 30, left: 40})
