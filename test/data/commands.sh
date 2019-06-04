@@ -1,9 +1,12 @@
 set -e
 
 #download hg19 reference for cram
-wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
-gunzip hg19.fa.gz
-bgzip hg19.fa
+FILE="hg19.fa.gz"
+if [ ! -f $FILE ]; then
+    wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+    gunzip hg19.fa.gz
+    bgzip hg19.fa
+fi
 
 #images of each type with all technologies
 mkdir -p test_imgs
