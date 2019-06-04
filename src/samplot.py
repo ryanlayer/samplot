@@ -132,7 +132,7 @@ def points_in_window(points):
 
     Points is a list of one start, one end coordinate (ints)
     """
-    if points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
+    if None in points or points[0] < -5 or points[1] < -5 or points[0] > 5 or points[1] > 5:
         return False
     return True
 #}}}
@@ -197,7 +197,7 @@ def add_coverage(bam_file, read, coverage, minq):
 
                 #the two coverage tracks are [0] high-quality and [1]
                 #low-quality
-                if read.mapping_quality > minq:
+                if minq and (read.mapping_quality > minq):
                     coverage[hp][chrm][pos][0] += 1
                 else:
                     coverage[hp][chrm][pos][1] += 1
@@ -1888,7 +1888,7 @@ def plot_long_reads(long_reads,
                         alpha=0.25,
                         lw=1)
 
-                if max_gap > curr_max_insert_size:
+                if curr_max_insert_size and (max_gap > curr_max_insert_size):
                     curr_max_insert_size = max_gap
             else:
                 x1 = p[0]
@@ -1911,7 +1911,7 @@ def plot_long_reads(long_reads,
                 ax.add_patch(pp)
 
                 # add some room for the bend line
-                if max_gap*1.1 > curr_max_insert_size:
+                if (curr_max_insert_size is None ) or max_gap*1.1 > curr_max_insert_size:
                     curr_max_insert_size = max_gap*1.1
 
     return [curr_min_insert_size, curr_max_insert_size]
@@ -2577,7 +2577,7 @@ def plot_samples(ranges,
                                     curr_max_insert_size)
 
             cover_axs[hp] = cover_ax
-            if curr_max_insert_size > max_insert_size:
+            if curr_max_insert_size and(curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
 
         #{{{ set axis parameters
@@ -2642,14 +2642,17 @@ def plot_samples(ranges,
                         for l in curr_ax.xaxis.get_majorticklocs()]
             elif len(ranges) == 2:
                 x_ticks = curr_ax.xaxis.get_majorticklocs()
-                labels_per_range = len(curr_ax.xaxis.get_majorticklocs()) / \
-                        len(ranges)
+                labels_per_range = int(len(curr_ax.xaxis.get_majorticklocs()) / \
+                        len(ranges))
                 labels = [int(ranges[0].start + \
                         l*(ranges[0].end-ranges[0].start)) \
                         for l in x_ticks[:labels_per_range]]
-                labels += [int(ranges[-1].start + \
-                        l*(ranges[-1].end-ranges[-1].start)) \
-                        for l in x_ticks[labels_per_range:]]
+                try:
+                    labels += [int(ranges[-1].start + \
+                            l*(ranges[-1].end-ranges[-1].start)) \
+                            for l in x_ticks[labels_per_range:]]
+                except:
+                    sys.exit(labels_per_range)
             else:
                 sys.stderr.write('Ranges greater than 2 are not supported\n')
                 sys.exit(1)
