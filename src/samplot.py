@@ -242,7 +242,7 @@ def plot_coverage(coverage,
             cover_x.append(map_genome_point_to_range_points(ranges,
                                                             r.chrm,
                                                             pos))
-            if pos in coverage[r.chrm]:
+            if r.chrm in coverage and pos in coverage[r.chrm]:
                 cover_y_all.append(coverage[r.chrm][pos][0] + \
                         coverage[r.chrm][pos][1])
                 cover_y_highqual.append(coverage[r.chrm][pos][0])
@@ -2533,7 +2533,7 @@ def plot_samples(ranges,
             if hp in read_data['all_pairs'][i]:
                 curr_pairs = read_data['all_pairs'][i][hp]
 
-            curr_coverage = []
+            curr_coverage = {}
             if hp in read_data['all_coverages'][i]:
                 curr_coverage = read_data['all_coverages'][i][hp]
 
