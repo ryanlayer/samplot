@@ -223,7 +223,8 @@ def plot_coverage(coverage,
                   hp_count,
                   max_coverage, 
                   tracktype,
-                  yaxis_label_fontsize):
+                  yaxis_label_fontsize,
+                  same_yaxis_labels=False):
     """Plots high and low quality coverage for the region
 
     User may specify a preference between stacked and superimposed 
@@ -255,7 +256,7 @@ def plot_coverage(coverage,
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    if max_coverage > 0:
+    if max_coverage > 0 and same_yaxis_labels:
         max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(np.percentile(cover_y_all, 99.5),
@@ -2508,7 +2509,7 @@ def plot_samples(ranges,
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
             
         curr_min_insert_size = None
-        curr_max_insert_size = None
+        curr_max_insert_size = 0
 
         cover_axs = {}
         curr_axs = ''
@@ -2543,7 +2544,8 @@ def plot_samples(ranges,
                                      len(hps), 
                                      max_coverage, 
                                      coverage_tracktype, 
-                                     yaxis_label_fontsize)
+                                     yaxis_label_fontsize,
+                                     same_yaxis_scales)
 
             if len(curr_linked_reads) > 0 :
                 curr_min_insert_size,curr_max_insert_size = \
