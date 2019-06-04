@@ -58,7 +58,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
 
         self.assertEqual(r_plot_height, 5)
         self.assertEqual(r_plot_width, 8)
-        this_window = (sv_end - sv_start)/2
+        this_window = int((sv_end - sv_start)/2)
         self.assertEqual( r_window, this_window)
         self.assertEqual( r_ranges[0], 
                           samplot.genome_interval(sv_chrm,

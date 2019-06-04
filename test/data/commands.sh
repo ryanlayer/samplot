@@ -1,5 +1,13 @@
 set -e
 
+#download hg19 reference for cram
+FILE="hg19.fa.gz"
+if [ ! -f $FILE ]; then
+    wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+    gunzip hg19.fa.gz
+    bgzip hg19.fa
+fi
+
 #images of each type with all technologies
 mkdir -p test_imgs
 python ../../src/samplot.py -n Illumina PacBio ONT 10X -t DEL -c 1 -s 24804397 -e 24807302 -o test_imgs/DEL_1_24804397_24807302.png -b HG002_Illumina.bam HG002_PacBio.bam HG002_ONT.cram HG002_10X.bam  -r hg19.fa.gz

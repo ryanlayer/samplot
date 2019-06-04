@@ -223,7 +223,8 @@ def plot_coverage(coverage,
                   hp_count,
                   max_coverage, 
                   tracktype,
-                  yaxis_label_fontsize):
+                  yaxis_label_fontsize,
+                  same_yaxis_labels=False):
     """Plots high and low quality coverage for the region
 
     User may specify a preference between stacked and superimposed 
@@ -242,7 +243,7 @@ def plot_coverage(coverage,
             cover_x.append(map_genome_point_to_range_points(ranges,
                                                             r.chrm,
                                                             pos))
-            if pos in coverage[r.chrm]:
+            if r.chrm in coverage and pos in coverage[r.chrm]:
                 cover_y_all.append(coverage[r.chrm][pos][0] + \
                         coverage[r.chrm][pos][1])
                 cover_y_highqual.append(coverage[r.chrm][pos][0])
@@ -255,7 +256,7 @@ def plot_coverage(coverage,
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    if max_coverage > 0:
+    if max_coverage > 0 and same_yaxis_labels:
         max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(np.percentile(cover_y_all, 99.5),
@@ -2508,7 +2509,7 @@ def plot_samples(ranges,
             axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
             
         curr_min_insert_size = None
-        curr_max_insert_size = None
+        curr_max_insert_size = 0
 
         cover_axs = {}
         curr_axs = ''
@@ -2533,7 +2534,7 @@ def plot_samples(ranges,
             if hp in read_data['all_pairs'][i]:
                 curr_pairs = read_data['all_pairs'][i][hp]
 
-            curr_coverage = []
+            curr_coverage = {}
             if hp in read_data['all_coverages'][i]:
                 curr_coverage = read_data['all_coverages'][i][hp]
 
@@ -2543,7 +2544,8 @@ def plot_samples(ranges,
                                      len(hps), 
                                      max_coverage, 
                                      coverage_tracktype, 
-                                     yaxis_label_fontsize)
+                                     yaxis_label_fontsize,
+                                     same_yaxis_scales)
 
             if len(curr_linked_reads) > 0 :
                 curr_min_insert_size,curr_max_insert_size = \
