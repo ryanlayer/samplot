@@ -269,7 +269,7 @@ def plot_coverage(coverage,
     if 0 == max_plot_depth:
         max_plot_depth = 0.01
 
-    ax2.set_ylim([0,max_plot_depth])
+    ax2.set_ylim([0,max(1,max_plot_depth)])
     bottom_fill = np.zeros(len(cover_y_all))
     if tracktype == "stack":
         ax2.fill_between(cover_x,
@@ -2615,9 +2615,9 @@ def plot_samples(ranges,
             curr_ax = axs[j]
             curr_ax.set_xlim([0,1])
             if same_yaxis_scales:
-                curr_ax.set_ylim([0,max_insert_size*1.10])
+                curr_ax.set_ylim([0,max(1,max_insert_size*1.10)])
             else:
-                curr_ax.set_ylim([0,curr_max_insert_size*1.10])
+                curr_ax.set_ylim([0,max(1,curr_max_insert_size*1.10)])
             curr_ax.spines['top'].set_visible(False)
             curr_ax.spines['bottom'].set_visible(False)
             curr_ax.spines['left'].set_visible(False)

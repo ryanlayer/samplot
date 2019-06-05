@@ -44,6 +44,13 @@ Since samplot runs as a Python script, the only requirements to use it are a wor
 conda install -y --file https://raw.githubusercontent.com/ryanlayer/samplot/master/requirements.txt
 ```
 
+If you have issues with `pysam`, then you may need to update your conda channels:
+```
+conda config --add channels r
+conda config --add channels bioconda
+=======
+```
+
 All of these libraries are also available from [pip](https://pypi.python.org/pypi/pip). 
 
 You can download samplot by cloning the git repository:
