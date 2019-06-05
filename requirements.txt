@@ -1,4 +1,4 @@
 numpy
 matplotlib
-pysam
+pysam=0.15.2
 statistics
