@@ -28,7 +28,6 @@
         span.show-ellipsis:after { content: "..."; }
         .datatable-info { font-size: .9em; }
         #variant-table_info { padding-top: 8px; }
-        .resizable { resize: both; overflow: auto; }
         table.dataTable thead th.sorting:after,
         table.dataTable thead th.sorting_asc:after,
         table.dataTable thead th.sorting_desc:after,
@@ -153,7 +152,7 @@
                 </div>
             </div>
         </div>
-        <div class="row resizable" id="samplot-area" hidden>
+        <div class="row" id="samplot-area" hidden>
             <div class="col-12">
                 <img id="samplot-img" width="100%" src=""/>
             </div>
@@ -166,6 +165,8 @@ dc.config.defaultColors(d3.schemeSet1)
 
 const plotw = 585
 const ploth = 150
+// updated by samplot_vcf
+const plot_type = '.png'
 var searchInput = dc.textFilterWidget("#sample-search")
 var chromChart = dc.barChart("#chrom-chart")
 var sizeChart = dc.barChart("#size-chart")
@@ -190,7 +191,7 @@ const table_click = (row) => {
         .property("hidden", false)
 
     // load the image
-    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + ".png"
+    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + plot_type
     d3.select("#samplot-img")
         .property("src", img)
 }
