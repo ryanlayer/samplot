@@ -39,16 +39,16 @@ Options:
 ```
 
 ## Installing
-Since samplot runs as a Python script, the only requirements to use it are a working version of Python (2 or 3) and the required Python [libraries](https://raw.githubusercontent.com/jbelyeu/samplot/vcf/requirements.txt). Installation of these libraries can be performed easily by using conda:
+Since samplot runs as a Python script, the only requirements to use it are a working version of Python (2 or 3) and the required Python [libraries](https://raw.githubusercontent.com/ryanlayer/samplot/master/requirements.txt). Installation of these libraries can be performed easily by using conda:
 ```
-conda install -y --file https://raw.githubusercontent.com/jbelyeu/samplot/vcf/requirements.txt
+conda install -y --file https://raw.githubusercontent.com/ryanlayer/samplot/master/requirements.txt
 ```
 
 All of these libraries are also available from [pip](https://pypi.python.org/pypi/pip). 
 
 You can download samplot by cloning the git repository:
 ```
-git clone https://github.com/jbelyeu/samplot.git
+git clone https://github.com/ryanlayer/samplot.git
 ```
 No other installation is required.
 
@@ -189,7 +189,7 @@ you wish to plot, outputting images and the index for a web page for review.
 
 ### Usage
 ```
-$ python samplot_jon/src/samplot_vcf.py -h
+$ python samplot/src/samplot_vcf.py -h
 usage: note that additional arguments are passed through to samplot.py
        [-h] [--vcf VCF] [-d OUT_DIR] [--ped PED] [--dn_only]
        [--min_call_rate MIN_CALL_RATE] [--filter FILTER]
