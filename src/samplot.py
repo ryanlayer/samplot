@@ -17,6 +17,8 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
+VERSION="1.0.1"
+
 INTERCHROM_YAXIS=5000
 
 COLORS = { 
@@ -1966,10 +1968,16 @@ def print_arguments(options):
 def setup_arguments():
     """Defines the allowed arguments for samplot
     """
-    parser = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser( \
+            prog="samplot",
             description="SAMPLOT creates images of genome regions from " + \
                         "CRAM/SAM alignments, "+\
                         "optimized for structural variant call review")
+
+    parser.add_argument('--version',
+                        action='version',
+                        version='%(prog)s ' + VERSION)
+
 
     parser.add_argument("--marker_size",
                         type=int,
