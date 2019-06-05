@@ -50,7 +50,6 @@ If you have issues with `pysam`, then you may need to update your conda channels
 ```
 conda config --add channels r
 conda config --add channels bioconda
-=======
 ```
 
 All of these libraries are also available from [pip](https://pypi.python.org/pypi/pip). 
