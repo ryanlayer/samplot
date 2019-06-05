@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ryanlayer/samplot.svg?branch=master)](https://travis-ci.org/ryanlayer/samplot)
+
 <center><img src="/doc/imgs/samplot_logo_v5.png" width="300"/></center>
 
 <center><img src="/doc/imgs/montage.jpg" width="100%"/></center>
