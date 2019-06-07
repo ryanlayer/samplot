@@ -194,7 +194,7 @@ HTML = """<!DOCTYPE html>
 
 <script>
 const data = [DATA]
-const plot_type = [PLOT_TYPE]
+const plot_type = ".[PLOT_TYPE]"
 const annotation = [GFF]
 const denovo = [DENOVO]
 
@@ -255,7 +255,7 @@ function build_table(data) {
         {data: 'chrom', title: 'Chrom'},
         {data: 'start', title: 'Start'},
         {data: 'end', title: 'End'},
-        {data: 'size', title: 'Size'},
+        {data: 'svlength', title: 'Size'},
         {data: 'svtype', title: 'SV Type'},
         {data: 'nsamples', title: '# of Samples'},
         {data: 'samples', title: 'Samples'},
@@ -306,7 +306,7 @@ function build_table(data) {
         },
         columnDefs: [
             {
-                targets: [0,1,2,3,4,5],
+                targets: (annotation ? [0,1,2,3,4,5,7] : [0,1,2,3,4,5]),
                 width: '15%'
             },
             // https://datatables.net/blog/2016-02-26
@@ -404,22 +404,22 @@ $(document).ready(function() {
 
     var sizeDimension = ndx.dimension(function(d) {
         var round
-        if (d.size < 100) {
+        if (d.svlength < 100) {
             round = 100
-        } else if (d.size < 1000) {
+        } else if (d.svlength < 1000) {
             round = 100
-        } else if (d.size < 10000) {
+        } else if (d.svlength < 10000) {
             round = 1000
-        } else if (d.size < 100000) {
+        } else if (d.svlength < 100000) {
             round = 10000
-        } else if (d.size < 1000000) {
+        } else if (d.svlength < 1000000) {
             round = 100000
-        } else if (d.size < 10000000) {
+        } else if (d.svlength < 10000000) {
             round = 1000000
         } else {
             round = 10000000
         }
-        return Math.round(d.size / round) * round
+        return Math.round(d.svlength / round) * round
     })
     var sizeGroup = sizeDimension.group().reduceCount()
     var nonEmptySizeGroup = remove_empty_bins(sizeGroup)
@@ -561,6 +561,7 @@ $(document).ready(function() {
         var overlapsDimension = ndx.dimension((d) => { return d.overlaps })
         var overlapsGroup = overlapsDimension.group().reduceCount()
         var nonEmptyOverlapsGroup = remove_empty_bins(overlapsGroup)
+        overlapsChart = dc.barChart("#overlaps-chart")
         overlapsChart
             .width(plotw).height(ploth).gap(1)
             .margins({top: 10, right: 50, bottom: 30, left: 40})
@@ -582,7 +583,7 @@ $(document).ready(function() {
         // `%filter-count` and `%total-count` are replaced with the values obtained.
         .html({
             some: '<strong>%filter-count</strong> selected out of <strong>%total-count</strong> records' +
-                ' | <a href=\'javascript:dc.filterAll(); dc.renderAll();\'>Reset All</a>',
+                ' | <a href=\\'javascript:dc.filterAll(); dc.renderAll();\\'>Reset All</a>',
             all: '<strong>%total-count</strong> records'
         });
 
