@@ -617,7 +617,8 @@ class Sample(object):
 
     def __repr__(self):
         return "Sample(id:{id},paternal_id:{pid},maternal_id:{mid})".format(
-                id=self.id,pid=self.paternal_id,mid=self.maternal_id)
+            id=self.id, pid=self.paternal_id, mid=self.maternal_id
+        )
 
 
 def flatten(value, sep=","):
@@ -704,7 +705,9 @@ def make_plot_titles(samples, attr_values):
     return plot_titles
 
 
-def get_overlap(tabix, chrom, start, end, priority=["exon", "gene", "transcript", "cds"], no_hit="intergenic", fix_chr=True):
+def get_overlap(
+    tabix, chrom, start, end, priority=["exon", "gene", "transcript", "cds"], no_hit="intergenic", fix_chr=True
+):
     """
     args:
         tabix (pysam.libctabix.TabixFile) - open TabixFile
@@ -792,16 +795,17 @@ def get_names_to_bams(bams, name_list=None):
     if name_list:
         if len(name_list) != len(bams):
             sys.exit("List of sample IDs does not match list of alignment files.")
-        for i,p in enumerate(bams):
+        for i, p in enumerate(bams):
             names[name_list[i]] = p
     else:
         for p in bams:
             b = pysam.AlignmentFile(p)
             try:
-                names[b.header["RG"][0]['SM']] = p
+                names[b.header["RG"][0]["SM"]] = p
             except:
-                sys.exit("No RG field in alignment file "+ p+
-                    ". \nInclude ordered list of sample IDs to avoid this error")
+                sys.exit(
+                    "No RG field in alignment file " + p + ". \nInclude ordered list of sample IDs to avoid this error"
+                )
     return names
 
 
@@ -886,9 +890,10 @@ def get_dn_row(ped_samples):
             return '{title:"de novo", field:"dn"}'
     return ""
 
+
 def read_important_regions(bedfilename):
     important_regions = {}
-    with open(bedfilename, 'r') as bedfile:
+    with open(bedfilename, "r") as bedfile:
         for line in bedfile:
             pos_fields = line.strip().split()
             region_string = "_".join(pos_fields[1:3])
@@ -898,13 +903,12 @@ def read_important_regions(bedfilename):
 
     return important_regions
 
+
 def var_in_important_regions(important_regions, chrom, start, end):
     if chrom in important_regions:
         for region in important_regions[chrom]:
-            region_st,region_end = [int(x) for x in region.split("_")]
-            if region_st <= start <= region_end or\
-                    region_st <= end <= region_end or\
-                    start <= region_st <= end:
+            region_st, region_end = [int(x) for x in region.split("_")]
+            if region_st <= start <= region_end or region_st <= end <= region_end or start <= region_st <= end:
                 return True
     return False
 
@@ -915,11 +919,14 @@ def cram_input(bams):
             return True
     return False
 
+
 def main(args, pass_through_args):
     if cram_input(args.bams):
-        if '-r' not in pass_through_args and not "--reference" in pass_through_args:
-            sys.exit("ERROR: missing reference file required for CRAM. "+\
-                    "Use -r option. (Run `samplot.py -h` for more help)")
+        if "-r" not in pass_through_args and not "--reference" in pass_through_args:
+            sys.exit(
+                "ERROR: missing reference file required for CRAM. "
+                + "Use -r option. (Run `samplot.py -h` for more help)"
+            )
     global HTML
     global HERE
 
@@ -954,7 +961,7 @@ def main(args, pass_through_args):
 
     out_file = sys.stdout
     if args.command_file:
-        out_file = open(args.command_file, 'w')
+        out_file = open(args.command_file, "w")
 
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
@@ -977,7 +984,6 @@ def main(args, pass_through_args):
                 continue
         if not any(sum(x) > 0 for x in gts if not None in x):
             continue
-
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
         test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
@@ -1048,9 +1054,11 @@ def main(args, pass_through_args):
                         variant_samples.append("kid-of-%s[%s]" % (variant_sample, kid.id))
                         bams.append(names_to_bams[kid.id])
                     if args.max_hets:
-                        if len(bams) > 1.5 * args.max_hets: break
+                        if len(bams) > 1.5 * args.max_hets:
+                            break
                 if args.max_hets:
-                    if len(bams) > 1.5 * args.max_hets: break
+                    if len(bams) > 1.5 * args.max_hets:
+                        break
         elif args.min_entries and len(bams) < args.min_entries:
             # extend with some controls:
             hom_ref_idxs = [i for i, gt in enumerate(gts) if len(gt) == 2 and gt[0] == 0 and gt[1] == 0]
@@ -1066,7 +1074,6 @@ def main(args, pass_through_args):
             to_add_count = args.min_entries - len(bams)
             bams.extend(names_to_bams[s] for s in hom_ref_samples[:to_add_count])
             variant_samples += ["control-sample:" + s for s in hom_ref_samples[:to_add_count]]
-
 
         data_dict = {
             "chrom": variant.chrom,
@@ -1106,9 +1113,10 @@ def main(args, pass_through_args):
             z = 9
 
         if args.max_entries:
-            bams = bams[:args.max_entries]
-            variant_samples = variant_samples[:args.max_entries]
+            bams = bams[: args.max_entries]
+            variant_samples = variant_samples[: args.max_entries]
 
+        # update titles based on FORMAT fields requested
         title_list = list()
         for variant_sample in variant_samples:
             if variant_sample in plot_titles:
@@ -1116,30 +1124,31 @@ def main(args, pass_through_args):
             else:
                 title_list.append(variant_sample)
 
-        out_file.write("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(
-            here=HERE,
-            extra_args=" ".join(pass_through_args),
-            bams=" ".join(bams),
-            titles=" ".join(title_list),
-            z=z,
-            cipos=cipos,
-            ciend=ciend,
-            svtype="-t " + svtype if svtype != "SV" else "",
-            fig_path=fig_path,
-            chrom=variant.chrom,
-            start=variant.start,
-            end=variant.stop)
+        out_file.write(
+            "python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(
+                here=HERE,
+                extra_args=" ".join(pass_through_args),
+                bams=" ".join(bams),
+                titles=" ".join(title_list),
+                z=z,
+                cipos=cipos,
+                ciend=ciend,
+                svtype="-t " + svtype if svtype != "SV" else "",
+                fig_path=fig_path,
+                chrom=variant.chrom,
+                start=variant.start,
+                end=variant.stop,
+            )
         )
 
     if args.command_file:
         out_file.close()
 
-
     # update the javascript
     HTML = HTML.replace("[DATA]", json.dumps(tabledata))
     HTML = HTML.replace("[PLOT_TYPE]", args.output_type)
-    HTML = HTML.replace("[GFF]", 'true' if annotations else 'false')
-    HTML = HTML.replace("[DENOVO]", 'true' if dn_row else 'false')
+    HTML = HTML.replace("[GFF]", "true" if annotations else "false")
+    HTML = HTML.replace("[DENOVO]", "true" if dn_row else "false")
 
     with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
         print(HTML, file=fh)
@@ -1159,11 +1168,11 @@ if __name__ == "__main__":
     parser.add_argument("--vcf", "-v", help="VCF file containing structural variants")
     parser.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
     parser.add_argument("--ped", help="path ped (or .fam) file")
-    parser.add_argument("--dn_only", help="plots only putative de novo variants (PED file required)", action='store_true')
+    parser.add_argument("--dn_only", help="plots only putative de novo variants (PED file required)", action="store_true")
     parser.add_argument("--min_call_rate", type=float, help="only plot variants with at least this call-rate", default=0.95)
-    parser.add_argument("--filter", action="append", help="simple filter that samples" +
-            " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'" +
-            " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'" , default=[])
+    parser.add_argument("--filter", action="append", help="simple filter that samples"
+        + " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'"
+        + " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'", default=[])
     parser.add_argument("-O", "--output_type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
     parser.add_argument("--max_hets", type=int, help="only plot variants with at most this many heterozygotes", required=False)
     parser.add_argument("--min_entries", type=int, help="try to include homref samples as controls to get this many samples in plot", default=6)
@@ -1171,9 +1180,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_mb", type=int, help="skip variants longer than this many megabases", default=1)
     parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
-    parser.add_argument("--sample_ids", type=str, nargs="+",
-            help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.",
-            required=False)
+    parser.add_argument("--sample_ids", type=str, nargs="+", help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", required=False)
     parser.add_argument("--command_file", help="store commands in this file, otherwise STDOUT", required=False)
     parser.add_argument("--format", default="AS,AP,DHFFC", help="comma separated list of FORMAT fields to include in sample plot title")
     parser.add_argument("--gff", help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters")
