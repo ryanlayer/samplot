@@ -1105,6 +1105,10 @@ def main(args, pass_through_args):
         if variant.stop - variant.start > 20000:
             z = 9
 
+        if args.max_entries:
+            bams = bams[:args.max_entries]
+            variant_samples = variant_samples[:args.max_entries]
+
         title_list = list()
         for variant_sample in variant_samples:
             if variant_sample in plot_titles:
@@ -1112,34 +1116,20 @@ def main(args, pass_through_args):
             else:
                 title_list.append(variant_sample)
 
-        print(
-            "python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}".format(
-                here=HERE,
-                extra_args=" ".join(pass_through_args),
-                bams=" ".join(bams),
-                titles=" ".join(title_list),
-                z=z,
-                cipos=cipos,
-                ciend=ciend,
-                svtype="-t " + svtype if svtype != "SV" else "",
-                fig_path=fig_path,
-                chrom=variant.chrom,
-                start=variant.start,
-                end=variant.stop,
-            )
-        )
-        if args.max_entries:
-            bams = bams[:args.max_entries]
-            variant_samples = variant_samples[:args.max_entries]
-
-        out_file.write("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(here=HERE,
-            extra_args=" ".join(pass_through_args), bams=" ".join(bams),
-            titles=" ".join(variant_samples),
+        out_file.write("python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(
+            here=HERE,
+            extra_args=" ".join(pass_through_args),
+            bams=" ".join(bams),
+            titles=" ".join(title_list),
             z=z,
-            cipos=cipos, ciend=ciend,
+            cipos=cipos,
+            ciend=ciend,
             svtype="-t " + svtype if svtype != "SV" else "",
             fig_path=fig_path,
-            chrom=variant.chrom, start=variant.start, end=variant.stop))
+            chrom=variant.chrom,
+            start=variant.start,
+            end=variant.stop)
+        )
 
     if args.command_file:
         out_file.close()
