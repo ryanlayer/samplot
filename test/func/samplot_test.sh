@@ -23,10 +23,12 @@ run basic_operation \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
         -t $sv_type
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $basic_operation ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="test_zoom.png"
 rm -f $out_file_name
@@ -37,10 +39,12 @@ run basic_operation_zoom \
         -o $out_file_name \
         -t $sv_type \
         --zoom 500
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $basic_operation_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sample_out_file_name="sample.png"
 run sampling_normal \
@@ -50,10 +54,12 @@ run sampling_normal \
         -o $sample_out_file_name \
         -t $sv_type \
         -d 10
-assert_exit_code 0
-assert_equal $sample_out_file_name $( ls $sample_out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $sampling_normal ]; then
+    assert_exit_code 0
+    assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sample_out_file_name="sample_zoom.png"
 run sampling_normal_zoom \
@@ -64,10 +70,12 @@ run sampling_normal_zoom \
         -t $sv_type \
         -d 10 \
         --zoom 500
-assert_exit_code 0
-assert_equal $sample_out_file_name $( ls $sample_out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $sampling_normal_zoom ]; then
+    assert_exit_code 0
+    assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sv_chrm=chrX
 sv_start=101055330
@@ -84,10 +92,12 @@ run common_insert_size_scale \
         -t $sv_type \
         -d 10 \
         --common_insert_size
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $common_insert_size_scale ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="dup_zoom.png"
 rm -f $out_file_name
@@ -100,10 +110,12 @@ run common_insert_size_scale_zoom \
         -d 10 \
         --zoom 500 \
         --common_insert_size
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $common_insert_size_scale_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 
 out_file_name="no_sv_type.png"
@@ -116,41 +128,35 @@ run no_sv_type \
         -o $out_file_name \
         -d 10 \
         --common_insert_size
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
-
-out_file_name="no_sv_type_zoom.png"
-rm -f $out_file_name
-
-run no_sv_type_zoom  \
-    python ../../src/samplot.py \
-        -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1 $bam_2 $bam_3 \
-        -o $out_file_name \
-        -d 10 \
-        --zoom 500 \
-        --common_insert_size
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $no_sv_type ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 rm -rf img/
 mkdir img
-vcf_file=../data/NA12878.trio.svt.subset.vcf
+vcf_file=../data/test.vcf
+cmd_file=test.cmd
+test_dir=test_suite
+rm -f $cmd_file
+rm -rf $test_dir
 run from_vcf \
-    ../../src/samplot_vcf.sh \
-    -d 10 \
-    -o img \
-    -v $vcf_file \
-    $bam_1 $bam_2 $bam_3
-assert_in_stdout "img/DEL_chr4_115928726-115931880.png"
-assert_in_stdout "img/DUP_chrX_101055330-101067156.png"
-assert_exit_code 0
-assert_no_stdout
-assert_no_stderr
+    python ../../src/samplot_vcf.py \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b ../data/HG002_Illumina.bam \
+        ../data/HG003_Illumina.bam \
+        ../data/HG004_Illumina.bam \
+        --command_file $cmd_file
+if [ $from_vcf ]; then
+    assert_no_stderr
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
+fi
 
 sv_chrm=X
 sv_start=101055330
@@ -167,10 +173,12 @@ run nanopore_dup \
         -o $out_file_name \
         -t $sv_type \
         -d 10 
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $nanopore_dup ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="longread_nanopore_dup_zoom.png"
 rm -f $out_file_name
@@ -182,10 +190,12 @@ run nanopore_dup_zoom \
         -t $sv_type \
         -d 10  \
         --zoom 1000
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $nanopore_dup_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sv_chrm=4
 sv_start=115928730
@@ -201,10 +211,12 @@ run nanopore_del \
         -o $out_file_name \
         -t $sv_type \
         -d 10 
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $nanopore_del ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="longread_nanopore_del_zoom.png"
 rm -f $out_file_name
@@ -216,10 +228,12 @@ run nanopore_del_zoom \
         -t $sv_type \
         -d 10  \
         --zoom 500
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $nanopore_del_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sv_chrm=chr1
 sv_start=58343117
@@ -235,10 +249,12 @@ run longread_del \
         -o $out_file_name \
         -t $sv_type \
         -d 10 
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $longread_del ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="longread_del_zoom_big_zoom.png"
 rm -f $out_file_name
@@ -250,10 +266,12 @@ run longread_del_zoom_big_zoom \
         -t $sv_type \
         -d 10  \
         --zoom 500
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_in_stderr "Ignoring zoom command."
-assert_no_stdout
+if [ $longread_del_zoom_big_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_in_stderr "Ignoring zoom command."
+    assert_no_stdout
+fi
 
 
 out_file_name="longread_del_zoom_zoom.png"
@@ -266,10 +284,12 @@ run longread_del_zoom_zoom \
         -t $sv_type \
         -d 10  \
         --zoom 200
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $longread_del_zoom_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sv_chrm=chr21
 sv_start=27373431
@@ -285,10 +305,12 @@ run longread_inv \
         -o $out_file_name \
         -t $sv_type \
         -d 10 
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $longread_inv ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="longread_inv_zoom.png"
 rm -f $out_file_name
@@ -300,10 +322,12 @@ run longread_inv_zoom \
         -t $sv_type \
         -d 10  \
         --zoom 750
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $longread_inv_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 sv_chrm=1
 sv_start=89475845
@@ -319,10 +343,12 @@ run linkedread_del \
         -o $out_file_name \
         -t $sv_type \
         -d 10 
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $linkedread_del ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
 
 out_file_name="linkedread_del_zoom.png"
 rm -f $out_file_name
@@ -334,7 +360,36 @@ run linkedread_del_zoom \
         -t $sv_type \
         -d 10 \
         --zoom 500
-assert_exit_code 0
-assert_equal $out_file_name $( ls $out_file_name )
-assert_no_stdout
-assert_no_stderr
+if [ $linkedread_del_zoom ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+
+sv_chrm_1=2
+sv_start_1=59405943
+sv_end_1=59405943
+sv_chrm_2=X
+sv_start_2=151118533
+sv_end_2=151118533
+sv_type=BND
+out_file_name="translocation.png"
+bam=../data/2_59305747-59505747_X_151018513-151218513.BND.bam
+run translocation \
+    python ../../src/samplot.py \
+        -c $sv_chrm_1 -s $sv_start_1 -e $sv_end_1 \
+        -c $sv_chrm_2 -s $sv_start_2 -e $sv_end_2 \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -A ../data/Alu.2_X.bed.gz \
+        -T ../data/Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz \
+        --zoom 10000
+if [ $translocation ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
