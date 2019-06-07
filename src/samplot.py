@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.gridspec as gridspec
-import pylab
 import pysam
 import os
 import re
@@ -13,6 +12,7 @@ import statistics
 import random
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
@@ -1682,7 +1682,7 @@ def create_variant_plot(grid,
     """Plots the pieces of the variant bar at the top, including bar and
     confidence intervals 
     """
-    ax = matplotlib.pyplot.subplot(grid[ax_i])
+    ax = plt.subplot(grid[ax_i])
     plot_variant(sv, sv_type, ax, ranges)
     ax_i += 1
     #plot confidence intervals if provided
@@ -2504,7 +2504,7 @@ def plot_samples(ranges,
     """
     max_insert_size = 0
     for i in range(len(bams)):
-        ax =  matplotlib.pyplot.subplot(grid[ax_i])
+        ax =  plt.subplot(grid[ax_i])
         hps = set_haplotypes(read_data['all_coverages'][i])
         inner_axs = gridspec.GridSpecFromSubplotSpec(
                 len(hps), 
@@ -2514,7 +2514,7 @@ def plot_samples(ranges,
                 hspace=0.5)
         axs = {}
         for j in range(len(hps)):
-            axs[j] = matplotlib.pyplot.subplot(inner_axs[hps[j]])
+            axs[j] = plt.subplot(inner_axs[hps[j]])
             
         curr_min_insert_size = None
         curr_max_insert_size = 0
@@ -2707,13 +2707,13 @@ def plot_legend(fig, legend_fontsize):
     legend_elements = []
 
     for color in marker_colors:
-        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1],
+        legend_elements += [plt.Line2D([0,0],[0,1],
                 color=color,
                 linestyle='-',
                 lw=1)]
     if READ_TYPES_USED["Split-read"]:
         marker_labels.append("Split read")
-        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1],
+        legend_elements += [plt.Line2D([0,0],[0,1],
                     markerfacecolor="None",
                     markeredgecolor='grey',
                     color='grey',
@@ -2726,7 +2726,7 @@ def plot_legend(fig, legend_fontsize):
             or READ_TYPES_USED["Deletion/Normal"] \
             or READ_TYPES_USED["Inversion"]:
         marker_labels.append("Paired-end read")
-        legend_elements += [matplotlib.pyplot.Line2D([0,0],[0,1],
+        legend_elements += [plt.Line2D([0,0],[0,1],
                     markerfacecolor="None",
                     markeredgecolor='grey',
                     color='grey',
@@ -2824,7 +2824,7 @@ def plot_annotations(annotation_files,
     """Plots annotation information from region 
     """
     for annotation_file in annotation_files:
-        ax =  matplotlib.pyplot.subplot(grid[ax_i])
+        ax =  plt.subplot(grid[ax_i])
         ax_i += 1
 
         annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
@@ -3031,7 +3031,7 @@ def plot_transcript(transcript_file,
     """
     transcript_idx = 0
     arrow_loc = 0.02
-    ax =  matplotlib.pyplot.subplot(grid[-1])
+    ax =  plt.subplot(grid[-1])
 
     transcript_plan = get_transcript_plan(ranges, transcript_file)
 
@@ -3146,7 +3146,7 @@ if __name__ == '__main__':
 
     # set up sub plots
     matplotlib.rcParams.update({'font.size': 12})
-    fig = matplotlib.pyplot.figure(figsize=(plot_width,plot_height), 
+    fig = plt.figure(figsize=(plot_width,plot_height), 
                                    dpi=300)
 
     # read alignment data
@@ -3216,11 +3216,11 @@ if __name__ == '__main__':
     
     # save
     matplotlib.rcParams['agg.path.chunksize'] = 100000
-    matplotlib.pyplot.tight_layout(pad=0.8,h_pad=.1, w_pad=.1)
+    plt.tight_layout(pad=0.8,h_pad=.1, w_pad=.1)
     try:
-        matplotlib.pyplot.savefig(options.output_file)
+        plt.savefig(options.output_file)
     except:
         print ("Failed to save figure " + options.output_file + \
                ". Region may be too large")
-    matplotlib.pyplot.savefig(options.output_file)
+    plt.savefig(options.output_file)
 #}}}
