@@ -105,6 +105,15 @@
                                 <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
                             </div>
                         </div>
+                        <div class="row" id="overlaps-chart" hidden>
+                            <div class="col-4">
+                                <h5>SV Overlaps</h5>
+                            </div>
+                            <div class="col-8 text-right">
+                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
+                                <a class="reset" href="javascript:overlapsChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -158,24 +167,33 @@
             </div>
         </div>
     </div>
+</body>
 
 <script>
+const data = [DATA]
+const plot_type = [PLOT_TYPE]
+const annotation = [GFF]
+const denovo = [DENOVO]
 
 dc.config.defaultColors(d3.schemeSet1)
 
+// plot constraints
 const plotw = 585
 const ploth = 150
-// updated by samplot_vcf
-const plot_type = '.png'
+
+// table filters
 var searchInput = dc.textFilterWidget("#sample-search")
-var chromChart = dc.barChart("#chrom-chart")
+var nsamplesChart = dc.barChart("#nsamples-chart")
 var sizeChart = dc.barChart("#size-chart")
 var typeChart = dc.barChart("#type-chart")
-var nsamplesChart = dc.barChart("#nsamples-chart")
-// need separate counters for use cases
+var chromChart = dc.barChart("#chrom-chart")
+var overlapsChart
+// shows filter impact in modal header
 var variantCount = dc.dataCount("#variant-count")
 
+// used to access filtered table data
 var chromDimension
+// datatables obj
 var variant_table
 // crossfilter obj
 var ndx
@@ -191,7 +209,7 @@ const table_click = (row) => {
         .property("hidden", false)
 
     // load the image
-    var img = row.SVTYPE + "_" + row.chrom + "_" + row.start + "_" + row.end + plot_type
+    var img = row.svtype + "_" + row.chrom + "_" + row.start + "_" + row.end + plot_type
     d3.select("#samplot-img")
         .property("src", img)
 }
@@ -210,16 +228,22 @@ function build_table(data) {
     d3.select('#variant-table-placeholder').property("hidden", true)
     d3.select('#variant-table-div').property("hidden", false)
 
-    // let dim = chromDimension
     let cols = [
         {data: 'chrom', title: 'Chrom'},
         {data: 'start', title: 'Start'},
         {data: 'end', title: 'End'},
         {data: 'size', title: 'Size'},
-        {data: 'SVTYPE', title: 'SV Type'},
-        {data: 'n_samples', title: '# of Samples'},
+        {data: 'svtype', title: 'SV Type'},
+        {data: 'nsamples', title: '# of Samples'},
         {data: 'samples', title: 'Samples'},
     ]
+    if (annotation) {
+        d3.select('#overlaps-chart').property("hidden", false)
+        cols.push({data: 'overlaps', title: 'Overlaps'})
+    }
+    if (denovo) {
+        cols.push({data: 'dn', title: 'De novo'})
+    }
 
     variant_table = $("#variant-table").DataTable({
         data: data,
@@ -333,11 +357,7 @@ function index_group(group) {
     }
 }
 
-d3.json("data.json").then(function(data) {
-
-    data.forEach(function (d) {
-        d.samples = d.samples.replace(/,/g, ';')
-    })
+$(document).ready(function() {
 
     ndx = crossfilter(data)
     var all = ndx.groupAll()
@@ -383,30 +403,64 @@ d3.json("data.json").then(function(data) {
     // for brushing, need to track keys at numeric indexes
     var sizeKeys = nonEmptySizeGroup.all().map(dc.pluck('key')).slice()
 
-    var typeDimension = ndx.dimension((d) => { return d.SVTYPE })
+    var typeDimension = ndx.dimension((d) => { return d.svtype })
     var typeGroup = typeDimension.group().reduceCount()
     var nonEmptyTypeGroup = remove_empty_bins(typeGroup)
 
-    var nsamplesDimension = ndx.dimension((d) => { return d.n_samples })
+    var nsamplesDimension = ndx.dimension((d) => { return d.nsamples })
     var nsamplesDimension = ndx.dimension(function(d) {
         var round
-        if (d.n_samples < 10) {
+        if (d.nsamples < 10) {
             round = 1
-        } else if (d.n_samples < 100) {
+        } else if (d.nsamples < 100) {
             round = 10
-        } else if (d.n_samples < 1000) {
+        } else if (d.nsamples < 1000) {
             round = 100
-        } else if (d.n_samples < 10000) {
+        } else if (d.nsamples < 10000) {
             round = 1000
         } else {
             round = 10000
         }
-        return Math.round(d.n_samples / round) * round
+        return Math.round(d.nsamples / round) * round
     })
     var nsamplesGroup = nsamplesDimension.group().reduceCount()
     var nonEmptyNsamplesGroup = remove_empty_bins(nsamplesGroup)
     var nsamplesKeys = nonEmptyNsamplesGroup.all().map(dc.pluck('key')).slice()
 
+    // number of samples
+    nsamplesChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        .x(d3.scaleLinear().domain([0, nsamplesKeys.length]))
+        .round(Math.floor)
+        .brushOn(true)
+        .elasticX(true)
+        .dimension(nsamplesDimension)
+        .group(index_group(nonEmptyNsamplesGroup))
+        .elasticY(true)
+        .yAxisLabel('Count')
+        .filterPrinter(function (filters) {
+            var filter = filters[0]
+            return nsamplesKeys[filter[0]] + ' - ' + nsamplesKeys[filter[1]]
+        })
+    // limit the number of labels along x-axis
+    nsamplesChart.xAxis().ticks(20)
+    nsamplesChart.yAxis().ticks(5)
+    // update labels from keys
+    nsamplesChart.xAxis().tickFormat(function(v) {
+        return nsamplesKeys[v]
+    })
+    nsamplesChart.filterHandler(function (dimension, filters) {
+        if (filters.length === 0) {
+            // the empty case (no filtering)
+            dimension.filter(null)
+        } else {
+            dimension.filterRange([nsamplesKeys[filters[0][0]], nsamplesKeys[filters[0][1]]])
+        }
+        return filters
+    })
+
+    // SV length
     sizeChart
         .width(plotw).height(ploth).gap(1)
         .margins({top: 10, right: 50, bottom: 30, left: 40})
@@ -445,6 +499,19 @@ d3.json("data.json").then(function(data) {
         return filters
     })
 
+    // sv type
+    typeChart
+        .width(plotw).height(ploth).gap(1)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        .x(d3.scaleBand())
+        .xUnits(dc.units.ordinal)
+        .elasticX(true)
+        .elasticY(true)
+        .dimension(typeDimension)
+        .group(nonEmptyTypeGroup)
+        .yAxisLabel('Count')
+    typeChart.yAxis().ticks(5)
+
     // chromosome
     chromChart
         .width(plotw).height(ploth).gap(1)
@@ -466,51 +533,23 @@ d3.json("data.json").then(function(data) {
         })
     chromChart.yAxis().ticks(5)
 
-    // sv type
-    typeChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleBand())
-        .xUnits(dc.units.ordinal)
-        .elasticX(true)
-        .elasticY(true)
-        .dimension(typeDimension)
-        .group(nonEmptyTypeGroup)
-        .yAxisLabel('Count')
-    typeChart.yAxis().ticks(5)
-
-    // number of samples
-    nsamplesChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleLinear().domain([0, nsamplesKeys.length]))
-        .round(Math.floor)
-        .brushOn(true)
-        .elasticX(true)
-        .dimension(nsamplesDimension)
-        .group(index_group(nonEmptyNsamplesGroup))
-        .elasticY(true)
-        .yAxisLabel('Count')
-        .filterPrinter(function (filters) {
-            var filter = filters[0]
-            return nsamplesKeys[filter[0]] + ' - ' + nsamplesKeys[filter[1]]
-        })
-    // limit the number of labels along x-axis
-    nsamplesChart.xAxis().ticks(20)
-    nsamplesChart.yAxis().ticks(5)
-    // update labels from keys
-    nsamplesChart.xAxis().tickFormat(function(v) {
-        return nsamplesKeys[v]
-    })
-    nsamplesChart.filterHandler(function (dimension, filters) {
-        if (filters.length === 0) {
-            // the empty case (no filtering)
-            dimension.filter(null)
-        } else {
-            dimension.filterRange([nsamplesKeys[filters[0][0]], nsamplesKeys[filters[0][1]]])
-        }
-        return filters
-    })
+    // overlaps
+    if (annotation) {
+        var overlapsDimension = ndx.dimension((d) => { return d.overlaps })
+        var overlapsGroup = overlapsDimension.group().reduceCount()
+        var nonEmptyOverlapsGroup = remove_empty_bins(overlapsGroup)
+        overlapsChart
+            .width(plotw).height(ploth).gap(1)
+            .margins({top: 10, right: 50, bottom: 30, left: 40})
+            .x(d3.scaleBand())
+            .xUnits(dc.units.ordinal)
+            .elasticX(true)
+            .elasticY(true)
+            .dimension(overlapsDimension)
+            .group(nonEmptyOverlapsGroup)
+            .yAxisLabel('Count')
+        overlapsChart.yAxis().ticks(5)
+    }
 
     variantCount
         .crossfilter(ndx)
@@ -528,6 +567,4 @@ d3.json("data.json").then(function(data) {
 })
 
 </script>
-
 </html>
-</body>
