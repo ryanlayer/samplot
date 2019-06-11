@@ -1707,7 +1707,6 @@ def create_variant_plot(grid,
                 "...", 
                 fontsize=6, 
                 fontdict=None, 
-                withdash=False,
                 horizontalalignment='center')
 
     return ax_i
