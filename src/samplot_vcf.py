@@ -15,9 +15,12 @@ import operator
 import os
 import random
 from collections import defaultdict
-from shlex import quote
-
 import pysam
+
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 
 HERE = os.path.dirname(__file__)
