@@ -725,6 +725,7 @@ def get_overlap(
     returns:
         str
     """
+    overlaps = None
     try:
         overlaps = set([i.split("\t")[2].lower() for i in tabix.fetch(chrom, start, end)])
     except IndexError:
