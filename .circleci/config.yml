@@ -35,6 +35,7 @@ variables:
       command: python setup.py install
 
 
+
 jobs:
   test-linux-python2:
     <<: *linux
@@ -64,9 +65,10 @@ jobs:
     <<: *macos
       - checkout
       - *setup_p3
-      - *install_samplot 
+      - *install_samplot
       - *run_func_tests
       - *run_unit_tests
+
 
 
 workflows:
