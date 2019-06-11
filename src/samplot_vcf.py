@@ -15,7 +15,10 @@ import operator
 import os
 import random
 from collections import defaultdict
-from shlex import quote
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 import pysam
 
@@ -722,6 +725,7 @@ def get_overlap(
     returns:
         str
     """
+    overlaps = None
     try:
         overlaps = set([i.split("\t")[2].lower() for i in tabix.fetch(chrom, start, end)])
     except IndexError:
