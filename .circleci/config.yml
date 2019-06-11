@@ -73,7 +73,7 @@ jobs:
 
 workflows:
   version: 2
-  ggd-cli-unit-tests:
+  samplot-unit-tests:
     jobs:
       - test-linux-python2
       - test-linux-python3
