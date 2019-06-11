@@ -82,12 +82,12 @@ workflows:
       - test-macos-python3
   samplot-nightly-unit-tests:
     triggers:
-      - schedule: 
-        cron: "0 0 0 0"
-        filters:
-          branches:
-            only:
-              - master
+      - schedule:
+          cron: "0 0 0 0"
+          filters:
+            branches:
+              only:
+                - master
     jobs:
       - test-linux-python2
       - test-linux-python3
