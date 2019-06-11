@@ -1,4 +1,3 @@
 numpy
 matplotlib
 pysam>=0.15.2
-statistics

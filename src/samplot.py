@@ -8,7 +8,6 @@ import matplotlib.gridspec as gridspec
 import pysam
 import os
 import re
-import statistics
 import random
 import matplotlib.path as mpath
 import matplotlib.patches as mpatches
@@ -451,10 +450,10 @@ def sample_normal(max_depth, pairs, z):
             sampled_pairs[read_name] = pair
 
     if len(plus_minus_pairs) > max_depth:
-        lens = [pair[1].pos.end - pair[0].pos.start \
-                for pair in plus_minus_pairs.values()]
-        mean = statistics.mean(lens)
-        stdev = statistics.stdev(lens)
+        lens = np.array([pair[1].pos.end - pair[0].pos.start \
+                for pair in plus_minus_pairs.values()])
+        mean = np.mean(lens)
+        stdev = np.std(lens)
 
         inside_norm = {}
 
@@ -1707,7 +1706,6 @@ def create_variant_plot(grid,
                 "...", 
                 fontsize=6, 
                 fontdict=None, 
-                withdash=False,
                 horizontalalignment='center')
 
     return ax_i
