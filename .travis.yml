@@ -13,7 +13,7 @@ before_install:
     - conda install --yes python=3.6
       
 script:
-    - cd samplot/test/func
+    - cd test/func
     - bash samplot_test.sh
     - cd ../unit/
     - python samplot_test.py
