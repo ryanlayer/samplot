@@ -16,13 +16,13 @@ variables:
     run:
       shell: /bin/bash
       name: Functional Tests for Samplot
-      command: bash tests/func/samplot_test.sh
+      command: bash test/func/samplot_test.sh
       no_output_timeout: 1h 
   run_unit_tests: &run_unit_tests
     run:
       shell: /bin/bash
       name: Functional Tests for Samplot
-      command: python tests/unit/samplot_test.py
+      command: python test/unit/samplot_test.py
       no_output_timeout: 1h 
   macos: &macos
     macos:
