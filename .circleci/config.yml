@@ -6,12 +6,12 @@ variables:
     run:
       shell: /bin/bash
       name: Setup Samplot python2 dependencies
-      command: .circleci/setup.sh 2
+      command: bash .circleci/setup.sh 2
   setup_p3: &setup_p3
     run:
       shell: /bin/bash
       name: Setup Samplot python3 dependencies
-      command: .circleci/setup.sh 3
+      command: bash .circleci/setup.sh 3
   run_func_tests: &run_func_tests
     run:
       shell: /bin/bash
