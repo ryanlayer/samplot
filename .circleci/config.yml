@@ -71,10 +71,9 @@ jobs:
       - *run_unit_tests
 
 
-
 workflows:
   version: 2
-  samplot-unit-tests:
+  ggd-cli-unit-tests:
     jobs:
       - test-linux-python2
       - test-linux-python3
@@ -83,7 +82,7 @@ workflows:
   samplot-nightly-unit-tests:
     triggers:
       - schedule:
-          cron: "0 0 0 0"
+          cron: "0 0 * * *"
           filters:
             branches:
               only:
@@ -93,4 +92,8 @@ workflows:
       - test-linux-python3
       - test-macos-python2
       - test-macos-python3
+
+
+
+
 
