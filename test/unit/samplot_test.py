@@ -1,13 +1,13 @@
 import unittest
 import sys
-sys.path.append('../../src/')
+sys.path.append('src/')
 
 import samplot
 
 
-bam_1 = '../data/NA12878_restricted.bam'
-bam_2 = '../data/NA12889_restricted.bam'
-bam_3 = '../data/NA12890_restricted.bam'
+bam_1 = 'test/data/NA12878_restricted.bam'
+bam_2 = 'test/data/NA12889_restricted.bam'
+bam_3 = 'test/data/NA12890_restricted.bam'
 bams=[bam_1, bam_2, bam_3]
 
 sv_chrm = 'chr4'
