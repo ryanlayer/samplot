@@ -63,6 +63,7 @@ jobs:
       - *run_unit_tests
   test-macos-python3:
     <<: *macos
+    steps:
       - checkout
       - *setup_p3
       - *install_samplot
