@@ -2,12 +2,12 @@
 version: 2
 
 variables:
-  setup: &setup_p2
+  setup_p2: &setup_p2
     run:
       shell: /bin/bash
       name: Setup Samplot python2 dependencies
       command: .circleci/setup.sh 2
-  setup: &setup_p3
+  setup_p3: &setup_p3
     run:
       shell: /bin/bash
       name: Setup Samplot python3 dependencies
