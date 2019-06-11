@@ -450,8 +450,7 @@ def sample_normal(max_depth, pairs, z):
             sampled_pairs[read_name] = pair
 
     if len(plus_minus_pairs) > max_depth:
-		lens = np.array([pair[1].pos.end - pair[0].pos.start \
-                for pair in plus_minus_pairs.values()])
+		lens = np.array([pair[1].pos.end - pair[0].pos.start for pair in plus_minus_pairs.values()])
         mean = np.mean(lens)
         stdev = np.std(lens)
 
