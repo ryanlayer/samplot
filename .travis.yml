@@ -10,6 +10,7 @@ before_install:
     - conda create --yes -n test
     - conda activate test
     - conda install -y --file https://raw.githubusercontent.com/ryanlayer/samplot/master/requirements.txt
+    - conda install --yes python=3.6
       
 install:
     - git clone https://github.com/ryanlayer/samplot.git
