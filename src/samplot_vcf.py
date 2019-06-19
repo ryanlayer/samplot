@@ -17,7 +17,7 @@ import random
 from collections import defaultdict
 try:
     from shlex import quote
-except:
+except ImportError:
     from pipes import quote
 import pysam
 
