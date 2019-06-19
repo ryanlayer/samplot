@@ -977,6 +977,8 @@ def main(args, pass_through_args):
             continue
         if variant.stop - variant.start > args.max_mb * 1000000:
             continue
+        if variant.stop - variant.start > args.min_bp:
+            continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
 
@@ -1182,6 +1184,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_entries", type=int, help="try to include homref samples as controls to get this many samples in plot", default=6)
     parser.add_argument("--max_entries", type=int, help="only plot at most this many heterozygotes", default=10)
     parser.add_argument("--max_mb", type=int, help="skip variants longer than this many megabases", default=1)
+    parser.add_argument("--min_bp", type=int, help="skip variants shorter than this many bases", default=20)
     parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
     parser.add_argument("--sample_ids", type=str, nargs="+", help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", required=False)
