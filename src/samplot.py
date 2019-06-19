@@ -159,8 +159,8 @@ def get_tabix_iter(chrm, start, end, datafile):
         try:
             itr = tbx.fetch(chrm, max(0,start-1000), end+1000)
         except ValueError:
-            sys.exit('Warning: Could not fetch ' + \
-                    chrm + ':' + start + '-' + end + \
+            print('Warning: Could not fetch ' + \
+                    chrm + ':' + str(start) + '-' + str(end) + \
                     ' from ' + datafile)
     return itr
 #}}}
@@ -2782,6 +2782,8 @@ def get_plot_annotation_plan(ranges, annotation_file):
     annotation_plan = []
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, annotation_file)
+        if not (itr):
+            continue
         for row in itr:
             A = row.rstrip().split()
             chrm = A[0]
@@ -2822,10 +2824,11 @@ def plot_annotations(annotation_files,
     """Plots annotation information from region 
     """
     for annotation_file in annotation_files:
+        annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
+        if len(annotation_plan) == 0 :
+            continue
         ax =  plt.subplot(grid[ax_i])
         ax_i += 1
-
-        annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
 
         for step in annotation_plan:
             p = [map_genome_point_to_range_points(ranges,
@@ -3016,6 +3019,8 @@ def get_transcript_plan(ranges, transcript_file):
 
             transcript_plan.append(step)
 
+    import pprint
+    print(pprint.pprint(transcript_plan))
     return transcript_plan
 #}}}
 
