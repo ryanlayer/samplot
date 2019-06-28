@@ -16,7 +16,7 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 INTERCHROM_YAXIS=5000
 
