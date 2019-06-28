@@ -1835,7 +1835,7 @@ def plot_linked_reads(pairs,
 
         for split_step in steps[0].info['SPLIT_STEPS']:
             split_step.info['INSERTSIZE'] = insert_size
-            plotted = plot_split_plan(ranges, pair_step, ax)
+            plotted = plot_split_plan(ranges, split_step, ax)
 
     return [curr_min_insert_size, curr_max_insert_size]
 #}}}
