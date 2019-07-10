@@ -106,7 +106,7 @@ class genome_interval:
 def get_range_hit(ranges, chrm, point):
     for j in range(len(ranges)):
         r = ranges[j]
-        if r.chrm == chrm and r.start <= point and r.end >= point:
+        if r.chrm.strip("chr") == chrm.strip("chr") and r.start <= point and r.end >= point:
             return j
 
     return None
@@ -118,7 +118,7 @@ def map_genome_point_to_range_points(ranges, chrm, point):
     
     if range_hit == None:
         return None
-
+    
     p = 1.0/len(ranges)*range_hit + \
         (1.0/len(ranges))* \
         (float(point - ranges[range_hit].start) / \
@@ -2882,9 +2882,16 @@ def get_interval_range_plan_start_end(ranges, interval):
                                     interval.chrm,
                                     interval.end)
 
+    if start_range_hit_i is None and end_range_hit_i is None:
+        for i,range_item in enumerate(ranges):
+            if ((range_item.chrm.strip("chr") == interval.chrm.strip("chr")) and
+                (interval.start <= range_item.start <= interval.end) and 
+                (interval.start <= range_item.end <= interval.end)):
+                    start_range_hit_i = i
+                    end_range_hit_i = i
+
     start = None
     end = None
-
     # neither end is in range, add nothing
     if start_range_hit_i == None and end_range_hit_i == None:
         return None, None
@@ -2920,7 +2927,6 @@ def get_interval_range_plan_start_end(ranges, interval):
                                   ranges[end_range_hit_i].end),
                               min(interval.end,
                                   ranges[end_range_hit_i].end))
-
     return start, end
 #}}}
 
@@ -2976,22 +2982,12 @@ def get_transcript_plan(ranges, transcript_file):
                         genome_interval(gene_annotation[0],
                                         int(gene_annotation[3]),
                                         int(gene_annotation[4])))
-
     transcript_plan = []
     for gene in genes:
         gene_id = genes[gene][1]['ID']
         if gene_id not in transcripts: continue
         for transcript in transcripts[gene_id]:
             interval, info = transcripts[gene_id][transcript]
-
-            #transcript can span ranges
-            start_range_hit_i = get_range_hit(ranges,
-                                              interval.chrm,
-                                              interval.start)
-            end_range_hit_i = get_range_hit(ranges, 
-                                            interval.chrm,
-                                            interval.end)
-
             start, end =  get_interval_range_plan_start_end(ranges, interval)
 
             if not start or not end:
@@ -3015,7 +3011,6 @@ def get_transcript_plan(ranges, transcript_file):
                 step.info['Exons'] = exons
 
             transcript_plan.append(step)
-
     return transcript_plan
 #}}}
 
