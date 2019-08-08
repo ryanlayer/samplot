@@ -158,10 +158,11 @@ def get_tabix_iter(chrm, start, end, datafile):
 
         try:
             itr = tbx.fetch(chrm, max(0,start-1000), end+1000)
-        except ValueError:
+        except ValueError as e:
             print('Warning: Could not fetch ' + \
                     chrm + ':' + str(start) + '-' + str(end) + \
                     ' from ' + datafile)
+            print(e)
     return itr
 #}}}
 
