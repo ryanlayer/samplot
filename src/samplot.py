@@ -2847,7 +2847,7 @@ def plot_annotations(annotation_files,
                                                       step.end_pos.chrm,
                                                       step.end_pos.end)]
             
-            #if an annotation lies outside the window, its coordinate will be None, so we chop it to the window
+            #if an annotation lies outside the window, its coordinate will be None, so we trim to the window
             if p[0] is None:
                 p[0] = 0
             if p[1] is None:
@@ -3049,8 +3049,11 @@ def plot_transcript(transcript_file,
              map_genome_point_to_range_points(ranges,
                                               step.end_pos.chrm,
                                               step.end_pos.end)]
-        if not points_in_window(p):
-            continue
+        #if an annotation lies outside the window, its coordinate will be None, so we trim to the window
+        if p[0] is None:
+            p[0] = 0
+        if p[1] is None:
+            p[1] = 0
 
         ax.plot(p,
                 [transcript_idx,transcript_idx],
