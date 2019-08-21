@@ -108,7 +108,6 @@ def get_range_hit(ranges, chrm, point):
         r = ranges[j]
         if r.chrm.strip("chr") == chrm.strip("chr") and r.start <= point and r.end >= point:
             return j
-
     return None
 #}}}
 
@@ -118,12 +117,11 @@ def map_genome_point_to_range_points(ranges, chrm, point):
     
     if range_hit == None:
         return None
-    
     p = 1.0/len(ranges)*range_hit + \
         (1.0/len(ranges))* \
         (float(point - ranges[range_hit].start) / \
          float(ranges[range_hit].end - ranges[range_hit].start))
-
+    
     return p
 #}}}
 
@@ -154,7 +152,7 @@ def get_tabix_iter(chrm, start, end, datafile):
         if chrm[:3] == 'chr':
             chrm = chrm[3:]
         else:
-            chrom = 'chr' + chrm
+            chrm = 'chr' + chrm
 
         try:
             itr = tbx.fetch(chrm, max(0,start-1000), end+1000)
@@ -2389,15 +2387,23 @@ def get_read_data(ranges,
         linked_reads = {}
 
         for r in ranges:
-            for read in bam_file.fetch(r.chrm,
-                                       max(0,r.start-1000), 
-                                       r.end+1000):
+            try:
+                bam_iter = bam_file.fetch(r.chrm,max(0,r.start-1000),r.end+1000)
+            except ValueError as e:
+                chrm = r.chrm
+                if chrm[:3] == "chr":
+                    chrm = chrm[3:]
+                else:
+                    chrm = "chr"+chrm
+                bam_iter = bam_file.fetch(chrm, max(0,r.start-1000), r.end+1000)
+
+
+            for read in bam_iter:
                 if read.is_qcfail \
                    or read.is_unmapped \
                    or read.is_duplicate \
                    or min_mqual and int(read.mapping_quality) < min_mqual:
                     continue
-
                 
                 if not coverage_only:
                     if read.query_length >= long_read_length:
@@ -2787,9 +2793,11 @@ def get_plot_annotation_plan(ranges, annotation_file):
             continue
         for row in itr:
             A = row.rstrip().split()
+            A[0] = A[0].replace("chr","")
             chrm = A[0]
             start = int(A[1])
             end = int(A[2])
+
             interval = genome_interval(chrm, start, end)
 
             # check to see if any part of this alignment overlaps a plot
@@ -2838,10 +2846,12 @@ def plot_annotations(annotation_files,
                      map_genome_point_to_range_points(ranges,
                                                       step.end_pos.chrm,
                                                       step.end_pos.end)]
-            # some points are far outside of the printable area, so we
-            # ignore them 
-            if not points_in_window(p):
-                continue
+            
+            #if an annotation lies outside the window, its coordinate will be None, so we chop it to the window
+            if p[0] is None:
+                p[0] = 0
+            if p[1] is None:
+                p[1] = 0
 
             if step.event == 'ANNOTATION':
                 ax.plot(p, [0,0], '-', color='black', lw=5)
@@ -3124,6 +3134,7 @@ if __name__ == '__main__':
 
     sv = []
     for i in range(len(options.chrom)):
+        options.chrom[i] = options.chrom[i].replace("chr","")
         sv.append(genome_interval(options.chrom[i],
                                   options.start[i],
                                   options.end[i]))
