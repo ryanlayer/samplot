@@ -262,7 +262,7 @@ def plot_coverage(coverage,
         max_plot_depth = max(np.percentile(cover_y_all, 99.5),
                              np.percentile(cover_y_all, 99.5))
     else:
-        max_plot_depth = max(cover_y_all.max(), cover_y_all.max())
+        max_plot_depth = max(np.percentile(cover_y_all.max(), 99.5))
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     
@@ -2428,7 +2428,8 @@ def get_read_data(ranges,
 
         for chrm in coverage:
             for pos in coverage[chrm]:
-                curr_max = max(max(coverage[chrm][pos].values()))
+                sn_coverages = [v for values in coverage[chrm][pos].values() for v in values]
+                curr_max = np.percentile(sn_coverages, 99.5)
                 if curr_max > max_coverage:
                     max_coverage = curr_max
 
@@ -2846,12 +2847,11 @@ def plot_annotations(annotation_files,
                      map_genome_point_to_range_points(ranges,
                                                       step.end_pos.chrm,
                                                       step.end_pos.end)]
-            
             #if an annotation lies outside the window, its coordinate will be None, so we trim to the window
             if p[0] is None:
                 p[0] = 0
             if p[1] is None:
-                p[1] = 0
+                p[1] = 1
 
             if step.event == 'ANNOTATION':
                 ax.plot(p, [0,0], '-', color='black', lw=5)
