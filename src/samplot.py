@@ -262,7 +262,7 @@ def plot_coverage(coverage,
         max_plot_depth = max(np.percentile(cover_y_all, 99.5),
                              np.percentile(cover_y_all, 99.5))
     else:
-        max_plot_depth = max(np.percentile(cover_y_all.max(), 99.5))
+        max_plot_depth = np.percentile(cover_y_all.max(), 99.5)
     ax2 = ax.twinx()
     ax2.set_xlim([0,1])
     
