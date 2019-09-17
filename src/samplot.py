@@ -16,7 +16,7 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
-VERSION="1.0.3"
+VERSION="1.0.5"
 
 INTERCHROM_YAXIS=5000
 
@@ -106,9 +106,8 @@ class genome_interval:
 def get_range_hit(ranges, chrm, point):
     for j in range(len(ranges)):
         r = ranges[j]
-        if r.chrm == chrm and r.start <= point and r.end >= point:
+        if r.chrm.strip("chr") == chrm.strip("chr") and r.start <= point and r.end >= point:
             return j
-
     return None
 #}}}
 
@@ -118,12 +117,11 @@ def map_genome_point_to_range_points(ranges, chrm, point):
     
     if range_hit == None:
         return None
-
     p = 1.0/len(ranges)*range_hit + \
         (1.0/len(ranges))* \
         (float(point - ranges[range_hit].start) / \
          float(ranges[range_hit].end - ranges[range_hit].start))
-
+    
     return p
 #}}}
 
@@ -154,14 +152,15 @@ def get_tabix_iter(chrm, start, end, datafile):
         if chrm[:3] == 'chr':
             chrm = chrm[3:]
         else:
-            chrom = 'chr' + chrm
+            chrm = 'chr' + chrm
 
         try:
             itr = tbx.fetch(chrm, max(0,start-1000), end+1000)
-        except ValueError:
-            sys.exit('Warning: Could not fetch ' + \
-                    chrm + ':' + start + '-' + end + \
+        except ValueError as e:
+            print('Warning: Could not fetch ' + \
+                    chrm + ':' + str(start) + '-' + str(end) + \
                     ' from ' + datafile)
+            print(e)
     return itr
 #}}}
 
@@ -450,7 +449,8 @@ def sample_normal(max_depth, pairs, z):
             sampled_pairs[read_name] = pair
 
     if len(plus_minus_pairs) > max_depth:
-        lens = np.array([pair[1].pos.end - pair[0].pos.start for pair in plus_minus_pairs.values()])
+        lens = np.array([pair[1].pos.end - pair[0].pos.start \
+                for pair in plus_minus_pairs.values()])
         mean = np.mean(lens)
         stdev = np.std(lens)
 
@@ -1834,7 +1834,7 @@ def plot_linked_reads(pairs,
 
         for split_step in steps[0].info['SPLIT_STEPS']:
             split_step.info['INSERTSIZE'] = insert_size
-            plotted = plot_split_plan(ranges, pair_step, ax)
+            plotted = plot_split_plan(ranges, split_step, ax)
 
     return [curr_min_insert_size, curr_max_insert_size]
 #}}}
@@ -2387,15 +2387,23 @@ def get_read_data(ranges,
         linked_reads = {}
 
         for r in ranges:
-            for read in bam_file.fetch(r.chrm,
-                                       max(0,r.start-1000), 
-                                       r.end+1000):
+            try:
+                bam_iter = bam_file.fetch(r.chrm,max(0,r.start-1000),r.end+1000)
+            except ValueError as e:
+                chrm = r.chrm
+                if chrm[:3] == "chr":
+                    chrm = chrm[3:]
+                else:
+                    chrm = "chr"+chrm
+                bam_iter = bam_file.fetch(chrm, max(0,r.start-1000), r.end+1000)
+
+
+            for read in bam_iter:
                 if read.is_qcfail \
                    or read.is_unmapped \
                    or read.is_duplicate \
                    or min_mqual and int(read.mapping_quality) < min_mqual:
                     continue
-
                 
                 if not coverage_only:
                     if read.query_length >= long_read_length:
@@ -2781,11 +2789,15 @@ def get_plot_annotation_plan(ranges, annotation_file):
     annotation_plan = []
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, annotation_file)
+        if not (itr):
+            continue
         for row in itr:
             A = row.rstrip().split()
+            A[0] = A[0].replace("chr","")
             chrm = A[0]
             start = int(A[1])
             end = int(A[2])
+
             interval = genome_interval(chrm, start, end)
 
             # check to see if any part of this alignment overlaps a plot
@@ -2821,10 +2833,11 @@ def plot_annotations(annotation_files,
     """Plots annotation information from region 
     """
     for annotation_file in annotation_files:
+        annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
+        if len(annotation_plan) == 0 :
+            continue
         ax =  plt.subplot(grid[ax_i])
         ax_i += 1
-
-        annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
 
         for step in annotation_plan:
             p = [map_genome_point_to_range_points(ranges,
@@ -2833,10 +2846,12 @@ def plot_annotations(annotation_files,
                      map_genome_point_to_range_points(ranges,
                                                       step.end_pos.chrm,
                                                       step.end_pos.end)]
-            # some points are far outside of the printable area, so we
-            # ignore them 
-            if not points_in_window(p):
-                continue
+            
+            #if an annotation lies outside the window, its coordinate will be None, so we trim to the window
+            if p[0] is None:
+                p[0] = 0
+            if p[1] is None:
+                p[1] = 0
 
             if step.event == 'ANNOTATION':
                 ax.plot(p, [0,0], '-', color='black', lw=5)
@@ -2881,9 +2896,16 @@ def get_interval_range_plan_start_end(ranges, interval):
                                     interval.chrm,
                                     interval.end)
 
+    if start_range_hit_i is None and end_range_hit_i is None:
+        for i,range_item in enumerate(ranges):
+            if ((range_item.chrm.strip("chr") == interval.chrm.strip("chr")) and
+                (interval.start <= range_item.start <= interval.end) and 
+                (interval.start <= range_item.end <= interval.end)):
+                    start_range_hit_i = i
+                    end_range_hit_i = i
+
     start = None
     end = None
-
     # neither end is in range, add nothing
     if start_range_hit_i == None and end_range_hit_i == None:
         return None, None
@@ -2919,7 +2941,6 @@ def get_interval_range_plan_start_end(ranges, interval):
                                   ranges[end_range_hit_i].end),
                               min(interval.end,
                                   ranges[end_range_hit_i].end))
-
     return start, end
 #}}}
 
@@ -2975,22 +2996,12 @@ def get_transcript_plan(ranges, transcript_file):
                         genome_interval(gene_annotation[0],
                                         int(gene_annotation[3]),
                                         int(gene_annotation[4])))
-
     transcript_plan = []
     for gene in genes:
         gene_id = genes[gene][1]['ID']
         if gene_id not in transcripts: continue
         for transcript in transcripts[gene_id]:
             interval, info = transcripts[gene_id][transcript]
-
-            #transcript can span ranges
-            start_range_hit_i = get_range_hit(ranges,
-                                              interval.chrm,
-                                              interval.start)
-            end_range_hit_i = get_range_hit(ranges, 
-                                            interval.chrm,
-                                            interval.end)
-
             start, end =  get_interval_range_plan_start_end(ranges, interval)
 
             if not start or not end:
@@ -3014,7 +3025,6 @@ def get_transcript_plan(ranges, transcript_file):
                 step.info['Exons'] = exons
 
             transcript_plan.append(step)
-
     return transcript_plan
 #}}}
 
@@ -3039,8 +3049,11 @@ def plot_transcript(transcript_file,
              map_genome_point_to_range_points(ranges,
                                               step.end_pos.chrm,
                                               step.end_pos.end)]
-        if not points_in_window(p):
-            continue
+        #if an annotation lies outside the window, its coordinate will be None, so we trim to the window
+        if p[0] is None:
+            p[0] = 0
+        if p[1] is None:
+            p[1] = 0
 
         ax.plot(p,
                 [transcript_idx,transcript_idx],
@@ -3124,6 +3137,7 @@ if __name__ == '__main__':
 
     sv = []
     for i in range(len(options.chrom)):
+        options.chrom[i] = options.chrom[i].replace("chr","")
         sv.append(genome_interval(options.chrom[i],
                                   options.start[i],
                                   options.end[i]))
