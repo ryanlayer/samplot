@@ -174,7 +174,7 @@ def add_coverage(bam_file, read, coverage, minq):
     Quality is determined by minq, which is min quality
     """
 
-    chrm = bam_file.get_reference_name(read.reference_id)
+    chrm = bam_file.get_reference_name(read.reference_id).strip("chr")
 
     hp = 0
 
@@ -2432,7 +2432,6 @@ def get_read_data(ranges,
                 curr_max = np.percentile(sn_coverages, 99.5)
                 if curr_max > max_coverage:
                     max_coverage = curr_max
-
         all_coverages.append(coverage)
         all_pairs.append(pairs)
         all_splits.append(splits)
