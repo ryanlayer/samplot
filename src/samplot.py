@@ -166,7 +166,7 @@ def get_tabix_iter(chrm, start, end, datafile):
 
 ##Coverage methods
 #{{{def add_coverage(bam_file, read, coverage, minq):
-def add_coverage(bam_file, read, coverage, minq):
+def add_coverage(bam_file, read, coverage, minq, get_hp=True):
     """Adds a read to the known coverage 
     
     Coverage from Pysam read is added to the coverage list
@@ -178,7 +178,7 @@ def add_coverage(bam_file, read, coverage, minq):
 
     hp = 0
 
-    if read.has_tag('HP'):
+    if read.has_tag('HP') and get_hp:
         hp = int(read.get_tag('HP'))
 
     if hp not in coverage:
@@ -372,7 +372,7 @@ class PairedEnd:
 #}}}
 
 #{{{ def add_pair_end(bam_file, read, pairs, linked_reads):
-def add_pair_end(bam_file, read, pairs, linked_reads):
+def add_pair_end(bam_file, read, pairs, linked_reads, get_hp=True):
     """adds a (mapped, primary, non-supplementary, and paired) read to the
     pairs list
 
@@ -391,7 +391,7 @@ def add_pair_end(bam_file, read, pairs, linked_reads):
 
     if read.has_tag('MI'):
         MI_tag = int(read.get_tag('MI'))
-    if read.has_tag('HP'):
+    if read.has_tag('HP') and get_hp:
         HP_tag = int(read.get_tag('HP'))
     
     READ_TYPES_USED["Paired-end read"] = True
@@ -751,7 +751,7 @@ def calc_query_pos_from_cigar(cigar, strand):
 #}}}
 
 #{{{def add_split(read, splits, bam_file, linked_reads):
-def add_split(read, splits, bam_file, linked_reads):
+def add_split(read, splits, bam_file, linked_reads, get_hp=True):
     """adds a (primary, non-supplementary) read to the splits list
 
     Pysam read is added as simpified SplitRead instance to splits
@@ -770,7 +770,7 @@ def add_split(read, splits, bam_file, linked_reads):
     if read.has_tag('MI'):
         MI_tag = int(read.get_tag('MI'))
 
-    if read.has_tag('HP'):
+    if read.has_tag('HP') and get_hp:
         HP_tag = int(read.get_tag('HP'))
     sr = SplitRead(bam_file.get_reference_name(read.reference_id),
                    read.reference_start,
@@ -1220,7 +1220,7 @@ def merge_alignments(min_gap, alignments):
 #}}}
 
 #{{{def add_long_reads(bam_file, read, long_reads, min_event_size):
-def add_long_reads(bam_file, read, long_reads, min_event_size):
+def add_long_reads(bam_file, read, long_reads, min_event_size, get_hp=True):
     """Adds a (primary, non-supplementary, long) read to the long_reads list
 
     Read added to long_reads if within the inteval defined by ranges
@@ -1233,7 +1233,7 @@ def add_long_reads(bam_file, read, long_reads, min_event_size):
 
     hp = 0 
 
-    if read.has_tag('HP'):
+    if read.has_tag('HP') and get_hp:
         hp = int(read.get_tag('HP'))
 
     alignments = get_alignments_from_cigar(
@@ -2210,6 +2210,13 @@ def setup_arguments():
                         help="Only show +- zoom amount around breakpoints",
                         required=False)
 
+    parser.add_argument("--no_haplotypes",
+                        dest='get_hp',
+                        action='store_false',
+                        default=True,
+                        help="If bam has haplotypes, do not plot them.",
+                        required=False)
+
     parser.add_argument("--debug",
                         type=str,
                         help="Print debug statements",
@@ -2342,7 +2349,8 @@ def get_read_data(ranges,
                   min_event_size,
                   same_yaxis_scales,
                   max_depth,
-                  z_score):
+                  z_score,
+                  get_hp=True):
     """Reads alignment files to extract reads for the region
 
     Region and alignment files given with chrom, start, end, bams
@@ -2410,11 +2418,12 @@ def get_read_data(ranges,
                         add_long_reads(bam_file,
                                        read, 
                                        long_reads, 
-                                       min_event_size)
+                                       min_event_size,
+                                       get_hp)
                     else:
-                        add_pair_end(bam_file, read, pairs, linked_reads)
-                        add_split(read, splits, bam_file, linked_reads)
-                add_coverage(bam_file, read, coverage, min_mqual)
+                        add_pair_end(bam_file, read, pairs, linked_reads, get_hp)
+                        add_split(read, splits, bam_file, linked_reads, get_hp)
+                add_coverage(bam_file, read, coverage, min_mqual, get_hp)
 
         if len(pairs) == 0 \
                 and len(splits) == 0 \
@@ -3169,7 +3178,8 @@ if __name__ == '__main__':
                                            options.min_event_size,
                                            options.same_yaxis_scales, 
                                            options.max_depth, 
-                                           options.z)
+                                           options.z,
+                                           options.get_hp)
     
     # set up grid organizer
     grid,num_ax = create_gridspec(options.bams, 
