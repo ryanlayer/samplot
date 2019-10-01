@@ -2423,7 +2423,7 @@ def get_read_data(ranges,
             if not coverage_only:
                 print('Warning: No data returned from fetch in ' + \
                       'regions  ' + \
-                      ' '.join(ranges) + 
+                      ' '.join([str(r) for r in ranges]) + 
                       ' from ' + bam_file_name, file=sys.stderr)
 
         for chrm in coverage:
