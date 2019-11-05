@@ -94,9 +94,9 @@ class genome_interval:
 
     ''' return -1 if before, 0 if in, 1 if after '''
     def intersect(self, gi):
-        if gi.chrm < self.chrm or gi.end < self.start:
+        if gi.chrm.strip("chr") < self.chrm.strip("chr") or gi.end < self.start:
             return -1
-        elif gi.chrm > self.chrm or gi.start > self.end:
+        elif gi.chrm.strip("chr") > self.chrm.strip("chr") or gi.start > self.end:
             return 1
         else:
             return 0
@@ -2423,7 +2423,7 @@ def get_read_data(ranges,
             if not coverage_only:
                 print('Warning: No data returned from fetch in ' + \
                       'regions  ' + \
-                      ' '.join(ranges) + 
+                      ' '.join([str(r) for r in ranges]) + 
                       ' from ' + bam_file_name, file=sys.stderr)
 
         for chrm in coverage:
