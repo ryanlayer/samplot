@@ -1,7 +1,6 @@
 argparse
 collections
 doctest
-gzip
 json
 logging
 matplotlib

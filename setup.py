@@ -19,6 +19,7 @@ setuptools.setup(
     version=version,
     description="plotting package for genomic structural variation",
     long_description=long_description,
+    long_description_content_type='text/markdown',
     author="Jonathan Belyeu",
     author_email="jrbelyeu@gmail.com",
     url="https://github.com/ryanlayer/samplot.git",
@@ -33,6 +34,6 @@ setuptools.setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
-        "Topic :: Scientific/Engineering :: Structural variation",
+        "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
 )
