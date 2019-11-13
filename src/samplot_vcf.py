@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Create samplot.vcf command lines to execute and generate
+Create samplot vcf commands to execute and generate
 companion HTML image browser.
 
-Note: additional arguments are passed through to samplot.py
+Note: additional arguments are passed through to samplot plot
 """
 from __future__ import print_function
-
+import sys
 import gzip
 import json
 import logging
@@ -924,13 +924,22 @@ def cram_input(bams):
     return False
 
 
-def main(args, pass_through_args):
+def vcf(parser, args):
+    """
+    Generate commands for plotting variants from VCF, create html for showing them
+    """
+
+    args, pass_through_args = parser.parse_known_args()
+    if args.dn_only and not args.ped:
+        sys.exit("Missing --ped, required when using --dn_only")
+    
     if cram_input(args.bams):
         if "-r" not in pass_through_args and not "--reference" in pass_through_args:
             sys.exit(
                 "ERROR: missing reference file required for CRAM. "
                 + "Use -r option. (Run `samplot.py -h` for more help)"
             )
+
     global HTML
     global HERE
 
@@ -963,9 +972,7 @@ def main(args, pass_through_args):
     if args.format:
         format_field_ids = args.format.split(",")
 
-    out_file = sys.stdout
-    if args.command_file:
-        out_file = open(args.command_file, "w")
+    out_file = open(args.command_file, "w")
 
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
@@ -973,11 +980,11 @@ def main(args, pass_through_args):
             if not var_in_important_regions(important_regions, variant.chrom, variant.start, variant.stop):
                 continue
 
-        if svtype in ("BND", "INS"):
+        if svtype in ("INS"):
             continue
         if variant.stop - variant.start > args.max_mb * 1000000:
             continue
-        if variant.stop - variant.start > args.min_bp:
+        if variant.stop - variant.start < args.min_bp:
             continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
@@ -1041,6 +1048,7 @@ def main(args, pass_through_args):
         if format_field_ids:
             format_attrs = get_format_title(vcf_samples_list, format_field_ids, variant)
             plot_titles = make_plot_titles(variant_samples, format_attrs)
+        
 
         # try to get family members
         if args.ped is not None:
@@ -1131,7 +1139,7 @@ def main(args, pass_through_args):
                 title_list.append(variant_sample)
 
         out_file.write(
-            "python {here}/samplot.py {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d 1 -b {bams}\n".format(
+            "samplot plot {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d {downsample} -b {bams}\n".format(
                 here=HERE,
                 extra_args=" ".join(pass_through_args),
                 bams=" ".join(bams),
@@ -1144,6 +1152,7 @@ def main(args, pass_through_args):
                 chrom=variant.chrom,
                 start=variant.start,
                 end=variant.stop,
+                downsample=args.downsample
             )
         )
 
@@ -1158,19 +1167,31 @@ def main(args, pass_through_args):
 
     with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
         print(HTML, file=fh)
+    
+    if not args.manual_run:
+        import subprocess
+        #make runnable and then run it
+        os.chmod(args.command_file, 0o755)
+        subprocess.call(os.path.join(".",args.command_file), shell=True)
+        os.remove(args.command_file)
 
-
-if __name__ == "__main__":
+def add_vcf(parent_parser):
+    """Defines allowed arguments for samplot's vcf plotter
+    """
     import argparse
-    import sys
     import doctest
 
+    parser = parent_parser.add_parser(
+            "vcf",
+            help="Generates commands to plot images with `samplot plot`," +
+                " using VCF file to define regions")
+    
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         r = doctest.testmod()
         print(r)
         sys.exit(r.failed)
 
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
     parser.add_argument("--vcf", "-v", help="VCF file containing structural variants")
     parser.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
     parser.add_argument("--ped", help="path ped (or .fam) file")
@@ -1188,12 +1209,14 @@ if __name__ == "__main__":
     parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
     parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
     parser.add_argument("--sample_ids", type=str, nargs="+", help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", required=False)
-    parser.add_argument("--command_file", help="store commands in this file, otherwise STDOUT", required=False)
+    parser.add_argument("--command_file", help="store commands in this file.", default="samplot_vcf_cmds.tmp", required=False)
     parser.add_argument("--format", default="AS,AP,DHFFC", help="comma separated list of FORMAT fields to include in sample plot title")
     parser.add_argument("--gff", help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters")
+    parser.add_argument("--downsample", help="Number of normal reads/pairs to plot", default=1, type=int)
+    parser.add_argument("--manual_run", help="don't auto-run the samplot plot commands (command_file will be deleted)", default=False, type=int)
 
-    args, pass_through_args = parser.parse_known_args()
-    if args.dn_only and not args.ped:
-        sys.exit("Missing --ped, required when using --dn_only")
+    parser.set_defaults(func=vcf)
 
-    main(args, pass_through_args)
+
+#if __name__ == "__main__":
+#    main(args, pass_through_args)

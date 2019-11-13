@@ -16,8 +16,6 @@ import argparse
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.ticker as ticker
 
-VERSION="1.0.6"
-
 INTERCHROM_YAXIS=5000
 
 COLORS = { 
@@ -606,7 +604,7 @@ def get_pair_event_type(pe_read):
 #}}}
 
 #{{{def plot_pair_plan(ranges, step, ax):
-def plot_pair_plan(ranges, step, ax):
+def plot_pair_plan(ranges, step, ax, marker_size):
     p = [map_genome_point_to_range_points(ranges, 
                                           step.start_pos.chrm,
                                           step.start_pos.start),
@@ -643,7 +641,8 @@ def plot_pairs(pairs,
                ax,
                ranges,
                curr_min_insert_size,
-               curr_max_insert_size):
+               curr_max_insert_size,
+               marker_size):
     """Plots all PairedEnd reads for the region
     """
 
@@ -655,7 +654,7 @@ def plot_pairs(pairs,
     max_event, steps = plan
 
     for step in steps:
-        plot_pair_plan(ranges, step, ax)
+        plot_pair_plan(ranges, step, ax, marker_size)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -1000,7 +999,7 @@ def get_splits_plan(ranges, splits, linked_plan=False):
 #}}}
 
 #{{{def plot_split(split, y, ax, ranges):
-def plot_split(split, y, ax, ranges):
+def plot_split(split, y, ax, ranges, marker_size):
     """Plots a SplitRead at the y-position corresponding to insert size
 
     If read lies outside the range-min or range_max, it is not plotted
@@ -1034,7 +1033,7 @@ def plot_split(split, y, ax, ranges):
 #}}}
 
 #{{{def plot_split(split, y, ax, ranges):
-def plot_split_plan(ranges, step, ax):
+def plot_split_plan(ranges, step, ax, marker_size):
     p = [map_genome_point_to_range_points(ranges, 
                                           step.start_pos.chrm,
                                           step.start_pos.start),
@@ -1962,19 +1961,16 @@ def print_arguments(options):
 #}}} 
 
 #{{{def setup_arguments():
-def setup_arguments():
-    """Defines the allowed arguments for samplot
+def add_plot(parent_parser):
+    """Defines the allowed arguments for plot function
     """
-    parser = argparse.ArgumentParser( \
-            prog="samplot",
-            description="SAMPLOT creates images of genome regions from " + \
-                        "CRAM/SAM alignments, "+\
-                        "optimized for structural variant call review")
+    import argparse
 
-    parser.add_argument('--version',
-                        action='version',
-                        version='%(prog)s ' + VERSION)
-
+    parser = parent_parser.add_parser(
+            "plot",
+            help="Plot an image of a genome region from " +
+                "CRAM/SAM alignments, "+
+                "optimized for structural variant call review")
 
     parser.add_argument("--marker_size",
                         type=int,
@@ -2215,20 +2211,7 @@ def setup_arguments():
                         help="Print debug statements",
                         required=False)
 
-
-    options = parser.parse_args()
-
-    if options.print_args or options.json_only:
-        print_arguments(options)
-        if options.json_only:
-            sys.exit(0)
-
-    for bam in options.bams:
-        if ".cram" in bam:
-            if not options.reference:
-                parser.print_help(sys.stderr)
-                sys.exit("Error: Missing reference for CRAM")
-    return options
+    parser.set_defaults(func=plot)
 #}}}
 
 #{{{def set_plot_dimensions(sv,
@@ -2503,7 +2486,8 @@ def plot_samples(ranges,
                  yaxis_label_fontsize, 
                  annotation_files, 
                  transcript_file,
-                 max_coverage):
+                 max_coverage,
+                 marker_size):
 
     """Plots all samples
     """
@@ -2582,7 +2566,8 @@ def plot_samples(ranges,
                                    curr_ax,
                                    ranges,
                                    curr_min_insert_size,
-                                   curr_max_insert_size)
+                                   curr_max_insert_size,
+                                   marker_size)
 
                 curr_min_insert_size,curr_max_insert_size = \
                         plot_splits(curr_splits,
@@ -2689,7 +2674,7 @@ def plot_samples(ranges,
 #}}}
 
 #{{{def plot_legend(fig, legend_fontsize):
-def plot_legend(fig, legend_fontsize):
+def plot_legend(fig, legend_fontsize, marker_size):
     """Plots the figure legend
     """
     marker_colors = []
@@ -2748,7 +2733,7 @@ def plot_legend(fig, legend_fontsize):
 #}}}
 
 #{{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
-def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
+def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data):
     """Helper function for creation of a correctly-sized GridSpec instance
     """
     # give one axis to display each sample
@@ -3122,13 +3107,23 @@ def plot_transcript(transcript_file,
 ########################################################################
 # main block
 ########################################################################
-#{{{
-if __name__ == '__main__':
-    options = setup_arguments()
+def plot(parser, options):
     '''
-    To spport translocations, the SVs are specified as an array of 
+    To support translocations, the SVs are specified as an array of 
     genome_interval. For now we let that arry be size 1 or 2.
     '''
+
+    if options.print_args or options.json_only:
+        print_arguments(options)
+        if options.json_only:
+            sys.exit(0)
+
+    for bam in options.bams:
+        if ".cram" in bam:
+            if not options.reference:
+                parser.print_help(sys.stderr)
+                sys.exit("Error: Missing reference for CRAM")
+
 
     if len(options.chrom) != len(options.start) != len(options.end):
         sys.stderr.write("The number of chromosomes, starts, and ends " + \
@@ -3175,7 +3170,8 @@ if __name__ == '__main__':
     grid,num_ax = create_gridspec(options.bams, 
                                   options.transcript_file, 
                                   options.annotation_files, 
-                                  options.sv_type )
+                                  options.sv_type,
+                                  read_data)
     current_axis_idx = 0
     
     # plot variant on top
@@ -3203,9 +3199,10 @@ if __name__ == '__main__':
                                     options.yaxis_label_fontsize, 
                                     options.annotation_files, 
                                     options.transcript_file,
-                                    max_coverage)
+                                    max_coverage,
+                                    marker_size)
     # plot legend
-    plot_legend(fig, options.legend_fontsize)
+    plot_legend(fig, options.legend_fontsize, marker_size)
 
     # Plot annotation files
     if options.annotation_files:
