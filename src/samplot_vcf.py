@@ -7,19 +7,20 @@ companion HTML image browser.
 Note: additional arguments are passed through to samplot plot
 """
 from __future__ import print_function
-import sys
-import gzip
+
 import json
 import logging
 import operator
 import os
 import random
-from collections import defaultdict
+import sys
+
+import pysam
+
 try:
     from shlex import quote
 except ImportError:
     from pipes import quote
-import pysam
 
 
 HERE = os.path.dirname(__file__)
@@ -607,7 +608,16 @@ cmp_lookup = {
 
 
 class Sample(object):
-    __slots__ = ["family_id", "id", "paternal_id", "maternal_id", "mom", "dad", "kids", "i"]
+    __slots__ = [
+        "family_id",
+        "id",
+        "paternal_id",
+        "maternal_id",
+        "mom",
+        "dad",
+        "kids",
+        "i",
+    ]
 
     def __init__(self, line):
         toks = line.rstrip().split()
@@ -669,7 +679,9 @@ def get_format_fields(ids, variant):
     """
     fields = list()
     for i in ids:
-        fields.append(["%s=%s" % (i, flatten(j.get(i, ""))) for j in variant.samples.values()])
+        fields.append(
+            ["%s=%s" % (i, flatten(j.get(i, ""))) for j in variant.samples.values()]
+        )
     return zip_lists(fields)
 
 
@@ -709,7 +721,13 @@ def make_plot_titles(samples, attr_values):
 
 
 def get_overlap(
-    tabix, chrom, start, end, priority=["exon", "gene", "transcript", "cds"], no_hit="intergenic", fix_chr=True
+    tabix,
+    chrom,
+    start,
+    end,
+    priority=["exon", "gene", "transcript", "cds"],
+    no_hit="intergenic",
+    fix_chr=True,
 ):
     """
     args:
@@ -724,9 +742,11 @@ def get_overlap(
     returns:
         str
     """
-    overlaps=None
+    overlaps = None
     try:
-        overlaps = set([i.split("\t")[2].lower() for i in tabix.fetch(chrom, start, end)])
+        overlaps = set(
+            [i.split("\t")[2].lower() for i in tabix.fetch(chrom, start, end)]
+        )
     except IndexError:
         # probably not a gff or gtf
         logging.warning("Invalid annotation file specified for --gff")
@@ -735,13 +755,27 @@ def get_overlap(
         if fix_chr:
             # try removing chr
             if chrom.startswith("chr"):
-                overlaps = get_overlap(tabix, chrom[3:], start, end, priority, no_hit, False)
+                overlaps = get_overlap(
+                    tabix, chrom[3:], start, end, priority, no_hit, False
+                )
             # or adding chr
             else:
-                overlaps = get_overlap(tabix, "chr{chrom}".format(chrom=chrom), start, end, priority, no_hit, False)
+                overlaps = get_overlap(
+                    tabix,
+                    "chr{chrom}".format(chrom=chrom),
+                    start,
+                    end,
+                    priority,
+                    no_hit,
+                    False,
+                )
     except:
         # bad regions
-        logging.warning("Error fetching {chrom}:{start}-{end}".format(chrom=chrom, start=start, end=end))
+        logging.warning(
+            "Error fetching {chrom}:{start}-{end}".format(
+                chrom=chrom, start=start, end=end
+            )
+        )
         overlaps = None
 
     overlap = ""
@@ -808,7 +842,9 @@ def get_names_to_bams(bams, name_list=None):
                 names[b.header["RG"][0]["SM"]] = p
             except:
                 sys.exit(
-                    "No RG field in alignment file " + p + ". \nInclude ordered list of sample IDs to avoid this error"
+                    "No RG field in alignment file "
+                    + p
+                    + ". \nInclude ordered list of sample IDs to avoid this error"
                 )
     return names
 
@@ -839,7 +875,10 @@ def to_exprs(astr):
             a.append("extra_arg")
         assert len(a) == 3, ("bad expression", a)
         assert a[1] in cmp_lookup, (
-            "comparison:" + a[1] + " not supported. must be one of:" + ",".join(cmp_lookup.keys())
+            "comparison:"
+            + a[1]
+            + " not supported. must be one of:"
+            + ",".join(cmp_lookup.keys())
         )
         result.append((a[0], cmp_lookup[a[1]], tryfloat(a[2].strip("'").strip('"'))))
     return result
@@ -912,7 +951,11 @@ def var_in_important_regions(important_regions, chrom, start, end):
     if chrom in important_regions:
         for region in important_regions[chrom]:
             region_st, region_end = [int(x) for x in region.split("_")]
-            if region_st <= start <= region_end or region_st <= end <= region_end or start <= region_st <= end:
+            if (
+                region_st <= start <= region_end
+                or region_st <= end <= region_end
+                or start <= region_st <= end
+            ):
                 return True
     return False
 
@@ -932,7 +975,7 @@ def vcf(parser, args):
     args, pass_through_args = parser.parse_known_args()
     if args.dn_only and not args.ped:
         sys.exit("Missing --ped, required when using --dn_only")
-    
+
     if cram_input(args.bams):
         if "-r" not in pass_through_args and not "--reference" in pass_through_args:
             sys.exit(
@@ -977,7 +1020,9 @@ def vcf(parser, args):
     for variant in vcf:
         svtype = variant.info.get("SVTYPE", "SV")
         if args.important_regions:
-            if not var_in_important_regions(important_regions, variant.chrom, variant.start, variant.stop):
+            if not var_in_important_regions(
+                important_regions, variant.chrom, variant.start, variant.stop
+            ):
                 continue
 
         if svtype in ("INS"):
@@ -999,7 +1044,9 @@ def vcf(parser, args):
             continue
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
-        test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
+        test_samples = [
+            s for i, s in enumerate(variant.samples.values()) if i in test_idxs
+        ]
 
         if len(filters) == 0:
             idxs = test_idxs
@@ -1033,7 +1080,10 @@ def vcf(parser, args):
                 sample = ped_samples[variant_sample]
                 if sample.mom is None or sample.dad is None:
                     continue
-                if not sample.mom.id in test_sample_names and not sample.dad.id in test_sample_names:
+                if (
+                    not sample.mom.id in test_sample_names
+                    and not sample.dad.id in test_sample_names
+                ):
                     is_dn.append(sample.id)
 
         if len(is_dn) <= 0 and args.dn_only:
@@ -1048,24 +1098,35 @@ def vcf(parser, args):
         if format_field_ids:
             format_attrs = get_format_title(vcf_samples_list, format_field_ids, variant)
             plot_titles = make_plot_titles(variant_samples, format_attrs)
-        
 
         # try to get family members
         if args.ped is not None:
             # do DN samples first so we can see parents.
-            for variant_sample in is_dn + [x for x in variant_samples if not x in is_dn]:
+            for variant_sample in is_dn + [
+                x for x in variant_samples if not x in is_dn
+            ]:
                 s = ped_samples.get(variant_sample)
                 if s is None:
                     continue
-                if s.mom is not None and not s.mom.id in variant_samples and s.mom.id in vcf_samples_set:
+                if (
+                    s.mom is not None
+                    and not s.mom.id in variant_samples
+                    and s.mom.id in vcf_samples_set
+                ):
                     variant_samples.append("mom-of-%s[%s]" % (variant_sample, s.mom.id))
                     bams.append(names_to_bams[s.mom.id])
-                if s.dad is not None and not s.dad.id in variant_samples and s.dad.id in vcf_samples_set:
+                if (
+                    s.dad is not None
+                    and not s.dad.id in variant_samples
+                    and s.dad.id in vcf_samples_set
+                ):
                     variant_samples.append("dad-of-%s[%s]" % (variant_sample, s.dad.id))
                     bams.append(names_to_bams[s.dad.id])
                 for kid in s.kids:
                     if not kid.id in variant_samples and kid.id in vcf_samples_set:
-                        variant_samples.append("kid-of-%s[%s]" % (variant_sample, kid.id))
+                        variant_samples.append(
+                            "kid-of-%s[%s]" % (variant_sample, kid.id)
+                        )
                         bams.append(names_to_bams[kid.id])
                     if args.max_hets:
                         if len(bams) > 1.5 * args.max_hets:
@@ -1075,7 +1136,11 @@ def vcf(parser, args):
                         break
         elif args.min_entries and len(bams) < args.min_entries:
             # extend with some controls:
-            hom_ref_idxs = [i for i, gt in enumerate(gts) if len(gt) == 2 and gt[0] == 0 and gt[1] == 0]
+            hom_ref_idxs = [
+                i
+                for i, gt in enumerate(gts)
+                if len(gt) == 2 and gt[0] == 0 and gt[1] == 0
+            ]
             if len(hom_ref_idxs) > 3:
                 random.shuffle(hom_ref_idxs)
                 hom_ref_idxs = hom_ref_idxs[:3]
@@ -1087,7 +1152,9 @@ def vcf(parser, args):
 
             to_add_count = args.min_entries - len(bams)
             bams.extend(names_to_bams[s] for s in hom_ref_samples[:to_add_count])
-            variant_samples += ["control-sample:" + s for s in hom_ref_samples[:to_add_count]]
+            variant_samples += [
+                "control-sample:" + s for s in hom_ref_samples[:to_add_count]
+            ]
 
         data_dict = {
             "chrom": variant.chrom,
@@ -1099,11 +1166,16 @@ def vcf(parser, args):
             "nsamples": n_samples,
         }
         if annotations:
-            data_dict["overlaps"] = get_overlap(annotations, variant.chrom, variant.start, variant.stop)
+            data_dict["overlaps"] = get_overlap(
+                annotations, variant.chrom, variant.start, variant.stop
+            )
         if dn_row != "":
             data_dict["dn"] = ",".join(is_dn)
         fig_path = os.path.join(
-            args.out_dir, "{svtype}_{chrom}_{start}_{end}.{itype}".format(itype=args.output_type, **data_dict)
+            args.out_dir,
+            "{svtype}_{chrom}_{start}_{end}.{itype}".format(
+                itype=args.output_type, **data_dict
+            ),
         )
         tabledata.append(data_dict)
 
@@ -1152,7 +1224,7 @@ def vcf(parser, args):
                 chrom=variant.chrom,
                 start=variant.start,
                 end=variant.stop,
-                downsample=args.downsample
+                downsample=args.downsample,
             )
         )
 
@@ -1167,56 +1239,140 @@ def vcf(parser, args):
 
     with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
         print(HTML, file=fh)
-    
+
     if not args.manual_run:
         import subprocess
-        #make runnable and then run it
+
+        # make runnable and then run it
         os.chmod(args.command_file, 0o755)
-        subprocess.call(os.path.join(".",args.command_file), shell=True)
+        subprocess.call(os.path.join(".", args.command_file), shell=True)
         os.remove(args.command_file)
+
 
 def add_vcf(parent_parser):
     """Defines allowed arguments for samplot's vcf plotter
     """
-    import argparse
     import doctest
 
     parser = parent_parser.add_parser(
-            "vcf",
-            help="Generates commands to plot images with `samplot plot`," +
-                " using VCF file to define regions")
-    
+        "vcf",
+        help="Generates commands to plot images with `samplot plot`,"
+        + " using VCF file to define regions",
+    )
+
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         r = doctest.testmod()
         print(r)
         sys.exit(r.failed)
 
-
     parser.add_argument("--vcf", "-v", help="VCF file containing structural variants")
-    parser.add_argument("-d", "--out-dir", help="path to write output PNGs", default="samplot-out")
+    parser.add_argument(
+        "-d", "--out-dir", help="path to write output PNGs", default="samplot-out"
+    )
     parser.add_argument("--ped", help="path ped (or .fam) file")
-    parser.add_argument("--dn_only", help="plots only putative de novo variants (PED file required)", action="store_true")
-    parser.add_argument("--min_call_rate", type=float, help="only plot variants with at least this call-rate", default=0.95)
-    parser.add_argument("--filter", action="append", help="simple filter that samples"
+    parser.add_argument(
+        "--dn_only",
+        help="plots only putative de novo variants (PED file required)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--min_call_rate",
+        type=float,
+        help="only plot variants with at least this call-rate",
+        default=0.95,
+    )
+    parser.add_argument(
+        "--filter",
+        action="append",
+        help="simple filter that samples"
         + " must meet. Join multiple filters with '&' and specify --filter multiple times for 'or'"
-        + " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'", default=[])
-    parser.add_argument("-O", "--output_type", choices=("png", "pdf", "eps", "jpg"), help="type of output figure", default="png")
-    parser.add_argument("--max_hets", type=int, help="only plot variants with at most this many heterozygotes", required=False)
-    parser.add_argument("--min_entries", type=int, help="try to include homref samples as controls to get this many samples in plot", default=6)
-    parser.add_argument("--max_entries", type=int, help="only plot at most this many heterozygotes", default=10)
-    parser.add_argument("--max_mb", type=int, help="skip variants longer than this many megabases", default=1)
-    parser.add_argument("--min_bp", type=int, help="skip variants shorter than this many bases", default=20)
-    parser.add_argument("--important_regions", help="only report variants that overlap regions in this bed file", required=False)
-    parser.add_argument("-b", "--bams", type=str, nargs="+", help="Space-delimited list of BAM/CRAM file names", required=True)
-    parser.add_argument("--sample_ids", type=str, nargs="+", help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.", required=False)
-    parser.add_argument("--command_file", help="store commands in this file.", default="samplot_vcf_cmds.tmp", required=False)
-    parser.add_argument("--format", default="AS,AP,DHFFC", help="comma separated list of FORMAT fields to include in sample plot title")
-    parser.add_argument("--gff", help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters")
-    parser.add_argument("--downsample", help="Number of normal reads/pairs to plot", default=1, type=int)
-    parser.add_argument("--manual_run", help="don't auto-run the samplot plot commands (command_file will be deleted)", default=False, action="store_true")
+        + " e.g. DHFFC < 0.7 & SVTYPE = 'DEL'",
+        default=[],
+    )
+    parser.add_argument(
+        "-O",
+        "--output_type",
+        choices=("png", "pdf", "eps", "jpg"),
+        help="type of output figure",
+        default="png",
+    )
+    parser.add_argument(
+        "--max_hets",
+        type=int,
+        help="only plot variants with at most this many heterozygotes",
+        required=False,
+    )
+    parser.add_argument(
+        "--min_entries",
+        type=int,
+        help="try to include homref samples as controls to get this many samples in plot",
+        default=6,
+    )
+    parser.add_argument(
+        "--max_entries",
+        type=int,
+        help="only plot at most this many heterozygotes",
+        default=10,
+    )
+    parser.add_argument(
+        "--max_mb",
+        type=int,
+        help="skip variants longer than this many megabases",
+        default=1,
+    )
+    parser.add_argument(
+        "--min_bp",
+        type=int,
+        help="skip variants shorter than this many bases",
+        default=20,
+    )
+    parser.add_argument(
+        "--important_regions",
+        help="only report variants that overlap regions in this bed file",
+        required=False,
+    )
+    parser.add_argument(
+        "-b",
+        "--bams",
+        type=str,
+        nargs="+",
+        help="Space-delimited list of BAM/CRAM file names",
+        required=True,
+    )
+    parser.add_argument(
+        "--sample_ids",
+        type=str,
+        nargs="+",
+        help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.",
+        required=False,
+    )
+    parser.add_argument(
+        "--command_file",
+        help="store commands in this file.",
+        default="samplot_vcf_cmds.tmp",
+        required=False,
+    )
+    parser.add_argument(
+        "--format",
+        default="AS,AP,DHFFC",
+        help="comma separated list of FORMAT fields to include in sample plot title",
+    )
+    parser.add_argument(
+        "--gff",
+        help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters",
+    )
+    parser.add_argument(
+        "--downsample", help="Number of normal reads/pairs to plot", default=1, type=int
+    )
+    parser.add_argument(
+        "--manual_run",
+        help="don't auto-run the samplot plot commands (command_file will be deleted)",
+        default=False,
+        action="store_true",
+    )
 
     parser.set_defaults(func=vcf)
 
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    main(args, pass_through_args)
