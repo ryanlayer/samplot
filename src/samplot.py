@@ -7,6 +7,7 @@ import re
 import sys
 
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
@@ -16,7 +17,6 @@ import numpy as np
 import pysam
 from matplotlib.offsetbox import AnchoredText
 
-matplotlib.use("Agg")
 
 INTERCHROM_YAXIS = 5000
 
