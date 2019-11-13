@@ -18,7 +18,7 @@ out_file_name="test.png"
 
 rm -f $out_file_name
 run basic_operation \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
@@ -33,7 +33,7 @@ fi
 out_file_name="test_zoom.png"
 rm -f $out_file_name
 run basic_operation_zoom \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
@@ -48,7 +48,7 @@ fi
 
 sample_out_file_name="sample.png"
 run sampling_normal \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $sample_out_file_name \
@@ -63,7 +63,7 @@ fi
 
 sample_out_file_name="sample_zoom.png"
 run sampling_normal_zoom \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $sample_out_file_name \
@@ -85,7 +85,7 @@ out_file_name="dup.png"
 rm -f $out_file_name
 
 run common_insert_size_scale \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
@@ -102,7 +102,7 @@ fi
 out_file_name="dup_zoom.png"
 rm -f $out_file_name
 run common_insert_size_scale_zoom \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
@@ -122,7 +122,7 @@ out_file_name="no_sv_type.png"
 rm -f $out_file_name
 
 run no_sv_type \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
         -o $out_file_name \
@@ -143,13 +143,14 @@ test_dir=test_suite
 rm -f $cmd_file
 rm -rf $test_dir
 run from_vcf \
-    python ../../src/samplot_vcf.py \
+    samplot vcf \
         -d $test_dir \
         --vcf $vcf_file \
         --sample_ids HG002 HG003 HG004 \
         -b ../data/HG002_Illumina.bam \
         ../data/HG003_Illumina.bam \
         ../data/HG004_Illumina.bam \
+        --manual_run\
         --command_file $cmd_file
 if [ $from_vcf ]; then
     assert_no_stderr
@@ -167,7 +168,7 @@ bam=../data/nanopore-NA12878.bam
 rm -f $out_file_name
 
 run nanopore_dup \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -183,7 +184,7 @@ fi
 out_file_name="longread_nanopore_dup_zoom.png"
 rm -f $out_file_name
 run nanopore_dup_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -205,7 +206,7 @@ out_file_name="longread_nanopore_del.png"
 bam=../data/nanopore-NA12878.bam
 rm -f $out_file_name
 run nanopore_del \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -221,7 +222,7 @@ fi
 out_file_name="longread_nanopore_del_zoom.png"
 rm -f $out_file_name
 run nanopore_del_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -243,7 +244,7 @@ out_file_name="longread_del.png"
 bam=../data/hg19_chr1_58343117_58343622_deletion.bam
 rm -f $out_file_name
 run longread_del \
-    python ../../src/samplot.py \
+    samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -259,7 +260,7 @@ fi
 out_file_name="longread_del_zoom_big_zoom.png"
 rm -f $out_file_name
 run longread_del_zoom_big_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -277,7 +278,7 @@ fi
 out_file_name="longread_del_zoom_zoom.png"
 rm -f $out_file_name
 run longread_del_zoom_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -299,7 +300,7 @@ out_file_name="longread_inv.png"
 bam=../data/hg19_chr21_27373431_27375410_inversion.bam
 rm -f $out_file_name
 run longread_inv \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -315,7 +316,7 @@ fi
 out_file_name="longread_inv_zoom.png"
 rm -f $out_file_name
 run longread_inv_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -337,7 +338,7 @@ out_file_name="linkedread_del.png"
 bam=../data/HG002_1_89475845-89478561_DEL.tenx.bam
 rm -f $out_file_name
 run linkedread_del \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -353,7 +354,7 @@ fi
 out_file_name="linkedread_del_zoom.png"
 rm -f $out_file_name
 run linkedread_del_zoom \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam \
         -o $out_file_name \
@@ -378,7 +379,7 @@ sv_type=BND
 out_file_name="translocation.png"
 bam=../data/2_59305747-59505747_X_151018513-151218513.BND.bam
 run translocation \
-    python ../../src/samplot.py \
+    samplot plot\
         -c $sv_chrm_1 -s $sv_start_1 -e $sv_end_1 \
         -c $sv_chrm_2 -s $sv_start_2 -e $sv_end_2 \
         -b $bam \

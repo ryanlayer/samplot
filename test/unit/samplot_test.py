@@ -1,8 +1,7 @@
 import unittest
 import sys
-sys.path.append('../../src/')
 
-import samplot
+from samplot import samplot
 
 
 bam_1 = '../data/NA12878_restricted.bam'
