@@ -1213,7 +1213,7 @@ def add_vcf(parent_parser):
     parser.add_argument("--format", default="AS,AP,DHFFC", help="comma separated list of FORMAT fields to include in sample plot title")
     parser.add_argument("--gff", help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters")
     parser.add_argument("--downsample", help="Number of normal reads/pairs to plot", default=1, type=int)
-    parser.add_argument("--manual_run", help="don't auto-run the samplot plot commands (command_file will be deleted)", default=False, type=int)
+    parser.add_argument("--manual_run", help="don't auto-run the samplot plot commands (command_file will be deleted)", default=False, action="store_true")
 
     parser.set_defaults(func=vcf)
 

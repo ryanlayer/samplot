@@ -1068,7 +1068,8 @@ def plot_splits(splits,
                 ax,
                 ranges,
                 curr_min_insert_size,
-                curr_max_insert_size):
+                curr_max_insert_size,
+                marker_size):
     """Plots all SplitReads for the region
     """
     plan = get_splits_plan(ranges, splits)
@@ -1079,7 +1080,7 @@ def plot_splits(splits,
     max_event, steps = plan
 
     for step in steps:
-        plot_split_plan(ranges, step, ax)
+        plot_split_plan(ranges, step, ax, marker_size)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -1794,7 +1795,8 @@ def plot_linked_reads(pairs,
                       ax,
                       ranges,
                       curr_min_insert_size,
-                      curr_max_insert_size):
+                      curr_max_insert_size,
+                      marker_size):
     """Plots all LinkedReads for the region
     """
     for linked_read in linked_reads:
@@ -1829,11 +1831,11 @@ def plot_linked_reads(pairs,
 
         for pair_step in steps[0].info['PAIR_STEPS']:
             pair_step.info['INSERTSIZE'] = insert_size
-            plotted = plot_pair_plan(ranges, pair_step, ax)
+            plotted = plot_pair_plan(ranges, pair_step, ax, marker_size)
 
         for split_step in steps[0].info['SPLIT_STEPS']:
             split_step.info['INSERTSIZE'] = insert_size
-            plotted = plot_split_plan(ranges, split_step, ax)
+            plotted = plot_split_plan(ranges, split_step, ax, marker_size)
 
     return [curr_min_insert_size, curr_max_insert_size]
 #}}}
@@ -2552,7 +2554,8 @@ def plot_samples(ranges,
                                       curr_ax,
                                       ranges,
                                       curr_min_insert_size,
-                                      curr_max_insert_size)
+                                      curr_max_insert_size,
+                                      marker_size)
             elif len(curr_long_reads) > 0 :
                 curr_min_insert_size,curr_max_insert_size = \
                         plot_long_reads(curr_long_reads,
@@ -2574,7 +2577,8 @@ def plot_samples(ranges,
                                     curr_ax,
                                     ranges,
                                     curr_min_insert_size,
-                                    curr_max_insert_size)
+                                    curr_max_insert_size,
+                                    marker_size)
 
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and(curr_max_insert_size > max_insert_size):
@@ -2748,7 +2752,7 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data)
         num_ax+=1
 
     if annotation_files:
-        num_ax+=len(options.annotation_files)
+        num_ax+=len(annotation_files)
 
     # set the relative sizes for each
     ratios = []
