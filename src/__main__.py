@@ -11,7 +11,7 @@ def main(args=None):
         args = sys.argv[1:]
 
     parser = argparse.ArgumentParser(
-        prog="plot", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        prog="samplot", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "-v",

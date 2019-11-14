@@ -6,9 +6,9 @@ test -e ssshtest || wget -q https://raw.githubusercontent.com/ryanlayer/ssshtest
 
 STOP_ON_FAIL=0
 
-bam_1=../data/NA12878_restricted.bam
-bam_2=../data/NA12889_restricted.bam
-bam_3=../data/NA12890_restricted.bam
+bam_1="test/data/NA12878_restricted.bam"
+bam_2="test/data/NA12889_restricted.bam"
+bam_3="test/data/NA12890_restricted.bam"
 
 sv_chrm=chr4
 sv_start=115928730
@@ -137,7 +137,7 @@ fi
 
 rm -rf img/
 mkdir img
-vcf_file=../data/test.vcf
+vcf_file="test/data/test.vcf"
 cmd_file=test.cmd
 test_dir=test_suite
 rm -f $cmd_file
@@ -147,9 +147,9 @@ run from_vcf \
         -d $test_dir \
         --vcf $vcf_file \
         --sample_ids HG002 HG003 HG004 \
-        -b ../data/HG002_Illumina.bam \
-        ../data/HG003_Illumina.bam \
-        ../data/HG004_Illumina.bam \
+        -b "test/data/HG002_Illumina.bam" \
+        "test/data/HG003_Illumina.bam" \
+        "test/data/HG004_Illumina.bam" \
         --manual_run\
         --command_file $cmd_file
 if [ $from_vcf ]; then
@@ -164,7 +164,7 @@ sv_start=101055330
 sv_end=101067156
 sv_type=DUP
 out_file_name="longread_nanopore_dup.png"
-bam=../data/nanopore-NA12878.bam
+bam="test/data/nanopore-NA12878.bam"
 rm -f $out_file_name
 
 run nanopore_dup \
@@ -203,7 +203,7 @@ sv_start=115928730
 sv_end=115931875
 sv_type=DEL
 out_file_name="longread_nanopore_del.png"
-bam=../data/nanopore-NA12878.bam
+bam="test/data/nanopore-NA12878.bam"
 rm -f $out_file_name
 run nanopore_del \
     samplot plot\
@@ -241,7 +241,7 @@ sv_start=58343117
 sv_end=58343622
 sv_type=DEL
 out_file_name="longread_del.png"
-bam=../data/hg19_chr1_58343117_58343622_deletion.bam
+bam="test/data/hg19_chr1_58343117_58343622_deletion.bam"
 rm -f $out_file_name
 run longread_del \
     samplot plot \
@@ -297,7 +297,7 @@ sv_start=27373431
 sv_end=27375410
 sv_type=INV
 out_file_name="longread_inv.png"
-bam=../data/hg19_chr21_27373431_27375410_inversion.bam
+bam="test/data/hg19_chr21_27373431_27375410_inversion.bam"
 rm -f $out_file_name
 run longread_inv \
     samplot plot\
@@ -335,7 +335,7 @@ sv_start=89475845
 sv_end=89478561
 sv_type=DEL
 out_file_name="linkedread_del.png"
-bam=../data/HG002_1_89475845-89478561_DEL.tenx.bam
+bam="test/data/HG002_1_89475845-89478561_DEL.tenx.bam"
 rm -f $out_file_name
 run linkedread_del \
     samplot plot\
@@ -377,7 +377,7 @@ sv_start_2=151118533
 sv_end_2=151118533
 sv_type=BND
 out_file_name="translocation.png"
-bam=../data/2_59305747-59505747_X_151018513-151218513.BND.bam
+bam="test/data/2_59305747-59505747_X_151018513-151218513.BND.bam"
 run translocation \
     samplot plot\
         -c $sv_chrm_1 -s $sv_start_1 -e $sv_end_1 \
@@ -385,8 +385,8 @@ run translocation \
         -b $bam \
         -o $out_file_name \
         -t $sv_type \
-        -A ../data/Alu.2_X.bed.gz \
-        -T ../data/Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz \
+        -A "test/data/Alu.2_X.bed.gz" \
+        -T "test/data/Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz" \
         --zoom 10000
 if [ $translocation ]; then
     assert_exit_code 0

@@ -9,7 +9,6 @@ Note: additional arguments are passed through to samplot plot
 from __future__ import print_function
 
 import json
-import logging
 import operator
 import os
 import random
@@ -749,7 +748,7 @@ def get_overlap(
         )
     except IndexError:
         # probably not a gff or gtf
-        logging.warning("Invalid annotation file specified for --gff")
+        print("Invalid annotation file specified for --gff")
         overlaps = None
     except ValueError:
         if fix_chr:
@@ -771,7 +770,7 @@ def get_overlap(
                 )
     except:
         # bad regions
-        logging.warning(
+        print(
             "Error fetching {chrom}:{start}-{end}".format(
                 chrom=chrom, start=start, end=end
             )
