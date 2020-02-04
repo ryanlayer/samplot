@@ -26,6 +26,7 @@ setup(
     url="https://github.com/ryanlayer/samplot.git",
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
     package_data={"": ["LICENSE", "README.md"]},
+    data_files=[("samplot", ["samplot/templates/samplot_vcf.html"])],
     include_package_data=True,
     install_requires=requires,
     license="MIT",

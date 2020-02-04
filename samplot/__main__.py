@@ -26,8 +26,8 @@ def main(args=None):
     add_plot(sub)
     add_vcf(sub)
 
-    args = parser.parse_args(args)
-    args.func(parser, args)
+    args,extra_args = parser.parse_known_args(args)
+    args.func(parser)
 
 
 if __name__ == "__main__":

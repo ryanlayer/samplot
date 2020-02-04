@@ -396,11 +396,10 @@ def cram_input(bams):
     return False
 
 
-def vcf(parser, args):
+def vcf(parser):
     """
     Generate commands for plotting variants from VCF, create html for showing them
     """
-
     args, pass_through_args = parser.parse_known_args()
     if args.dn_only and not args.ped:
         sys.exit("Missing --ped, required when using --dn_only")
