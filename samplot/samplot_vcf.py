@@ -8,11 +8,14 @@ Note: additional arguments are passed through to samplot plot
 """
 from __future__ import print_function
 
+import argparse
 import json
 import operator
 import os
 import random
 import sys
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import pysam
 
@@ -22,579 +25,6 @@ except ImportError:
     from pipes import quote
 
 
-HERE = os.path.dirname(__file__)
-HTML = """<!DOCTYPE html>
-<html lang='en'>
-<head>
-    <meta charset='utf-8'>
-    <title>samplot</title>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.9.2/d3.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.4.7/crossfilter.min.js" type='text/javascript'></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.js" type='text/javascript'></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" type='text/javascript'></script>
-    <!-- 1.10.16 due to export fixes in latest -->
-    <script src="https://cdn.datatables.net/1.10.16/js/jquery.dataTables.js" type='text/javascript'></script>
-    <script src="https://cdn.datatables.net/1.10.16/js/dataTables.bootstrap4.min.js" type='text/javascript'></script>
-    <!-- export buttons -->
-    <script src="https://cdn.datatables.net/buttons/1.5.6/js/dataTables.buttons.min.js" type='text/javascript'></script>
-    <script src="https://cdn.datatables.net/buttons/1.5.6/js/buttons.html5.min.js" type='text/javascript'></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/js/bootstrap.bundle.min.js" type='text/javascript'></script>
-
-    <link href="https://cdn.datatables.net/buttons/1.5.6/css/buttons.dataTables.min.css" rel="stylesheet" type="text/css"/>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css" rel='stylesheet' type='text/css'>
-    <link href="https://cdn.datatables.net/v/bs4/dt-1.10.18/sl-1.3.0/datatables.min.css" rel="stylesheet" type="text/css"/>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel='stylesheet' type='text/css'>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/dc/3.0.12/dc.min.css" rel='stylesheet' type='text/css'>
-
-    <style type="text/css">
-        #filter-menu .dropdown-menu { min-height: 100px; max-height: 100vh; overflow-y: auto; overflow-x: hidden; background-color: #edf0f2; }
-        span.no-show { display: none; }
-        span.show-ellipsis:after { content: "..."; }
-        .datatable-info { font-size: .9em; }
-        #variant-table_info { padding-top: 8px; }
-        table.dataTable thead th.sorting:after,
-        table.dataTable thead th.sorting_asc:after,
-        table.dataTable thead th.sorting_desc:after,
-        table.dataTable thead th.sorting:before,
-        table.dataTable thead th.sorting_asc:before,
-        table.dataTable thead th.sorting_desc:before {
-            font-family: FontAwesome !important;
-        }
-        .modal-content { width: 610px; }
-        h7 { font-size: .95rem; }
-    </style>
-</head>
-
-<body>
-    <nav class="navbar navbar-dark bg-dark p-0 pl-2">
-        <a class="navbar-brand text-light p-0" href="https://github.com/ryanlayer/samplot">samplot</a>
-    </nav>
-
-    <div class="modal fade" id="filter-modal" tabindex="-1" role="dialog" aria-labelledby="filter-modal" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="flex-column">
-                        <h5 class="modal-title" id="filter-modal">Filters</h5>
-                        <h7 class="pl-2 text-secondary" id="variant-count">
-                            <a href="javascript:dc.filterAll(); dc.renderAll();">Reset All</a>
-                        </h7>
-                    </div>
-                </div>
-                <div class="modal-body">
-                    <div class="container">
-                        <div class="row pt-2">
-                            <div class="col">
-                                <h5>Sample</h5>
-                            </div>
-                        </div>
-                        <div class="row pb-3">
-                            <div class="col-12">
-                                <div id="sample-search"></div>
-                            </div>
-                        </div>
-                        <div class="row" id="nsamples-chart">
-                            <div class="col-4">
-                                <h5># of Samples</h5>
-                            </div>
-                            <div class="col-8 text-right">
-                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                                <a class="reset" href="javascript:nsamplesChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                            </div>
-                        </div>
-                        <div class="row" id="size-chart">
-                            <div class="col-4">
-                                <h5>Size</h5>
-                            </div>
-                            <div class="col-8 text-right">
-                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                                <a class="reset" href="javascript:sizeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                            </div>
-                        </div>
-                        <div class="row" id="type-chart">
-                            <div class="col-4">
-                                <h5>SV Type</h5>
-                            </div>
-                            <div class="col-8 text-right">
-                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                                <a class="reset" href="javascript:typeChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                            </div>
-                        </div>
-                        <div class="row" id="chrom-chart">
-                            <div class="col-4">
-                                <h5>Chromosome</h5>
-                            </div>
-                            <div class="col-8 text-right">
-                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                                <a class="reset" href="javascript:chromChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                            </div>
-                        </div>
-                        <div class="row" id="overlaps-chart" hidden>
-                            <div class="col-4">
-                                <h5>SV Overlaps</h5>
-                            </div>
-                            <div class="col-8 text-right">
-                                <span class="reset text-muted" style="display: none;">[<span class="filter"></span>]</span>
-                                <a class="reset" href="javascript:overlapsChart.filterAll();dc.redrawAll();" style="display: none;">Reset</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" onclick="javascript:dc.filterAll(); dc.renderAll();" title="Clear selection and close">Cancel</button>
-                    <button type="button" class="btn btn-primary" data-dismiss="modal" title="Apply filters">Apply</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="container-fluid bg-light">
-        <div class="row" id="variant-table-placeholder" style="height:435px">
-            <div class="col-12">
-                <div class="d-flex justify-content-center align-items-center text-muted h-100">
-                    <div class="d-flex flex-column">
-                        <i class="fas fa-7x fa-table"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row pb-1" id="variant-table-div" hidden>
-            <div class="col-12">
-                <div class="table-responsive">
-                    <table id="variant-table" class="table table-hover table-sm table-bordered display nowrap" width="100%"></table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="container-fluid">
-        <div class="row" id="samplot-area-placeholder">
-            <div class="col-12">
-                <div style="height:415px">
-                    <div class="d-flex justify-content-center align-items-center text-muted h-100">
-                        <div class="d-flex flex-column">
-                            <i class="fas fa-7x fa-chart-bar"></i>
-                            <ul class="small p-0 m-3">
-                                <li>
-                                    Select a variant </br>from the table
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row" id="samplot-area" hidden>
-            <div class="col-12">
-                <img id="samplot-img" width="100%" src=""/>
-            </div>
-        </div>
-    </div>
-</body>
-
-<script>
-const data = [DATA]
-const plot_type = ".[PLOT_TYPE]"
-const annotation = [GFF]
-const denovo = [DENOVO]
-
-dc.config.defaultColors(d3.schemeSet1)
-
-// plot constraints
-const plotw = 585
-const ploth = 150
-
-// table filters
-var searchInput = dc.textFilterWidget("#sample-search")
-var nsamplesChart = dc.barChart("#nsamples-chart")
-var sizeChart = dc.barChart("#size-chart")
-var typeChart = dc.barChart("#type-chart")
-var chromChart = dc.barChart("#chrom-chart")
-var overlapsChart
-// shows filter impact in modal header
-var variantCount = dc.dataCount("#variant-count")
-
-// used to access filtered table data
-var chromDimension
-// datatables obj
-var variant_table
-// crossfilter obj
-var ndx
-
-$('#filter-modal').on('hidden.bs.modal', function () {
-    update_table()
-})
-
-const table_click = (row) => {
-    d3.select('#samplot-area-placeholder')
-        .property("hidden", true)
-    d3.select('#samplot-area')
-        .property("hidden", false)
-
-    // load the image
-    var img = row.svtype + "_" + row.chrom + "_" + row.start + "_" + row.end + plot_type
-    d3.select("#samplot-img")
-        .property("src", img)
-}
-
-function add_download_actions() {
-    $('#copy-button-download').on('click', function() {
-        variant_table.button('.buttons-copy').trigger()
-    })
-    $('#csv-button-download').on('click', function() {
-        variant_table.button('.buttons-csv').trigger()
-    })
-}
-
-function build_table(data) {
-    // hide the placeholder and show the datatable
-    d3.select('#variant-table-placeholder').property("hidden", true)
-    d3.select('#variant-table-div').property("hidden", false)
-
-    let cols = [
-        {data: 'chrom', title: 'Chrom'},
-        {data: 'start', title: 'Start'},
-        {data: 'end', title: 'End'},
-        {data: 'svlength', title: 'Size'},
-        {data: 'svtype', title: 'SV Type'},
-        {data: 'nsamples', title: '# of Samples'},
-        {data: 'samples', title: 'Samples'},
-    ]
-    if (annotation) {
-        d3.select('#overlaps-chart').property("hidden", false)
-        cols.push({data: 'overlaps', title: 'Overlaps'})
-    }
-    if (denovo) {
-        cols.push({data: 'dn', title: 'De novo'})
-    }
-
-    variant_table = $("#variant-table").DataTable({
-        data: data,
-        columns: cols,
-        scrollX: true,
-        scrollCollapse: true,
-        paging: true,
-        pagingType: "full",
-        pageLength: 10,
-        info: true,
-        buttons: [
-            'copyHtml5', 'csvHtml5'
-        ],
-        fnInfoCallback: (oSettings, iStart, iEnd, iMax, iTotal, sPre) => {
-            return `
-            <span class="datatable-info">
-                <span class="pr-2">Showing <b>${iStart}</b> - <b>${iEnd}</b> of <b>${iTotal}</b> records</span>
-                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#filter-modal" title="Show filters">
-                    <span class="fas fa-filter"></span>
-                </button>
-                <span class="dropup">
-                    <button type="button" class="btn btn-sm btn-primary dropdown-toggle" id="download-menu" title="Save table" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <span class="fas fa-save"></span>
-                    </button>
-                    <span class="dropdown-menu" aria-labelledby="download-menu">
-                        <h6 class="dropdown-header">Save ${iTotal} rows as:</h6>
-                        <button class="dropdown-item" type="button" id="csv-button-download">
-                            CSV
-                        </button>
-                        <button class="dropdown-item" type="button" id="copy-button-download">
-                            Copy
-                        </button>
-                    </span>
-                </span>
-            </span>
-            `
-        },
-        columnDefs: [
-            {
-                targets: (annotation ? [0,1,2,3,4,5,7] : [0,1,2,3,4,5]),
-                width: '15%'
-            },
-            // https://datatables.net/blog/2016-02-26
-            {
-                targets: 6,
-                render: function(data, type, row) {
-                    if (type === 'display' && data != null) {
-                        data = data.replace(/<(?:.|\\n)*?>/gm, '');
-                        if(data.length > 40) {
-                            return '<span class=\"show-ellipsis\">' + data.substr(0, 40) + '</span><span class=\"no-show\">' + data.substr(40) + '</span>';
-                        } else {
-                            return data;
-                        }
-                    } else {
-                        return data;
-                    }
-                }
-            }
-        ],
-        // search is applied using crossfilter
-        searching: false,
-        lengthChange: false,
-        order: [[0, 'asc'], [1, 'asc']]
-    })
-
-    // register table clicks on sample_column
-    variant_table.on('click', 'tr', function () {
-        if ( $(this).hasClass('selected') ) {
-            // do nothing for now
-        }
-        else {
-            // de-select all
-            variant_table.$('tr.selected').removeClass('selected')
-            // add select to clicked row
-            $(this).addClass('selected')
-            // update samplot area
-            table_click(variant_table.rows('.selected').data()[0])
-        }
-    })
-
-    add_download_actions()
-}
-
-function update_table() {
-    variant_table.clear()
-    variant_table.rows.add(chromDimension.top(Infinity))
-    variant_table.draw()
-    // gives function to new buttons each time table is redrawn
-    add_download_actions()
-}
-
-function remove_empty_bins(source_group) {
-    return {
-        all:function () {
-            return source_group.all().filter(function(d) {
-                return d.value != 0
-            })
-        }
-    }
-}
-
-// https://jsfiddle.net/gordonwoodhull/g34Ldwaz/8/
-// https://github.com/dc-js/dc.js/issues/348
-function index_group(group) {
-    return {
-        all: function() {
-            return group.all().map(function(kv, i) {
-                return {key: i, value: kv.value}
-            })
-        }
-    }
-}
-
-$(document).ready(function() {
-
-    ndx = crossfilter(data)
-    var all = ndx.groupAll()
-
-    chromDimension = ndx.dimension((d) => { return d.chrom })
-    build_table(chromDimension.top(Infinity))
-    var chromGroup = chromDimension.group().reduceCount()
-    var nonEmptyChromGroup = remove_empty_bins(chromGroup)
-
-    var searchDimension = ndx.dimension(function(d) {
-        return d.samples
-    })
-    searchInput
-        .dimension(searchDimension)
-        .on('renderlet', function() {
-            d3.selectAll(".dc-text-filter-input")
-                .classed("form-control", true)
-            d3.selectAll("#sample-search.dc-chart")
-                .classed("col-12", true)
-        })
-
-    var sizeDimension = ndx.dimension(function(d) {
-        var round
-        if (d.svlength < 100) {
-            round = 100
-        } else if (d.svlength < 1000) {
-            round = 100
-        } else if (d.svlength < 10000) {
-            round = 1000
-        } else if (d.svlength < 100000) {
-            round = 10000
-        } else if (d.svlength < 1000000) {
-            round = 100000
-        } else if (d.svlength < 10000000) {
-            round = 1000000
-        } else {
-            round = 10000000
-        }
-        return Math.round(d.svlength / round) * round
-    })
-    var sizeGroup = sizeDimension.group().reduceCount()
-    var nonEmptySizeGroup = remove_empty_bins(sizeGroup)
-    // for brushing, need to track keys at numeric indexes
-    var sizeKeys = nonEmptySizeGroup.all().map(dc.pluck('key')).slice()
-
-    var typeDimension = ndx.dimension((d) => { return d.svtype })
-    var typeGroup = typeDimension.group().reduceCount()
-    var nonEmptyTypeGroup = remove_empty_bins(typeGroup)
-
-    var nsamplesDimension = ndx.dimension((d) => { return d.nsamples })
-    var nsamplesDimension = ndx.dimension(function(d) {
-        var round
-        if (d.nsamples < 10) {
-            round = 1
-        } else if (d.nsamples < 100) {
-            round = 10
-        } else if (d.nsamples < 1000) {
-            round = 100
-        } else if (d.nsamples < 10000) {
-            round = 1000
-        } else {
-            round = 10000
-        }
-        return Math.round(d.nsamples / round) * round
-    })
-    var nsamplesGroup = nsamplesDimension.group().reduceCount()
-    var nonEmptyNsamplesGroup = remove_empty_bins(nsamplesGroup)
-    var nsamplesKeys = nonEmptyNsamplesGroup.all().map(dc.pluck('key')).slice()
-
-    // number of samples
-    nsamplesChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleLinear().domain([0, nsamplesKeys.length]))
-        .round(Math.floor)
-        .brushOn(true)
-        .elasticX(true)
-        .dimension(nsamplesDimension)
-        .group(index_group(nonEmptyNsamplesGroup))
-        .elasticY(true)
-        .yAxisLabel('Count')
-        .filterPrinter(function (filters) {
-            var filter = filters[0]
-            return nsamplesKeys[filter[0]] + ' - ' + nsamplesKeys[filter[1]]
-        })
-    // limit the number of labels along x-axis
-    nsamplesChart.xAxis().ticks(20)
-    nsamplesChart.yAxis().ticks(5)
-    // update labels from keys
-    nsamplesChart.xAxis().tickFormat(function(v) {
-        return nsamplesKeys[v]
-    })
-    nsamplesChart.filterHandler(function (dimension, filters) {
-        if (filters.length === 0) {
-            // the empty case (no filtering)
-            dimension.filter(null)
-        } else {
-            dimension.filterRange([nsamplesKeys[filters[0][0]], nsamplesKeys[filters[0][1]]])
-        }
-        return filters
-    })
-
-    // SV length
-    sizeChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleLinear().domain([0, sizeKeys.length]))
-        .round(Math.floor)
-        .brushOn(true)
-        .elasticX(true)
-        .dimension(sizeDimension)
-        .group(index_group(nonEmptySizeGroup))
-        .elasticY(true)
-        .yAxisLabel('Count')
-        .filterPrinter(function (filters) {
-            var filter = filters[0]
-            return sizeKeys[filter[0]] + ' - ' + sizeKeys[filter[1]]
-        })
-        // adds left padding to plots inside filtering panel
-        .on('renderlet', function() {
-            d3.selectAll("svg")
-                .classed("pl-3", true)
-        })
-    // limit the number of labels along x-axis
-    sizeChart.xAxis().ticks(10)
-    sizeChart.yAxis().ticks(5)
-    // update labels from keys
-    sizeChart.xAxis().tickFormat(function(v) {
-        return sizeKeys[v]
-    })
-    // update the status format for this chart
-    sizeChart.filterHandler(function (dimension, filters) {
-        if (filters.length === 0) {
-            // the empty case (no filtering)
-            dimension.filter(null)
-        } else {
-            dimension.filterRange([sizeKeys[filters[0][0]], sizeKeys[filters[0][1]]])
-        }
-        return filters
-    })
-
-    // sv type
-    typeChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleBand())
-        .xUnits(dc.units.ordinal)
-        .elasticX(true)
-        .elasticY(true)
-        .dimension(typeDimension)
-        .group(nonEmptyTypeGroup)
-        .yAxisLabel('Count')
-    typeChart.yAxis().ticks(5)
-
-    // chromosome
-    chromChart
-        .width(plotw).height(ploth).gap(1)
-        .margins({top: 10, right: 50, bottom: 30, left: 40})
-        .x(d3.scaleBand())
-        .xUnits(dc.units.ordinal)
-        .yAxisLabel('Count')
-        .elasticX(true)
-        .elasticY(true)
-        .dimension(chromDimension)
-        .group(nonEmptyChromGroup)
-        .ordering((d) => {
-            v = parseInt(d.key)
-            if (v) {
-                return v
-            } else {
-                return d.key
-            }
-        })
-    chromChart.yAxis().ticks(5)
-
-    // overlaps
-    if (annotation) {
-        var overlapsDimension = ndx.dimension((d) => { return d.overlaps })
-        var overlapsGroup = overlapsDimension.group().reduceCount()
-        var nonEmptyOverlapsGroup = remove_empty_bins(overlapsGroup)
-        overlapsChart = dc.barChart("#overlaps-chart")
-        overlapsChart
-            .width(plotw).height(ploth).gap(1)
-            .margins({top: 10, right: 50, bottom: 30, left: 40})
-            .x(d3.scaleBand())
-            .xUnits(dc.units.ordinal)
-            .elasticX(true)
-            .elasticY(true)
-            .dimension(overlapsDimension)
-            .group(nonEmptyOverlapsGroup)
-            .yAxisLabel('Count')
-        overlapsChart.yAxis().ticks(5)
-    }
-
-    variantCount
-        .crossfilter(ndx)
-        .groupAll(all)
-        // (_optional_) `.html` sets different html when some records or all records are selected.
-        // `.html` replaces everything in the anchor with the html given using the following function.
-        // `%filter-count` and `%total-count` are replaced with the values obtained.
-        .html({
-            some: '<strong>%filter-count</strong> selected out of <strong>%total-count</strong> records' +
-                ' | <a href=\\'javascript:dc.filterAll(); dc.renderAll();\\'>Reset All</a>',
-            all: '<strong>%total-count</strong> records'
-        });
-
-    dc.renderAll()
-})
-
-</script>
-</html>
-"""
 cmp_lookup = {
     ">": operator.gt,  # e.g. DHFC < 0.5
     "<": operator.lt,
@@ -982,9 +412,6 @@ def vcf(parser, args):
                 + "Use -r option. (Run `samplot.py -h` for more help)"
             )
 
-    global HTML
-    global HERE
-
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
     vcf_samples_set = set(vcf_samples)
@@ -1211,7 +638,6 @@ def vcf(parser, args):
 
         out_file.write(
             "samplot plot {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d {downsample} -b {bams}\n".format(
-                here=HERE,
                 extra_args=" ".join(pass_through_args),
                 bams=" ".join(bams),
                 titles=" ".join(title_list),
@@ -1230,14 +656,23 @@ def vcf(parser, args):
     if args.command_file:
         out_file.close()
 
-    # update the javascript
-    HTML = HTML.replace("[DATA]", json.dumps(tabledata))
-    HTML = HTML.replace("[PLOT_TYPE]", args.output_type)
-    HTML = HTML.replace("[GFF]", "true" if annotations else "false")
-    HTML = HTML.replace("[DENOVO]", "true" if dn_row else "false")
-
+    # grab the template
+    env = Environment(
+        loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates")),
+        autoescape=select_autoescape(["html"]),
+    )
+    html_template = env.get_template("samplot_vcf.html")
+    # write index.html
     with open("{out_dir}/index.html".format(out_dir=args.out_dir), "w") as fh:
-        print(HTML, file=fh)
+        print(
+            html_template.render(
+                data=tabledata,
+                plot_type=args.output_type,
+                gff="true" if annotations else "false",
+                denovo="true" if dn_row else "false",
+            ),
+            file=fh,
+        )
 
     if not args.manual_run:
         import subprocess
@@ -1255,6 +690,7 @@ def add_vcf(parent_parser):
 
     parser = parent_parser.add_parser(
         "vcf",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Generates commands to plot images with `samplot plot`,"
         + " using VCF file to define regions",
     )
@@ -1342,7 +778,7 @@ def add_vcf(parent_parser):
         "--sample_ids",
         type=str,
         nargs="+",
-        help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is ommitted.",
+        help="Space-delimited list of sample IDs, must have same order as BAM/CRAM file names. BAM RG tag required if this is omitted.",
         required=False,
     )
     parser.add_argument(

@@ -2,3 +2,4 @@ matplotlib
 numpy
 pysam>=0.15.2
 wget
+Jinja2
