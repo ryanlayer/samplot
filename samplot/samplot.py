@@ -7,7 +7,6 @@ import re
 import sys
 
 import matplotlib
-matplotlib.use("Agg")
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
@@ -16,6 +15,8 @@ import matplotlib.ticker as ticker
 import numpy as np
 import pysam
 from matplotlib.offsetbox import AnchoredText
+
+matplotlib.use("Agg")
 
 
 INTERCHROM_YAXIS = 5000
@@ -202,7 +203,7 @@ def get_tabix_iter(chrm, start, end, datafile):
                 + str(end)
                 + " from "
                 + datafile,
-                file=sys.stderr
+                file=sys.stderr,
             )
             print(e)
     return itr
@@ -878,6 +879,7 @@ def add_split(read, splits, bam_file, linked_reads):
         pos = int(A[1])
         strand = A[2] == "+"
         cigar = A[3]
+        #mapq and nm are never used, annotating this for code readability 
         mapq = int(A[4])
         nm = int(A[5])
         qs_pos, qe_pos = calc_query_pos_from_cigar(cigar, strand)
@@ -2331,6 +2333,8 @@ def add_plot(parent_parser):
     )
 
     parser.set_defaults(func=plot)
+
+
 # }}}
 
 # {{{def estimate_fragment_len(bam)
@@ -2339,25 +2343,25 @@ def estimate_fragment_len(bam, reference):
         if not reference:
             bam_file = pysam.AlignmentFile(bam, "rb")
         else:
-            bam_file = pysam.AlignmentFile(
-                bam, "rc", reference_filename=reference
-            )
+            bam_file = pysam.AlignmentFile(bam, "rc", reference_filename=reference)
     except Exception as err:
         print("Error:", err, file=sys.stderr)
         sys.exit(1)
 
     frag_lens = []
 
-    for i,read in enumerate(bam_file):
+    for i, read in enumerate(bam_file):
         if 1 >= 10000:
             break
         frag_lens.append(abs(read.tlen))
     if len(frag_lens) >= 5000:
         return np.median(frag_lens)
     else:
-        print("Insufficient reads for fragment length estimate.\nContinuing with unmodified window size", file=sys.stderr) 
+        print(
+            "Insufficient reads for fragment length estimate.\nContinuing with unmodified window size",
+            file=sys.stderr,
+        )
         return 0
-
 
 
 # {{{def set_plot_dimensions(sv,
@@ -2423,12 +2427,16 @@ def set_plot_dimensions(
                 window = int((sv[0].end - sv[0].start) / 2)
                 frag_len = estimate_fragment_len(bams[0], reference)
 
-                if (0 < frag_len) and (window < 1.5*frag_len):
+                if (0 < frag_len) and (window < 1.5 * frag_len):
                     old_window = window
-                    window = int(1.5*frag_len)
-                    print("Window size is under 1.5x the estimated fragment length "+
-                            "and will be resized to {}. Rerun with -w {} to override".format(window, old_window), 
-                            file=sys.stderr)
+                    window = int(1.5 * frag_len)
+                    print(
+                        "Window size is under 1.5x the estimated fragment length "
+                        + "and will be resized to {}. Rerun with -w {} to override".format(
+                            window, old_window
+                        ),
+                        file=sys.stderr,
+                    )
 
             ranges = [
                 genome_interval(
@@ -2515,8 +2523,6 @@ def get_read_data(
     all_long_reads = []
     all_linked_reads = []
 
-    min_insert_size = None
-    max_insert_size = None
     max_coverage = 0
 
     for bam_file_name in bams:
@@ -2541,7 +2547,7 @@ def get_read_data(
         for r in ranges:
             try:
                 bam_iter = bam_file.fetch(r.chrm, max(0, r.start - 1000), r.end + 1000)
-            except ValueError as e:
+            except ValueError:
                 chrm = r.chrm
                 if chrm[:3] == "chr":
                     chrm = chrm[3:]
@@ -2676,6 +2682,7 @@ def plot_samples(
     """
     max_insert_size = 0
     for i in range(len(bams)):
+        #ax is never used, annotating this for readability
         ax = plt.subplot(grid[ax_i])
         hps = set_haplotypes(read_data["all_coverages"][i])
         inner_axs = gridspec.GridSpecFromSubplotSpec(
@@ -2689,9 +2696,6 @@ def plot_samples(
         curr_max_insert_size = 0
 
         cover_axs = {}
-        curr_axs = ""
-        overall_insert_size_range = []
-        overall_coverage_range = []
         for hp in hps:
             curr_ax = axs[hp]
 

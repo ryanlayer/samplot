@@ -9,15 +9,13 @@ Note: additional arguments are passed through to samplot plot
 from __future__ import print_function
 
 import argparse
-import json
 import operator
 import os
 import random
 import sys
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
 import pysam
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 try:
     from shlex import quote
