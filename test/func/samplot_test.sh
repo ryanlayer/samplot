@@ -175,7 +175,7 @@ run from_vcf_auto \
         $data_path"HG003_Illumina.bam" \
         $data_path"HG004_Illumina.bam" 
 if [ $from_vcf_auto ]; then
-    assert_no_stderr
+    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 843. Rerun with -w 604 to override"
     assert_exit_code 0
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $test_dir/DEL_1_24804397_24807302.png $( ls $test_dir/DEL_1_24804397_24807302.png )
@@ -204,7 +204,7 @@ if [ $nanopore_dup ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 out_file_name=$func_path"longread_nanopore_dup_zoom.png"
@@ -221,7 +221,7 @@ if [ $nanopore_dup_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 sv_chrm=4
@@ -242,7 +242,7 @@ if [ $nanopore_del ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 out_file_name=$func_path"longread_nanopore_del_zoom.png"
@@ -259,7 +259,7 @@ if [ $nanopore_del_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 sv_chrm=chr1
@@ -280,7 +280,7 @@ if [ $longread_del ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 out_file_name=$func_path"longread_del_zoom_big_zoom.png"
@@ -297,6 +297,7 @@ if [ $longread_del_zoom_big_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_in_stderr "Ignoring zoom command."
+    assert_in_stderr "Insufficient reads for fragment length estimate."
     assert_no_stdout
 fi
 
@@ -315,7 +316,7 @@ if [ $longread_del_zoom_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 sv_chrm=chr21
@@ -336,7 +337,7 @@ if [ $longread_inv ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 out_file_name=$func_path"longread_inv_zoom.png"
@@ -353,7 +354,7 @@ if [ $longread_inv_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
-    assert_no_stderr
+    assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
 
 sv_chrm=1
