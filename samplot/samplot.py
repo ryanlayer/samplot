@@ -201,7 +201,8 @@ def get_tabix_iter(chrm, start, end, datafile):
                 + "-"
                 + str(end)
                 + " from "
-                + datafile
+                + datafile,
+                file=sys.stderr
             )
             print(e)
     return itr
@@ -2330,9 +2331,34 @@ def add_plot(parent_parser):
     )
 
     parser.set_defaults(func=plot)
-
-
 # }}}
+
+# {{{def estimate_fragment_len(bam)
+def estimate_fragment_len(bam, reference):
+    try:
+        if not reference:
+            bam_file = pysam.AlignmentFile(bam, "rb")
+        else:
+            bam_file = pysam.AlignmentFile(
+                bam, "rc", reference_filename=reference
+            )
+    except Exception as err:
+        print("Error:", err, file=sys.stderr)
+        sys.exit(1)
+
+    frag_lens = []
+
+    for i,read in enumerate(bam_file):
+        if 1 >= 10000:
+            break
+        frag_lens.append(abs(read.tlen))
+    if len(frag_lens) >= 5000:
+        return np.median(frag_lens)
+    else:
+        print("Insufficient reads for fragment length estimate.\nContinuing with unmodified window size", file=sys.stderr) 
+        return 0
+
+
 
 # {{{def set_plot_dimensions(sv,
 def set_plot_dimensions(
@@ -2341,6 +2367,7 @@ def set_plot_dimensions(
     arg_plot_height,
     arg_plot_width,
     bams,
+    reference,
     annotation_files,
     transcript_file,
     arg_window,
@@ -2376,7 +2403,7 @@ def set_plot_dimensions(
         window = arg_window
 
     """ 
-    Several things determin the window size. 
+    Several things determine the window size. 
     1) SV is not given, window = 0
     1) SV is given
         1) it is directly set
@@ -2394,6 +2421,14 @@ def set_plot_dimensions(
                 window = arg_window
             else:
                 window = int((sv[0].end - sv[0].start) / 2)
+                frag_len = estimate_fragment_len(bams[0], reference)
+
+                if (0 < frag_len) and (window < 1.5*frag_len):
+                    old_window = window
+                    window = int(1.5*frag_len)
+                    print("Window size is under 1.5x the estimated fragment length "+
+                            "and will be resized to {}. Rerun with -w {} to override".format(window, old_window), 
+                            file=sys.stderr)
 
             ranges = [
                 genome_interval(
@@ -2494,7 +2529,7 @@ def get_read_data(
                     bam_file_name, "rc", reference_filename=reference
                 )
         except Exception as err:
-            print("Error:", err)
+            print("Error:", err, file=sys.stderr)
             sys.exit(1)
 
         pairs = {}
@@ -3307,7 +3342,7 @@ def plot(parser):
         if ".cram" in bam:
             if not options.reference:
                 parser.print_help(sys.stderr)
-                sys.exit("Error: Missing reference for CRAM")
+                sys.exit("Error: Missing reference for CRAM", file=sys.stderr)
 
     if len(options.chrom) != len(options.start) != len(options.end):
         sys.stderr.write(
@@ -3325,6 +3360,7 @@ def plot(parser):
         options.plot_height,
         options.plot_width,
         options.bams,
+        options.reference,
         options.annotation_files,
         options.transcript_file,
         options.window,

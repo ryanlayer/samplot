@@ -808,5 +808,5 @@ def add_vcf(parent_parser):
     parser.set_defaults(func=vcf)
 
 
-# if __name__ == "__main__":
-#    main(args, pass_through_args)
+if __name__ == "__main__":
+    print("Run as samplot module with `samplot vcf`")
