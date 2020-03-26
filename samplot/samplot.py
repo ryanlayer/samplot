@@ -3346,7 +3346,7 @@ def plot(parser):
         if ".cram" in bam:
             if not options.reference:
                 parser.print_help(sys.stderr)
-                sys.exit("Error: Missing reference for CRAM", file=sys.stderr)
+                sys.exit("Error: Missing reference for CRAM")
 
     if len(options.chrom) != len(options.start) != len(options.end):
         sys.stderr.write(
