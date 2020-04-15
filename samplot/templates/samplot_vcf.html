@@ -199,10 +199,10 @@
 </body>
 
 <script>
-    const data = [{"chrom": "1", "end": 24807302, "nsamples": 2, "samples": "HG002;HG004", "start": 24804397, "svlength": 2905, "svtype": "DEL"}, {"chrom": "4", "end": 99817098, "nsamples": 3, "samples": "HG002;HG003;HG004", "start": 99813786, "svlength": 3312, "svtype": "DUP"}, {"chrom": "11", "end": 67975639, "nsamples": 2, "samples": "HG002;HG003", "start": 67974431, "svlength": 1208, "svtype": "DUP"}, {"chrom": "12", "end": 12546613, "nsamples": 3, "samples": "HG002;HG003;HG004", "start": 12544867, "svlength": 1746, "svtype": "INV"}, {"chrom": "19", "end": 12698924, "nsamples": 3, "samples": "HG002;HG003;HG004", "start": 12694866, "svlength": 4058, "svtype": "DEL"}]
-    const plot_type = "png"
-    const annotation = false
-    const denovo = false
+    const data = {{ data|tojson }}
+    const plot_type = "{{plot_type}}"
+    const annotation = {{ gff }}
+    const denovo = {{ denovo }}
 
     dc.config.defaultColors(d3.schemeSet1)
 

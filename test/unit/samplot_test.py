@@ -1,13 +1,12 @@
 import unittest
 import sys
-sys.path.append('../../src/')
 
-import samplot
+from samplot import samplot
 
 
-bam_1 = '../data/NA12878_restricted.bam'
-bam_2 = '../data/NA12889_restricted.bam'
-bam_3 = '../data/NA12890_restricted.bam'
+bam_1 = 'test/data/NA12878_restricted.bam'
+bam_2 = 'test/data/NA12889_restricted.bam'
+bam_3 = 'test/data/NA12890_restricted.bam'
 bams=[bam_1, bam_2, bam_3]
 
 sv_chrm = 'chr4'
@@ -27,6 +26,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                             arg_plot_height,
                             arg_plot_width,
                             bams,
+                            reference,
                             annotation_files,
                             transcript_file,
                             arg_window,
@@ -51,6 +51,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         plot_height,
                                         plot_width,
                                         bams,
+                                        None,
                                         annotation_files,
                                         transcript_file,
                                         window,
@@ -73,6 +74,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         plot_height,
                                         plot_width,
                                         bams,
+                                        None,
                                         annotation_files,
                                         transcript_file,
                                         window,
@@ -92,6 +94,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         plot_height,
                                         plot_width,
                                         bams,
+                                        None,
                                         annotation_files,
                                         transcript_file,
                                         window,
@@ -120,6 +123,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         plot_height,
                                         plot_width,
                                         bams,
+                                        None,
                                         annotation_files,
                                         transcript_file,
                                         window,
@@ -169,6 +173,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         plot_height,
                                         plot_width,
                                         bams,
+                                        None,
                                         annotation_files,
                                         transcript_file,
                                         window,

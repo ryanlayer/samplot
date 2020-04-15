@@ -1,0 +1,99 @@
+
+version: 2
+
+variables:
+  setup_p2: &setup_p2
+    run:
+      shell: /bin/bash
+      name: Setup Samplot python2 dependencies
+      command: bash .circleci/setup.sh 2
+  setup_p3: &setup_p3
+    run:
+      shell: /bin/bash
+      name: Setup Samplot python3 dependencies
+      command: bash .circleci/setup.sh 3
+  run_func_tests: &run_func_tests
+    run:
+      shell: /bin/bash
+      name: Functional Tests for Samplot
+      command: bash test/func/samplot_test.sh
+      no_output_timeout: 1h 
+  run_unit_tests: &run_unit_tests
+    run:
+      shell: /bin/bash
+      name: Functional Tests for Samplot
+      command: python test/unit/samplot_test.py
+      no_output_timeout: 1h 
+  macos: &macos
+    macos:
+      xcode: "9.4.1"
+  linux: &linux
+    machine: true
+  install_samplot: &install_samplot
+    run:
+      name: Install Samplot
+      command: python setup.py install
+
+
+
+jobs:
+  test-linux-python2:
+    <<: *linux
+    steps:
+      - checkout
+      - *setup_p2
+      - *install_samplot 
+      - *run_func_tests
+      - *run_unit_tests
+  test-linux-python3:
+    <<: *linux
+    steps:
+      - checkout
+      - *setup_p3
+      - *install_samplot 
+      - *run_func_tests
+      - *run_unit_tests
+  test-macos-python2:
+    <<: *macos
+    steps:
+      - checkout
+      - *setup_p2
+      - *install_samplot 
+      - *run_func_tests
+      - *run_unit_tests
+  test-macos-python3:
+    <<: *macos
+    steps:
+      - checkout
+      - *setup_p3
+      - *install_samplot
+      - *run_func_tests
+      - *run_unit_tests
+
+
+workflows:
+  version: 2
+  samplot-unit-tests:
+    jobs:
+      - test-linux-python2
+      - test-linux-python3
+      - test-macos-python2
+      - test-macos-python3
+  samplot-nightly-unit-tests:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - test-linux-python2
+      - test-linux-python3
+      - test-macos-python2
+      - test-macos-python3
+
+
+
+
+
