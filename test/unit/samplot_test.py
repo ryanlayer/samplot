@@ -38,7 +38,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
         annotation_files = None
         transcript_file = None
 
-        zoom = None
+        zoom = 500000
 
         window = None
 
@@ -151,7 +151,8 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                                options.long_read,
                                                options.same_yaxis_scales,
                                                options.max_depth,
-                                               options.z)
+                                               options.z,
+                                               options.ignore_hp)
         '''
 
         plot_height = None
@@ -160,7 +161,7 @@ class Test_set_plot_dimensions(unittest.TestCase):
         annotation_files = None
         transcript_file = None
 
-        zoom = None
+        zoom = 500000
 
         window = None
 
