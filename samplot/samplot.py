@@ -3312,7 +3312,7 @@ def plot_transcript(
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx * -0.1, transcript_idx * 1.01])
+    ax.set_ylim([transcript_idx * -0.1, 0.01+(transcript_idx * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
