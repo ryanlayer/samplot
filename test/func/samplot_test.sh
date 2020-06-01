@@ -296,7 +296,6 @@ run longread_del_zoom_big_zoom \
 if [ $longread_del_zoom_big_zoom ]; then
     assert_exit_code 0
     assert_equal $out_file_name $( ls $out_file_name )
-    assert_in_stderr "Ignoring zoom command."
     assert_in_stderr "Insufficient reads for fragment length estimate."
     assert_no_stdout
 fi
