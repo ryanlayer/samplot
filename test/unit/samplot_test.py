@@ -146,7 +146,8 @@ class Test_set_plot_dimensions(unittest.TestCase):
         read_data,max_coverage = get_read_data(ranges,
                                                options.bams,
                                                options.reference,
-                                               options.min_mqual,
+                                               options.separate_mqual,
+                                               options.include_mqual,
                                                options.coverage_only,
                                                options.long_read,
                                                options.same_yaxis_scales,
@@ -181,24 +182,28 @@ class Test_set_plot_dimensions(unittest.TestCase):
                                         zoom)
 
         reference = None
-        min_mqual = None
+        separate_mqual = 0
+        include_mqual = 1
         coverage_only = None
         long_read = 1000
-        long_even_size = 100
+        long_event_size = 100
         same_yaxis_scales = None
         max_depth = 100
         z = 4
+        ignore_hp = False
 
         read_data,max_coverage = samplot.get_read_data(r_ranges,
                                                        bams,
                                                        reference,
-                                                       min_mqual,
+                                                       separate_mqual,
+                                                       include_mqual,
                                                        coverage_only,
                                                        long_read,
-                                                       long_even_size,
+                                                       long_event_size,
                                                        same_yaxis_scales,
                                                        max_depth,
-                                                       z)
+                                                       z,
+                                                       ignore_hp)
     #}}}
 #}}}
 
