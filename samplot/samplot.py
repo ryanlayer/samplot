@@ -7,6 +7,7 @@ import re
 import sys
 
 import matplotlib
+matplotlib.rcParams['agg.path.chunksize'] = 10000
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
