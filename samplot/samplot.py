@@ -2351,7 +2351,7 @@ def estimate_fragment_len(bam, reference):
     frag_lens = []
 
     for i, read in enumerate(bam_file):
-        if 1 >= 10000:
+        if i >= 10000:
             break
         frag_lens.append(abs(read.tlen))
     if len(frag_lens) >= 5000:
@@ -3146,6 +3146,8 @@ def get_transcript_plan(ranges, transcript_file):
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, transcript_file)
         for row in itr:
+            print(row)
+            sys.exit()
             gene_annotation = row.rstrip().split()
 
             if gene_annotation[2] == "gene":
