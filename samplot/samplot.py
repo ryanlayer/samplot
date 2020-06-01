@@ -3146,8 +3146,6 @@ def get_transcript_plan(ranges, transcript_file):
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, transcript_file)
         for row in itr:
-            print(row)
-            sys.exit()
             gene_annotation = row.rstrip().split()
 
             if gene_annotation[2] == "gene":
