@@ -2201,6 +2201,13 @@ def add_plot(parent_parser):
         type=gff_file,
     )
 
+    parser.add_argument(
+        "--transcript_filename",
+        help="Name for transcript track",
+        required=False,
+        type=str,
+    )
+
     def bed_file(annotation_file):
         if not os.path.isfile(annotation_file):
             parser.error("annotation file {} does not exist or is not a valid file".format(annotation_file))
@@ -2225,6 +2232,14 @@ def add_plot(parent_parser):
         help="Space-delimited list of bed.gz tabixed "
         + "files of annotations (such as repeats, "
         + "mappability, etc.)",
+        required=False,
+    )
+    
+    parser.add_argument(
+        "--annotation_filenames",
+        type=str,
+        nargs="+",
+        help="Space-delimited list of names for the tracks in --annotation_files",
         required=False,
     )
 
@@ -3104,12 +3119,19 @@ def get_plot_annotation_plan(ranges, annotation_file):
 
 # {{{def plot_annotations(annotation_files, chrom, start, end,
 def plot_annotations(
-    annotation_files, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i
+    annotation_files, annotation_filenames, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i
 ):
     """Plots annotation information from region 
     """
-    for annotation_file in annotation_files:
+    if not annotation_filenames:
+        annotation_filenames = []
+        for annotation_file in annotation_files:
+            annotation_filenames.append(os.path.basename(annotation_file))
+
+    for i,annotation_file in enumerate(annotation_files):
         annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
+        annotation_filename = annotation_filenames[i]
+
         if len(annotation_plan) == 0:
             continue
         ax = plt.subplot(grid[ax_i])
@@ -3154,7 +3176,7 @@ def plot_annotations(
             ax.spines["bottom"].set_visible(False)
             ax.spines["left"].set_visible(False)
             ax.spines["right"].set_visible(False)
-            ax.set_title(os.path.basename(annotation_file), fontsize=8, loc="left")
+            ax.set_title(annotation_filename, fontsize=8, loc="left")
             ax.tick_params(axis="x", length=0)
             ax.tick_params(axis="y", length=0)
             ax.set_xticklabels([])
@@ -3320,10 +3342,12 @@ def get_transcript_plan(ranges, transcript_file):
 
 # {{{ def plot_transcript(transcript_file, chrom, start, end,
 def plot_transcript(
-    transcript_file, ranges, grid, annotation_fontsize, xaxis_label_fontsize
+    transcript_file, transcript_filename, ranges, grid, annotation_fontsize, xaxis_label_fontsize
 ):
     """Plots a transcript file annotation
     """
+    if not transcript_filename:
+        transcript_filename = os.path.basename(transcript_file)
     transcript_idx = 0
     arrow_loc = 0.02
     ax = plt.subplot(grid[-1])
@@ -3409,7 +3433,7 @@ def plot_transcript(
     ax.tick_params(axis="y", length=0)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
-    ax.set_title(os.path.basename(transcript_file), fontsize=8, loc="left")
+    ax.set_title(transcript_filename, fontsize=8, loc="left")
 
 
 # }}}
@@ -3445,6 +3469,11 @@ def plot(parser):
             output_file = os.path.join(options.output_dir, "_".join(name_fields))
         else:
             output_file = os.path.join(options.output_dir, "_".join(name_fields[1:]))
+    if (options.annotation_files 
+            and options.annotation_filenames 
+            and len(options.annotation_files) != len(options.annotation_filenames)):
+        print("annotation filenames do not match annotation files", file=sys.stderr)
+        sys.exit()
 
     for bam in options.bams:
         if ".cram" in bam:
@@ -3453,9 +3482,8 @@ def plot(parser):
                 sys.exit("Error: Missing reference for CRAM")
 
     if len(options.chrom) != len(options.start) != len(options.end):
-        sys.stderr.write(
-            "The number of chromosomes, starts, and ends do not match."
-        )
+        print("The number of chromosomes, starts, and ends do not match.", file=sys.stderr)
+        sys.exit()
 
     sv = []
     for i in range(len(options.chrom)):
@@ -3545,6 +3573,7 @@ def plot(parser):
     if options.annotation_files:
         plot_annotations(
             options.annotation_files,
+            options.annotation_filenames,
             ranges,
             options.hide_annotation_labels,
             options.annotation_fontsize,
@@ -3556,6 +3585,7 @@ def plot(parser):
     if options.transcript_file:
         plot_transcript(
             options.transcript_file,
+            options.transcript_filename,
             ranges,
             grid,
             options.annotation_fontsize,
