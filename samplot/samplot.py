@@ -212,13 +212,13 @@ def get_tabix_iter(chrm, start, end, datafile):
 # }}}
 
 ##Coverage methods
-# {{{def add_coverage(bam_file, read, coverage, minq):
-def add_coverage(bam_file, read, coverage, minq, ignore_hp):
+# {{{def add_coverage(bam_file, read, coverage, separate_mqual):
+def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
     """Adds a read to the known coverage 
     
     Coverage from Pysam read is added to the coverage list
     Coverage list is a pair of high- and low-quality lists
-    Quality is determined by minq, which is min quality
+    Quality is determined by separate_mqual, which is min quality
     """
 
     chrm = bam_file.get_reference_name(read.reference_id).strip("chr")
@@ -245,7 +245,7 @@ def add_coverage(bam_file, read, coverage, minq, ignore_hp):
 
                 # the two coverage tracks are [0] high-quality and [1]
                 # low-quality
-                if minq and (read.mapping_quality > minq):
+                if separate_mqual and (read.mapping_quality > separate_mqual):
                     coverage[hp][chrm][pos][0] += 1
                 else:
                     coverage[hp][chrm][pos][1] += 1
@@ -2170,16 +2170,6 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
-        "--minq",
-        type=int,
-        help="coverage from reads with MAPQ <= minq "
-        + "plotted in lighter grey. To disable, "
-        + "pass in negative value",
-        default=0,
-        required=False,
-    )
-
-    parser.add_argument(
         "-t",
         "--sv_type",
         type=str,
@@ -2266,10 +2256,20 @@ def add_plot(parent_parser):
 
     parser.add_argument(
         "-q",
-        "--min_mqual",
+        "--include_mqual",
         type=int,
-        help="Min mapping quality of reads to be " + "included in plot",
+        help="Min mapping quality of reads to be included in plot",
         default=1,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--separate_mqual",
+        type=int,
+        help="coverage from reads with MAPQ <= separate_mqual "
+        + "plotted in lighter grey. To disable, "
+        + "pass in negative value",
+        default=0,
         required=False,
     )
 
@@ -2579,7 +2579,8 @@ def get_read_data(
     ranges,
     bams,
     reference,
-    min_mqual,
+    separate_mqual,
+    include_mqual,
     coverage_only,
     long_read_length,
     min_event_size,
@@ -2592,7 +2593,7 @@ def get_read_data(
 
     Region and alignment files given with chrom, start, end, bams
     If CRAM files are used, reference must be provided
-    Reads with mapping quality below min_mqual will not be retrieved
+    Reads with mapping quality below include_mqual will not be retrieved
     If coverage_only, reads are not kept and used only for checking
     coverage Reads longer than long_read_length will be treated as long
     reads Max coverages values will be set to same value for all samples if
@@ -2645,8 +2646,7 @@ def get_read_data(
                     read.is_qcfail
                     or read.is_unmapped
                     or read.is_duplicate
-                    or min_mqual
-                    and int(read.mapping_quality) < min_mqual
+                    or int(read.mapping_quality) < include_mqual
                 ):
                     continue
 
@@ -2656,7 +2656,7 @@ def get_read_data(
                     else:
                         add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
                         add_split(read, splits, bam_file, linked_reads, ignore_hp)
-                add_coverage(bam_file, read, coverage, min_mqual, ignore_hp)
+                add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp)
 
         if (
             len(pairs) == 0
@@ -3486,7 +3486,8 @@ def plot(parser):
         ranges,
         options.bams,
         options.reference,
-        options.min_mqual,
+        options.separate_mqual,
+        options.include_mqual,
         options.coverage_only,
         options.long_read,
         options.min_event_size,
