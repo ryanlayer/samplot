@@ -175,7 +175,7 @@ run from_vcf_auto \
         $data_path"HG003_Illumina.bam" \
         $data_path"HG004_Illumina.bam" 
 if [ $from_vcf_auto ]; then
-    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 843. Rerun with -w 604 to override"
+    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 847. Rerun with -w 604 to override"
     assert_exit_code 0
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $test_dir/DEL_1_24804397_24807302.png $( ls $test_dir/DEL_1_24804397_24807302.png )
