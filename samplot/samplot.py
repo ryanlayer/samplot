@@ -2877,11 +2877,10 @@ def plot_samples(
         # {{{ set axis parameters
         # set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
-
         if titles and len(titles) == len(bams):
-            curr_ax.set_title(titles[ax_i - 1], fontsize=8, loc="left")
+            curr_ax.set_title(titles[i], fontsize=8, loc="left")
         else:
-            curr_ax.set_title(os.path.basename(bams[ax_i - 1]), fontsize=8, loc="left")
+            curr_ax.set_title(os.path.basename(bams[i]), fontsize=8, loc="left")
 
         if len(axs) > 1:
             for j in axs:
@@ -3597,8 +3596,9 @@ def plot(parser):
     plt.tight_layout(pad=0.8, h_pad=0.1, w_pad=0.1)
     try:
         plt.savefig(output_file)
-    except:
+    except Exception as e:
         print(
             "Failed to save figure " + output_file
         )
+        print(e)
 # }}}
