@@ -113,9 +113,9 @@ class genome_interval:
     """ return -1 if before, 0 if in, 1 if after """
 
     def intersect(self, gi):
-        if gi.chrm.strip("chr") < self.chrm.strip("chr") or gi.end < self.start:
+        if gi.chrm.replace("chr", "") < self.chrm.replace("chr", "") or gi.end < self.start:
             return -1
-        elif gi.chrm.strip("chr") > self.chrm.strip("chr") or gi.start > self.end:
+        elif gi.chrm.replace("chr", "") > self.chrm.replace("chr", "") or gi.start > self.end:
             return 1
         else:
             return 0
@@ -128,7 +128,7 @@ def get_range_hit(ranges, chrm, point):
     for j in range(len(ranges)):
         r = ranges[j]
         if (
-            r.chrm.strip("chr") == chrm.strip("chr")
+            r.chrm.replace("chr", "") == chrm.replace("chr", "")
             and r.start <= point
             and r.end >= point
         ):
@@ -221,7 +221,7 @@ def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
     Quality is determined by separate_mqual, which is min quality
     """
 
-    chrm = bam_file.get_reference_name(read.reference_id).strip("chr")
+    chrm = bam_file.get_reference_name(read.reference_id).replace("chr", "")
 
     hp = 0
 
@@ -283,7 +283,6 @@ def plot_coverage(
     superimposed may cause unexpected behavior if low-quality depth is
     greater than high 
     """
-
     cover_x = []
     cover_y_lowqual = []
     cover_y_highqual = []
@@ -2273,7 +2272,7 @@ def add_plot(parent_parser):
         "-q",
         "--include_mqual",
         type=int,
-        help="Min mapping quality of reads to be included in plot",
+        help="Min mapping quality of reads to be included in plot (default 1)",
         default=1,
         required=False,
     )
@@ -3194,7 +3193,7 @@ def get_interval_range_plan_start_end(ranges, interval):
     if start_range_hit_i is None and end_range_hit_i is None:
         for i, range_item in enumerate(ranges):
             if (
-                (range_item.chrm.strip("chr") == interval.chrm.strip("chr"))
+                (range_item.chrm.replace("chr", "") == interval.chrm.replace("chr", ""))
                 and (interval.start <= range_item.start <= interval.end)
                 and (interval.start <= range_item.end <= interval.end)
             ):
