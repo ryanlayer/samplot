@@ -2087,14 +2087,18 @@ def add_plot(parent_parser):
         if not os.path.isfile(bam):
             parser.error("alignment file {} does not exist or is not a valid file".format(bam))
         options = ["sam", "bam", "cram"]
-        idx_options = ["sai", "bai", "crai"]
+        idx_options = ["sai", "bai", "crai", "csi"]
         fields = os.path.splitext(bam)
         ext = fields[1][1:].lower()
         if ext not in options:
             parser.error("alignment file {} is not in SAM/BAM/CRAM format".format(bam))
         idx_type = idx_options[options.index(ext)]
+        #try the type-specific index name
         if not os.path.isfile(bam + "." + idx_type):
-            parser.error("alignment file {} has no index".format(bam))
+            idx_type = idx_options[3]
+            #try the csi index name
+            if not os.path.isfile(bam + "." + idx_type):
+                parser.error("alignment file {} has no index".format(bam))
         return bam
 
 
