@@ -113,9 +113,9 @@ class genome_interval:
     """ return -1 if before, 0 if in, 1 if after """
 
     def intersect(self, gi):
-        if gi.chrm.strip("chr") < self.chrm.strip("chr") or gi.end < self.start:
+        if gi.chrm.replace("chr", "") < self.chrm.replace("chr", "") or gi.end < self.start:
             return -1
-        elif gi.chrm.strip("chr") > self.chrm.strip("chr") or gi.start > self.end:
+        elif gi.chrm.replace("chr", "") > self.chrm.replace("chr", "") or gi.start > self.end:
             return 1
         else:
             return 0
@@ -128,7 +128,7 @@ def get_range_hit(ranges, chrm, point):
     for j in range(len(ranges)):
         r = ranges[j]
         if (
-            r.chrm.strip("chr") == chrm.strip("chr")
+            r.chrm.replace("chr", "") == chrm.replace("chr", "")
             and r.start <= point
             and r.end >= point
         ):
@@ -212,20 +212,20 @@ def get_tabix_iter(chrm, start, end, datafile):
 # }}}
 
 ##Coverage methods
-# {{{def add_coverage(bam_file, read, coverage, minq):
-def add_coverage(bam_file, read, coverage, minq):
+# {{{def add_coverage(bam_file, read, coverage, separate_mqual):
+def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
     """Adds a read to the known coverage 
     
     Coverage from Pysam read is added to the coverage list
     Coverage list is a pair of high- and low-quality lists
-    Quality is determined by minq, which is min quality
+    Quality is determined by separate_mqual, which is min quality
     """
 
-    chrm = bam_file.get_reference_name(read.reference_id).strip("chr")
+    chrm = bam_file.get_reference_name(read.reference_id).replace("chr", "")
 
     hp = 0
 
-    if read.has_tag("HP"):
+    if not ignore_hp and read.has_tag("HP"):
         hp = int(read.get_tag("HP"))
 
     if hp not in coverage:
@@ -245,7 +245,7 @@ def add_coverage(bam_file, read, coverage, minq):
 
                 # the two coverage tracks are [0] high-quality and [1]
                 # low-quality
-                if minq and (read.mapping_quality > minq):
+                if separate_mqual and (read.mapping_quality > separate_mqual):
                     coverage[hp][chrm][pos][0] += 1
                 else:
                     coverage[hp][chrm][pos][1] += 1
@@ -283,7 +283,6 @@ def plot_coverage(
     superimposed may cause unexpected behavior if low-quality depth is
     greater than high 
     """
-
     cover_x = []
     cover_y_lowqual = []
     cover_y_highqual = []
@@ -419,7 +418,7 @@ class PairedEnd:
 # }}}
 
 # {{{ def add_pair_end(bam_file, read, pairs, linked_reads):
-def add_pair_end(bam_file, read, pairs, linked_reads):
+def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     """adds a (mapped, primary, non-supplementary, and paired) read to the
     pairs list
 
@@ -441,7 +440,7 @@ def add_pair_end(bam_file, read, pairs, linked_reads):
 
     if read.has_tag("MI"):
         MI_tag = int(read.get_tag("MI"))
-    if read.has_tag("HP"):
+    if not ignore_hp and read.has_tag("HP"):
         HP_tag = int(read.get_tag("HP"))
 
     READ_TYPES_USED["Paired-end read"] = True
@@ -826,7 +825,7 @@ def calc_query_pos_from_cigar(cigar, strand):
 # }}}
 
 # {{{def add_split(read, splits, bam_file, linked_reads):
-def add_split(read, splits, bam_file, linked_reads):
+def add_split(read, splits, bam_file, linked_reads, ignore_hp):
     """adds a (primary, non-supplementary) read to the splits list
 
     Pysam read is added as simpified SplitRead instance to splits
@@ -847,7 +846,7 @@ def add_split(read, splits, bam_file, linked_reads):
     if read.has_tag("MI"):
         MI_tag = int(read.get_tag("MI"))
 
-    if read.has_tag("HP"):
+    if not ignore_hp and read.has_tag("HP"):
         HP_tag = int(read.get_tag("HP"))
     sr = SplitRead(
         bam_file.get_reference_name(read.reference_id),
@@ -1340,7 +1339,7 @@ def merge_alignments(min_gap, alignments):
 # }}}
 
 # {{{def add_long_reads(bam_file, read, long_reads, min_event_size):
-def add_long_reads(bam_file, read, long_reads, min_event_size):
+def add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp):
     """Adds a (primary, non-supplementary, long) read to the long_reads list
 
     Read added to long_reads if within the inteval defined by ranges
@@ -1354,7 +1353,7 @@ def add_long_reads(bam_file, read, long_reads, min_event_size):
 
     hp = 0
 
-    if read.has_tag("HP"):
+    if not ignore_hp and read.has_tag("HP"):
         hp = int(read.get_tag("HP"))
 
     alignments = get_alignments_from_cigar(
@@ -2044,6 +2043,7 @@ def print_arguments(options):
 
 # }}}
 
+
 # {{{def setup_arguments():
 def add_plot(parent_parser):
     """Defines the allowed arguments for plot function
@@ -2053,14 +2053,6 @@ def add_plot(parent_parser):
         help="Plot an image of a genome region from "
         + "CRAM/SAM alignments, "
         + "optimized for structural variant call review",
-    )
-
-    parser.add_argument(
-        "--marker_size",
-        type=int,
-        default=3,
-        help="Size of marks on pairs and splits (default 3) ",
-        required=False,
     )
 
     parser.add_argument(
@@ -2091,17 +2083,50 @@ def add_plot(parent_parser):
         required=False,
     )
 
+    def bam_file(bam):
+        if not os.path.isfile(bam):
+            parser.error("alignment file {} does not exist or is not a valid file".format(bam))
+        options = ["sam", "bam", "cram"]
+        idx_options = ["sai", "bai", "crai", "csi"]
+        fields = os.path.splitext(bam)
+        ext = fields[1][1:].lower()
+        if ext not in options:
+            parser.error("alignment file {} is not in SAM/BAM/CRAM format".format(bam))
+        idx_type = idx_options[options.index(ext)]
+        #try the type-specific index name
+        if not os.path.isfile(bam + "." + idx_type):
+            idx_type = idx_options[3]
+            #try the csi index name
+            if not os.path.isfile(bam + "." + idx_type):
+                parser.error("alignment file {} has no index".format(bam))
+        return bam
+
+
     parser.add_argument(
         "-b",
         "--bams",
-        type=str,
+        type=bam_file,
         nargs="+",
         help="Space-delimited list of BAM/CRAM file names",
         required=True,
     )
 
     parser.add_argument(
-        "-o", "--output_file", type=str, help="Output file name", required=True
+        "-o", 
+        "--output_file", 
+        type=str, 
+        help="Output file name/type. "
+        +"Defaults to {type}_{chrom}_{start}_{end}.png",
+        required=False,
+    )
+    
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=".",
+        help="Output directory name. Defaults to working dir. "
+        +"Ignored if --output_file is set",
+        required=False,
     )
 
     parser.add_argument(
@@ -2123,7 +2148,11 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
-        "-c", "--chrom", type=str, help="Chromosome", action="append", required=True
+        "-c",
+        "--chrom", type=str,
+        help="Chromosome",
+        action="append",
+        required=True
     )
 
     parser.add_argument(
@@ -2139,17 +2168,7 @@ def add_plot(parent_parser):
         "--max_depth",
         type=int,
         help="Max number of normal pairs to plot",
-        default=100,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--minq",
-        type=int,
-        help="coverage from reads with MAPQ <= minq "
-        + "plotted in lighter grey. To disable, "
-        + "pass in negative value",
-        default=0,
+        default=1,
         required=False,
     )
 
@@ -2160,19 +2179,70 @@ def add_plot(parent_parser):
         help="SV type. If omitted, plot is created " + "without variant bar",
         required=False,
     )
+    
+    def gff_file(transcript_file):
+        if not os.path.isfile(transcript_file):
+            parser.error("transcript file {} does not exist or is not a valid file".format(transcript_file))
+        options = ["gff", "gff3"]
+        fields = os.path.splitext(transcript_file)
+        ext = fields[1][1:]
+        if ext == "gz":
+            ext = os.path.splitext(fields[0])[1][1:]
+        ext = ext.lower()
+        if ext not in options:
+            parser.error("transcript file {} is not in GFF/GFF3 format".format(transcript_file))
+
+        idx_file = transcript_file + ".tbi"
+        if not os.path.isfile(idx_file):
+            parser.error("transcript file {} is missing .tbi index file".format(transcript_file))
+        return transcript_file
 
     parser.add_argument(
-        "-T", "--transcript_file", help="GFF of transcripts", required=False
+        "-T", "--transcript_file",
+        help="GFF3 of transcripts",
+        required=False,
+        type=gff_file,
     )
+
+    parser.add_argument(
+        "--transcript_filename",
+        help="Name for transcript track",
+        required=False,
+        type=str,
+    )
+
+    def bed_file(annotation_file):
+        if not os.path.isfile(annotation_file):
+            parser.error("annotation file {} does not exist or is not a valid file".format(annotation_file))
+        fields = os.path.splitext(annotation_file)
+        ext = fields[1][1:]
+        if ext == "gz":
+            ext = os.path.splitext(fields[0])[1][1:]
+        ext = ext.lower()
+        if ext != "bed":
+            parser.error("annotation file {} is not in BED format".format(annotation_file))
+
+        idx_file = annotation_file + ".tbi"
+        if not os.path.isfile(idx_file):
+            parser.error("annotation file {} is missing .tbi index file".format(annotation_file))
+        return annotation_file
 
     parser.add_argument(
         "-A",
         "--annotation_files",
-        type=str,
+        type=bed_file,
         nargs="+",
         help="Space-delimited list of bed.gz tabixed "
         + "files of annotations (such as repeats, "
         + "mappability, etc.)",
+        required=False,
+    )
+    
+    parser.add_argument(
+        "--annotation_filenames",
+        type=str,
+        nargs="+",
+        help="Space-delimited list of names for the tracks in --annotation_files",
         required=False,
     )
 
@@ -2204,9 +2274,20 @@ def add_plot(parent_parser):
 
     parser.add_argument(
         "-q",
-        "--min_mqual",
+        "--include_mqual",
         type=int,
-        help="Min mapping quality of reads to be " + "included in plot",
+        help="Min mapping quality of reads to be included in plot (default 1)",
+        default=1,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--separate_mqual",
+        type=int,
+        help="coverage from reads with MAPQ <= separate_mqual "
+        + "plotted in lighter grey. To disable, "
+        + "pass in negative value",
+        default=0,
         required=False,
     )
 
@@ -2248,10 +2329,16 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
+        "--ignore_hp",
+        action="store_true",
+        help="Choose to ignore HP tag in alignment files",
+        required=False,
+    )
+    parser.add_argument(
         "--min_event_size",
         type=int,
-        default=100,
-        help="Min size of an event in long-read " + "CIGAR to include (default 100)",
+        default=20,
+        help="Min size of an event in long-read " + "CIGAR to include (default 20)",
         required=False,
     )
 
@@ -2300,7 +2387,7 @@ def add_plot(parent_parser):
         action="store_true",
         default=False,
         help="Hide the label (fourth column text) "
-        + "from annotation files, useful for region "
+        + "from annotation files, useful for regions "
         + "with many annotations",
         required=False,
     )
@@ -2322,14 +2409,35 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
+        "--marker_size",
+        type=int,
+        default=3,
+        help="Size of marks on pairs and splits (default 3)",
+        required=False,
+    )
+    
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=300,
+        help="Dots per inches (pixel count, default 300)",
+        required=False,
+    )
+    parser.add_argument(
         "--zoom",
         type=int,
-        help="Only show +- zoom amount around breakpoints",
+        default=500000,
+        help="Only show +- zoom amount around breakpoints, "
+            +"much faster for large regions. "
+            +"Ignored if region smaller than --zoom (default 500000)",
         required=False,
     )
 
     parser.add_argument(
-        "--debug", type=str, help="Print debug statements", required=False
+        "--debug",
+        type=str,
+        help="Print debug statements",
+        required=False
     )
 
     parser.set_defaults(func=plot)
@@ -2351,7 +2459,7 @@ def estimate_fragment_len(bam, reference):
     frag_lens = []
 
     for i, read in enumerate(bam_file):
-        if 1 >= 10000:
+        if i >= 10000:
             break
         frag_lens.append(abs(read.tlen))
     if len(frag_lens) >= 5000:
@@ -2444,25 +2552,19 @@ def set_plot_dimensions(
                 )
             ]
 
-            # if zoom is set then set window to zoom and set two ranges
-            if zoom:
-                if window < zoom:
-                    sys.stderr.write(
-                        "Ignoring zoom command. " + "Zoom (" + str(zoom) + ")"
-                        " > Window (" + str(window) + ")\n"
-                    )
-                else:
-                    window = zoom
-                    ranges = [
-                        genome_interval(
-                            sv[0].chrm,
-                            max(0, sv[0].start - window),
-                            sv[0].start + window,
-                        ),
-                        genome_interval(
-                            sv[0].chrm, max(0, sv[0].end - window), sv[0].end + window
-                        ),
-                    ]
+            # if region is larger than zoom, set window to zoom and set two ranges
+            if window >= zoom:
+                window = zoom
+                ranges = [
+                    genome_interval(
+                        sv[0].chrm,
+                        max(0, sv[0].start - window),
+                        sv[0].start + window,
+                    ),
+                    genome_interval(
+                        sv[0].chrm, max(0, sv[0].end - window), sv[0].end + window
+                    ),
+                ]
         elif len(sv) == 2:
             if arg_window:
                 window = arg_window
@@ -2495,19 +2597,21 @@ def get_read_data(
     ranges,
     bams,
     reference,
-    min_mqual,
+    separate_mqual,
+    include_mqual,
     coverage_only,
     long_read_length,
     min_event_size,
     same_yaxis_scales,
     max_depth,
     z_score,
+    ignore_hp,
 ):
     """Reads alignment files to extract reads for the region
 
     Region and alignment files given with chrom, start, end, bams
     If CRAM files are used, reference must be provided
-    Reads with mapping quality below min_mqual will not be retrieved
+    Reads with mapping quality below include_mqual will not be retrieved
     If coverage_only, reads are not kept and used only for checking
     coverage Reads longer than long_read_length will be treated as long
     reads Max coverages values will be set to same value for all samples if
@@ -2560,18 +2664,17 @@ def get_read_data(
                     read.is_qcfail
                     or read.is_unmapped
                     or read.is_duplicate
-                    or min_mqual
-                    and int(read.mapping_quality) < min_mqual
+                    or int(read.mapping_quality) < include_mqual
                 ):
                     continue
 
                 if not coverage_only:
                     if read.query_length >= long_read_length:
-                        add_long_reads(bam_file, read, long_reads, min_event_size)
+                        add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp)
                     else:
-                        add_pair_end(bam_file, read, pairs, linked_reads)
-                        add_split(read, splits, bam_file, linked_reads)
-                add_coverage(bam_file, read, coverage, min_mqual)
+                        add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
+                        add_split(read, splits, bam_file, linked_reads, ignore_hp)
+                add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp)
 
         if (
             len(pairs) == 0
@@ -2594,7 +2697,9 @@ def get_read_data(
                 sn_coverages = [
                     v for values in coverage[chrm][pos].values() for v in values
                 ]
-                curr_max = np.percentile(sn_coverages, 99.5)
+                curr_max = 0
+                if len(sn_coverages) > 0:
+                    curr_max = np.percentile(sn_coverages, 99.5)
                 if curr_max > max_coverage:
                     max_coverage = curr_max
         all_coverages.append(coverage)
@@ -2775,11 +2880,10 @@ def plot_samples(
         # {{{ set axis parameters
         # set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
-
         if titles and len(titles) == len(bams):
-            curr_ax.set_title(titles[ax_i - 1], fontsize=8, loc="left")
+            curr_ax.set_title(titles[i], fontsize=8, loc="left")
         else:
-            curr_ax.set_title(os.path.basename(bams[ax_i - 1]), fontsize=8, loc="left")
+            curr_ax.set_title(os.path.basename(bams[i]), fontsize=8, loc="left")
 
         if len(axs) > 1:
             for j in axs:
@@ -3017,12 +3121,19 @@ def get_plot_annotation_plan(ranges, annotation_file):
 
 # {{{def plot_annotations(annotation_files, chrom, start, end,
 def plot_annotations(
-    annotation_files, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i
+    annotation_files, annotation_filenames, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i
 ):
     """Plots annotation information from region 
     """
-    for annotation_file in annotation_files:
+    if not annotation_filenames:
+        annotation_filenames = []
+        for annotation_file in annotation_files:
+            annotation_filenames.append(os.path.basename(annotation_file))
+
+    for i,annotation_file in enumerate(annotation_files):
         annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
+        annotation_filename = annotation_filenames[i]
+
         if len(annotation_plan) == 0:
             continue
         ax = plt.subplot(grid[ax_i])
@@ -3067,7 +3178,7 @@ def plot_annotations(
             ax.spines["bottom"].set_visible(False)
             ax.spines["left"].set_visible(False)
             ax.spines["right"].set_visible(False)
-            ax.set_title(os.path.basename(annotation_file), fontsize=8, loc="left")
+            ax.set_title(annotation_filename, fontsize=8, loc="left")
             ax.tick_params(axis="x", length=0)
             ax.tick_params(axis="y", length=0)
             ax.set_xticklabels([])
@@ -3086,7 +3197,7 @@ def get_interval_range_plan_start_end(ranges, interval):
     if start_range_hit_i is None and end_range_hit_i is None:
         for i, range_item in enumerate(ranges):
             if (
-                (range_item.chrm.strip("chr") == interval.chrm.strip("chr"))
+                (range_item.chrm.replace("chr", "") == interval.chrm.replace("chr", ""))
                 and (interval.start <= range_item.start <= interval.end)
                 and (interval.start <= range_item.end <= interval.end)
             ):
@@ -3233,10 +3344,12 @@ def get_transcript_plan(ranges, transcript_file):
 
 # {{{ def plot_transcript(transcript_file, chrom, start, end,
 def plot_transcript(
-    transcript_file, ranges, grid, annotation_fontsize, xaxis_label_fontsize
+    transcript_file, transcript_filename, ranges, grid, annotation_fontsize, xaxis_label_fontsize
 ):
     """Plots a transcript file annotation
     """
+    if not transcript_filename:
+        transcript_filename = os.path.basename(transcript_file)
     transcript_idx = 0
     arrow_loc = 0.02
     ax = plt.subplot(grid[-1])
@@ -3312,7 +3425,7 @@ def plot_transcript(
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx * -0.1, transcript_idx * 1.01])
+    ax.set_ylim([transcript_idx * -0.1, 0.01+(transcript_idx * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
@@ -3322,10 +3435,11 @@ def plot_transcript(
     ax.tick_params(axis="y", length=0)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
-    ax.set_title(os.path.basename(transcript_file), fontsize=8, loc="left")
+    ax.set_title(transcript_filename, fontsize=8, loc="left")
 
 
 # }}}
+
 
 ########################################################################
 # main block
@@ -3342,6 +3456,27 @@ def plot(parser):
         if options.json_only:
             sys.exit(0)
 
+    if options.output_file:
+        output_file = options.output_file
+    else:
+        if not os.path.isdir(options.output_dir):
+            os.mkdir(options.output_dir)
+        name_fields = [
+            options.sv_type,
+            "-".join(options.chrom),
+            "-".join([str(s) for s in options.start]),
+            "-".join([str(e) for e in options.end]),
+        ]
+        if options.sv_type:
+            output_file = os.path.join(options.output_dir, "_".join(name_fields))
+        else:
+            output_file = os.path.join(options.output_dir, "_".join(name_fields[1:]))
+    if (options.annotation_files 
+            and options.annotation_filenames 
+            and len(options.annotation_files) != len(options.annotation_filenames)):
+        print("annotation filenames do not match annotation files", file=sys.stderr)
+        sys.exit()
+
     for bam in options.bams:
         if ".cram" in bam:
             if not options.reference:
@@ -3349,9 +3484,8 @@ def plot(parser):
                 sys.exit("Error: Missing reference for CRAM")
 
     if len(options.chrom) != len(options.start) != len(options.end):
-        sys.stderr.write(
-            "The number of chromosomes, starts, and ends " + "do not match."
-        )
+        print("The number of chromosomes, starts, and ends do not match.", file=sys.stderr)
+        sys.exit()
 
     sv = []
     for i in range(len(options.chrom)):
@@ -3375,20 +3509,22 @@ def plot(parser):
 
     # set up sub plots
     matplotlib.rcParams.update({"font.size": 12})
-    fig = plt.figure(figsize=(plot_width, plot_height), dpi=300)
+    fig = plt.figure(figsize=(plot_width, plot_height), dpi=options.dpi)
 
     # read alignment data
     read_data, max_coverage = get_read_data(
         ranges,
         options.bams,
         options.reference,
-        options.min_mqual,
+        options.separate_mqual,
+        options.include_mqual,
         options.coverage_only,
         options.long_read,
         options.min_event_size,
         options.same_yaxis_scales,
         options.max_depth,
         options.z,
+        options.ignore_hp,
     )
 
     # set up grid organizer
@@ -3439,6 +3575,7 @@ def plot(parser):
     if options.annotation_files:
         plot_annotations(
             options.annotation_files,
+            options.annotation_filenames,
             ranges,
             options.hide_annotation_labels,
             options.annotation_fontsize,
@@ -3450,6 +3587,7 @@ def plot(parser):
     if options.transcript_file:
         plot_transcript(
             options.transcript_file,
+            options.transcript_filename,
             ranges,
             grid,
             options.annotation_fontsize,
@@ -3460,12 +3598,10 @@ def plot(parser):
     matplotlib.rcParams["agg.path.chunksize"] = 100000
     plt.tight_layout(pad=0.8, h_pad=0.1, w_pad=0.1)
     try:
-        plt.savefig(options.output_file)
-    except:
+        plt.savefig(output_file)
+    except Exception as e:
         print(
-            "Failed to save figure " + options.output_file + ". Region may be too large"
+            "Failed to save figure " + output_file
         )
-    plt.savefig(options.output_file)
-
-
+        print(e)
 # }}}

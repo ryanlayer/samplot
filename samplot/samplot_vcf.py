@@ -634,7 +634,7 @@ def vcf(parser):
                 title_list.append(variant_sample)
 
         out_file.write(
-            "samplot plot {extra_args} -z {z} --minq 0 -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d {downsample} -b {bams}\n".format(
+            "samplot plot {extra_args} -z {z} -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d {downsample} -b {bams}\n".format(
                 extra_args=" ".join(pass_through_args),
                 bams=" ".join(bams),
                 titles=" ".join(title_list),
