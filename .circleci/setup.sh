@@ -37,6 +37,7 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
     sudo chown -R $USER $WORKSPACE/anaconda/
 
     mkdir -p $WORKSPACE/anaconda/conda-bld/$tag-64
+    conda create -n test python="$pythonversion.7"
 
     # step 2: setup channels
     conda config --system --add channels defaults
