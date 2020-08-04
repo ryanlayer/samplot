@@ -37,11 +37,14 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
     sudo chown -R $USER $WORKSPACE/anaconda/
 
     mkdir -p $WORKSPACE/anaconda/conda-bld/$tag-64
-    conda create -n test python="$pythonversion.7" -y
-    conda init bash
-    conda activate test
 
-    # step 2: setup channels
+    #step 2: downgrade python3.8 to 3.7
+    if (( $pythonversion == 3 ))
+    then
+        conda install -y python=3.7
+    fi
+
+    # step 3: setup channels
     conda config --system --add channels defaults
     conda config --system --add channels r
     conda config --system --add channels bioconda
