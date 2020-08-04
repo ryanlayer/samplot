@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import pysam
+import warnings
+warnings.filterwarnings('ignore', 'FixedFormatter should only be used together with FixedLocator')
 from matplotlib.offsetbox import AnchoredText
 
 
@@ -357,6 +359,7 @@ def plot_coverage(
     tick_count = max(int(max_plot_depth / tick_count), 1)
 
     # set axis parameters
+    #ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     ax2.spines["top"].set_visible(False)
@@ -2913,6 +2916,7 @@ def plot_samples(
             curr_ax.tick_params(axis="y", labelsize=yaxis_label_fontsize)
             # if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps) == 1 else 3
+            #curr_ax.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
             curr_ax.tick_params(axis="both", length=0)
             curr_ax.set_xticklabels([])
@@ -2950,7 +2954,7 @@ def plot_samples(
             else:
                 sys.stderr.write("Ranges greater than 2 are not supported\n")
                 sys.exit(1)
-
+            
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
