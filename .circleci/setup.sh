@@ -38,6 +38,7 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
 
     mkdir -p $WORKSPACE/anaconda/conda-bld/$tag-64
     conda create -n test python="$pythonversion.7" -y
+    conda init bash
     conda activate test
 
     # step 2: setup channels
