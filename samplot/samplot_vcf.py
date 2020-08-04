@@ -440,30 +440,51 @@ def vcf(parser):
 
     out_file = open(args.command_file, "w")
 
-    for variant in vcf:
+    for var_count,variant in enumerate(vcf):
         svtype = variant.info.get("SVTYPE", "SV")
         if args.important_regions:
             if not var_in_important_regions(
                 important_regions, variant.chrom, variant.start, variant.stop
             ):
+                if args.debug:
+                    print("Skipping {} at {}:{}-{}, outside important_regions coordinates".format(
+                        svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
                 continue
 
         if svtype in ("INS"):
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, INS type not supported".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
         if variant.stop - variant.start > args.max_mb * 1000000:
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, variant length greater than max_mb".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
         if variant.stop - variant.start < args.min_bp:
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, variant length shorter than min_bp".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
 
         gts = [s.get("GT", (None, None)) for s in variant.samples.values()]
 
         if sum(None in g for g in gts) >= args.min_call_rate * len(vcf_samples):
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, call rate of variant below min_call_rate".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
         if args.max_hets:
             # requisite hets/hom-alts
             if sum(sum(x) >= 1 for x in gts if not None in x) > args.max_hets:
+                if args.debug:
+                    print("Skipping {} at {}:{}-{}, more than max_hets heterozygotes".format(
+                        svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
                 continue
         if not any(sum(x) > 0 for x in gts if not None in x):
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, no samples have non-ref genotypes".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
 
         test_idxs = [i for i, gt in enumerate(gts) if not None in gt and sum(gt) > 0]
@@ -493,7 +514,10 @@ def vcf(parser):
         for i in idxs:
             if vcf_samples[i] in names_to_bams:
                 variant_samples.append(vcf_samples[i])
-        if len(variant_samples) <= 0:
+        if len(variant_samples) == 0:
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, no samples with matched alignment files have variant".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
 
         bams = [names_to_bams[s] for s in variant_samples]
@@ -510,6 +534,9 @@ def vcf(parser):
                     is_dn.append(sample.id)
 
         if len(is_dn) <= 0 and args.dn_only:
+            if args.debug:
+                print("Skipping {} at {}:{}-{}, dn_only selected and no de novos found".format(
+                    svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
 
         # save these for the html.
@@ -649,6 +676,8 @@ def vcf(parser):
                 downsample=args.downsample,
             )
         )
+    if args.debug:
+        print("VCF entry count:",var_count+1 ,file=sys.stderr)
 
     if args.command_file:
         out_file.close()
@@ -802,7 +831,12 @@ def add_vcf(parent_parser):
         default=False,
         action="store_true",
     )
-
+    parser.add_argument(
+        "--debug",
+        help="prints out the reason each skipped variant entry is skipped",
+        default=False,
+        action="store_true",
+    )
     parser.set_defaults(func=vcf)
 
 
