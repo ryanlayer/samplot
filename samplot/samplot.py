@@ -2136,7 +2136,7 @@ def add_plot(parent_parser):
         "-s",
         "--start",
         type=int,
-        help="Start position of region/variant",
+        help="Start position of region/variant (add multiple for translocation/BND events)",
         action="append",
         required=True,
     )
@@ -2145,7 +2145,7 @@ def add_plot(parent_parser):
         "-e",
         "--end",
         type=int,
-        help="End position of region/variant",
+        help="End position of region/variant (add multiple for translocation/BND events)",
         action="append",
         required=True,
     )
@@ -2153,7 +2153,7 @@ def add_plot(parent_parser):
     parser.add_argument(
         "-c",
         "--chrom", type=str,
-        help="Chromosome",
+        help="Chromosome (add multiple for translocation/BND events)",
         action="append",
         required=True
     )

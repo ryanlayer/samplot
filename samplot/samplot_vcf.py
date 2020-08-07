@@ -441,6 +441,7 @@ def vcf(parser):
     out_file = open(args.command_file, "w")
 
     for var_count,variant in enumerate(vcf):
+        translocation_chrom = variant.info.get("CHR2")
         svtype = variant.info.get("SVTYPE", "SV")
         if args.important_regions:
             if not var_in_important_regions(
@@ -456,12 +457,13 @@ def vcf(parser):
                 print("Skipping {} at {}:{}-{}, INS type not supported".format(
                     svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
-        if variant.stop - variant.start > args.max_mb * 1000000:
+        if args.max_mb and (variant.stop - variant.start > args.max_mb * 1000000):
             if args.debug:
                 print("Skipping {} at {}:{}-{}, variant length greater than max_mb".format(
                     svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
-        if variant.stop - variant.start < args.min_bp:
+        
+        if (variant.stop - variant.start < args.min_bp) and translocation_chrom is None:
             if args.debug:
                 print("Skipping {} at {}:{}-{}, variant length shorter than min_bp".format(
                     svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
@@ -608,6 +610,7 @@ def vcf(parser):
 
         data_dict = {
             "chrom": variant.chrom,
+            "chrom2": translocation_chrom,
             "start": variant.start,
             "end": variant.stop,
             "svtype": svtype,
@@ -617,15 +620,17 @@ def vcf(parser):
         }
         if annotations:
             data_dict["overlaps"] = get_overlap(
-                annotations, variant.chrom, variant.start, variant.stop
+                annotations, variant.chrom, variant.start, variant.stop, translocation_chrom
             )
         if dn_row != "":
             data_dict["dn"] = ",".join(is_dn)
+        if translocation_chrom is None:
+            template = "{svtype}_{chrom}_{start}_{end}.{itype}"
+        else:
+            template = "{svtype}_{chrom}_{start}_{chrom2}_{end}.{itype}"
         fig_path = os.path.join(
             args.out_dir,
-            "{svtype}_{chrom}_{start}_{end}.{itype}".format(
-                itype=args.output_type, **data_dict
-            ),
+            template.format(itype=args.output_type, **data_dict),
         )
         tabledata.append(data_dict)
 
@@ -660,8 +665,22 @@ def vcf(parser):
             else:
                 title_list.append(variant_sample)
 
+        template = ("samplot plot {extra_args} -z {z} -n {titles}"
+                + "{cipos} {ciend} {svtype} -c {chrom} -s {start} "
+                + "-e {end} -o {fig_path} -d {downsample} -b {bams}")
+        start = variant.start
+        stop = variant.stop
+        start2 = None
+        stop2 = None
+        if translocation_chrom is not None:
+            template += " -c {chrom2} -s {start2} -e {end2}"
+            start2 = stop
+            stop2 = start2 + 1
+            stop = start + 1
+        template += "\n"
+
         out_file.write(
-            "samplot plot {extra_args} -z {z} -n {titles} {cipos} {ciend} {svtype} -c {chrom} -s {start} -e {end} -o {fig_path} -d {downsample} -b {bams}\n".format(
+            template.format(
                 extra_args=" ".join(pass_through_args),
                 bams=" ".join(bams),
                 titles=" ".join(title_list),
@@ -671,9 +690,12 @@ def vcf(parser):
                 svtype="-t " + svtype if svtype != "SV" else "",
                 fig_path=fig_path,
                 chrom=variant.chrom,
-                start=variant.start,
-                end=variant.stop,
+                start=start,
+                end=stop,
                 downsample=args.downsample,
+                chrom2=translocation_chrom,
+                start2=start2,
+                end2=stop2,
             )
         )
     if args.debug:
@@ -779,7 +801,6 @@ def add_vcf(parent_parser):
         "--max_mb",
         type=int,
         help="skip variants longer than this many megabases",
-        default=1,
     )
     parser.add_argument(
         "--min_bp",
