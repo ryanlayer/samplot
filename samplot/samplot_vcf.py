@@ -441,7 +441,10 @@ def vcf(parser):
     out_file = open(args.command_file, "w")
 
     for var_count,variant in enumerate(vcf):
-        translocation_chrom = variant.info.get("CHR2")
+        try:
+            translocation_chrom = variant.info.get("CHR2")
+        except:
+            translocation_chrom = None
         svtype = variant.info.get("SVTYPE", "SV")
         if args.important_regions:
             if not var_in_important_regions(
