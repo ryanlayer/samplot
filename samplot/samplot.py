@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import pysam
+import warnings
+warnings.filterwarnings('ignore', 'FixedFormatter should only be used together with FixedLocator')
 from matplotlib.offsetbox import AnchoredText
 
 
@@ -275,7 +277,8 @@ def plot_coverage(
     max_coverage,
     tracktype,
     yaxis_label_fontsize,
-    same_yaxis_labels=False,
+    same_yaxis_labels,
+    max_coverage_points,
 ):
     """Plots high and low quality coverage for the region
 
@@ -290,7 +293,14 @@ def plot_coverage(
 
     for i in range(len(ranges)):
         r = ranges[i]
-        for pos in range(r.start, r.end + 1):
+        region_len = r.end-r.start
+        downsample = 1
+        if region_len > max_coverage_points:
+            downsample = int(region_len / max_coverage_points)
+
+        for i,pos in enumerate(range(r.start, r.end + 1)):
+            if i%downsample !=  0: 
+                continue
             cover_x.append(map_genome_point_to_range_points(ranges, r.chrm, pos))
             if r.chrm in coverage and pos in coverage[r.chrm]:
                 cover_y_all.append(coverage[r.chrm][pos][0] + coverage[r.chrm][pos][1])
@@ -351,12 +361,14 @@ def plot_coverage(
         ax2.fill_between(
             cover_x, cover_y_lowqual, bottom_fill, color="grey", step="pre", alpha=0.15
         )
+    ## tracktype==None also allowed
 
     # number of ticks should be 6 if there's one hp, 3 otherwise
     tick_count = 5 if hp_count == 1 else 2
     tick_count = max(int(max_plot_depth / tick_count), 1)
 
     # set axis parameters
+    #ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     ax2.spines["top"].set_visible(False)
@@ -2133,7 +2145,7 @@ def add_plot(parent_parser):
         "-s",
         "--start",
         type=int,
-        help="Start position of region/variant",
+        help="Start position of region/variant (add multiple for translocation/BND events)",
         action="append",
         required=True,
     )
@@ -2142,7 +2154,7 @@ def add_plot(parent_parser):
         "-e",
         "--end",
         type=int,
-        help="End position of region/variant",
+        help="End position of region/variant (add multiple for translocation/BND events)",
         action="append",
         required=True,
     )
@@ -2150,7 +2162,7 @@ def add_plot(parent_parser):
     parser.add_argument(
         "-c",
         "--chrom", type=str,
-        help="Chromosome",
+        help="Chromosome (add multiple for translocation/BND events)",
         action="append",
         required=True
     )
@@ -2210,6 +2222,14 @@ def add_plot(parent_parser):
         required=False,
         type=str,
     )
+    
+    parser.add_argument(
+        "--max_coverage_points",
+        help="number of points to plot in coverage axis (downsampled from region size for speed)",
+        required=False,
+        type=int,
+        default=1000,
+    )
 
     def bed_file(annotation_file):
         if not os.path.isfile(annotation_file):
@@ -2250,7 +2270,7 @@ def add_plot(parent_parser):
         "--coverage_tracktype",
         type=str,
         help="type of track to use for low MAPQ " + "coverage plot.",
-        choices=["stack", "superimpose"],
+        choices=["stack", "superimpose", "none"],
         default="stack",
         required=False,
     )
@@ -2779,6 +2799,7 @@ def plot_samples(
     yaxis_label_fontsize,
     annotation_files,
     transcript_file,
+    max_coverage_points,
     max_coverage,
     marker_size,
 ):
@@ -2833,6 +2854,7 @@ def plot_samples(
                 coverage_tracktype,
                 yaxis_label_fontsize,
                 same_yaxis_scales,
+                max_coverage_points,
             )
 
             if len(curr_linked_reads) > 0:
@@ -2913,6 +2935,7 @@ def plot_samples(
             curr_ax.tick_params(axis="y", labelsize=yaxis_label_fontsize)
             # if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps) == 1 else 3
+            #curr_ax.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
             curr_ax.tick_params(axis="both", length=0)
             curr_ax.set_xticklabels([])
@@ -2950,7 +2973,7 @@ def plot_samples(
             else:
                 sys.stderr.write("Ranges greater than 2 are not supported\n")
                 sys.exit(1)
-
+            
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
@@ -3565,6 +3588,7 @@ def plot(parser):
         options.yaxis_label_fontsize,
         options.annotation_files,
         options.transcript_file,
+        options.max_coverage_points,
         max_coverage,
         marker_size,
     )
@@ -3598,7 +3622,7 @@ def plot(parser):
     matplotlib.rcParams["agg.path.chunksize"] = 100000
     plt.tight_layout(pad=0.8, h_pad=0.1, w_pad=0.1)
     try:
-        plt.savefig(output_file)
+        plt.savefig(output_file, dpi=100)
     except Exception as e:
         print(
             "Failed to save figure " + output_file
