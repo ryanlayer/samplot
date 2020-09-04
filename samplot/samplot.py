@@ -2106,7 +2106,9 @@ def add_plot(parent_parser):
             parser.error("alignment file {} is not in SAM/BAM/CRAM format".format(bam))
         idx_type = idx_options[options.index(ext)]
         #try the type-specific index name
-        if not os.path.isfile(bam + "." + idx_type):
+        picard_bam = os.path.splitext(bam)[0]
+        if (not os.path.isfile(bam + "." + idx_type) and 
+                not os.path.isfile(picard_bam + "." + idx_type)):
             idx_type = idx_options[3]
             #try the csi index name
             if not os.path.isfile(bam + "." + idx_type):
