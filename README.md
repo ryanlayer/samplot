@@ -117,8 +117,7 @@ conda install -c bioconda samplot
 ## Examples: 
 
 Samplot requires either BAM files or CRAM files as primary input. If you use
-CRAM, you'll also need a reference genome like one used the the [1000 Genomes
-Project](ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/human_g1k_v37.fasta.gz).
+CRAM, you'll also need a reference genome. You can easily acquire a reference genome file with [GGD](https://github.com/gogetdata/ggd-cli), which is also available from conda.
 
 ### Basic use case
 Using data from NA12878, NA12889, and NA12890 in the 
