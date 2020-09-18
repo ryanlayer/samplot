@@ -31,6 +31,21 @@ if [ $basic_operation ]; then
     assert_no_stderr
 fi
 
+rm -f $out_file_name
+run same_yaxis \
+    samplot plot \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 \
+        -o $out_file_name \
+        -t $sv_type \
+        --same_yaxis_scales
+if [ $basic_operation ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
 out_file_name=$func_path"test_zoom.png"
 rm -f $out_file_name
 run basic_operation_zoom \

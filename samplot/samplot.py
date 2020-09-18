@@ -315,7 +315,7 @@ def plot_coverage(
     cover_y_all = np.array(cover_y_all)
 
     if max_coverage > 0 and same_yaxis_labels:
-        max_plot_depth = max_coverage
+        max_plot_depth = max_coverage+5
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(
             np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5)
