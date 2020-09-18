@@ -2661,7 +2661,10 @@ def get_read_data(
                     bam_file_name, "rc", reference_filename=reference
                 )
         except Exception as err:
-            print("Error:", err, file=sys.stderr)
+            print("Error:", err, 
+                    "This can be caused by issues with the alignment file. "
+                    +"Please make sure that it is sorted and indexed before trying again",
+                    file=sys.stderr)
             sys.exit(1)
 
         pairs = {}
