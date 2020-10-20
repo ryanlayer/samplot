@@ -1712,6 +1712,8 @@ def plot_variant(sv, sv_type, ax, ranges):
     sv_title = ""
     if sv[0].chrm == sv[-1].chrm:
         sv_size = float(sv[0].end) - float(sv[0].start)
+        if len(sv) > 1:
+            sv_size = abs(int(float(sv[0].end) - float(sv[-1].start)))
         sv_size_unit = "bp"
 
         if sv_size > 1000000:
