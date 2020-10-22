@@ -1741,6 +1741,9 @@ def plot_confidence_interval(chrm, breakpoint, ci, ax, ranges):
         map_genome_point_to_range_points(ranges, chrm, breakpoint - int(ci[0])),
         map_genome_point_to_range_points(ranges, chrm, breakpoint + int(ci[1])),
     ]
+    if None in r:
+        # confidence intervals are invalid
+        return
 
     ax.plot(r, [0, 0], "-", color="black", lw=0.5, alpha=1)
     ax.axvline(r[0], color="black", lw=0.5, alpha=1, ymin=0.40, ymax=0.60)
