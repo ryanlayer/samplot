@@ -599,9 +599,9 @@ def vcf(parser):
                 for i, gt in enumerate(gts)
                 if len(gt) == 2 and gt[0] == 0 and gt[1] == 0
             ]
+
             if len(hom_ref_idxs) > 3:
                 random.shuffle(hom_ref_idxs)
-                hom_ref_idxs = hom_ref_idxs[:3]
 
             hom_ref_samples = []
             for i in hom_ref_idxs:
