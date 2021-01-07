@@ -2812,6 +2812,7 @@ def plot_samples(
     max_coverage_points,
     max_coverage,
     marker_size,
+    coverage_only,
 ):
 
     """Plots all samples
@@ -2945,10 +2946,12 @@ def plot_samples(
             curr_ax.tick_params(axis="y", labelsize=yaxis_label_fontsize)
             # if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps) == 1 else 3
-            #curr_ax.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
             curr_ax.tick_params(axis="both", length=0)
             curr_ax.set_xticklabels([])
+            if coverage_only:
+                curr_ax.yaxis.set_visible(False)
+
         last_sample_num = number_of_axes - 1
         if annotation_files:
             last_sample_num -= len(annotation_files)
@@ -2987,7 +2990,7 @@ def plot_samples(
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
-
+    
         curr_ax = axs[hps[int(len(hps) / 2)]]
         curr_ax.set_ylabel("Insert size", fontsize=8)
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
@@ -3601,6 +3604,7 @@ def plot(parser):
         options.max_coverage_points,
         max_coverage,
         marker_size,
+        options.coverage_only,
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
