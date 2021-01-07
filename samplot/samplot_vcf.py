@@ -441,11 +441,14 @@ def vcf(parser):
     out_file = open(args.command_file, "w")
 
     for var_count,variant in enumerate(vcf):
-        try:
-            translocation_chrom = variant.info.get("CHR2")
-        except:
-            translocation_chrom = None
+        translocation_chrom = None
         svtype = variant.info.get("SVTYPE", "SV")
+        if svtype in ["BND","TRA"]:
+            try:
+                translocation_chrom = variant.info.get("CHR2")
+            except:
+                pass
+
         if args.important_regions:
             if not var_in_important_regions(
                 important_regions, variant.chrom, variant.start, variant.stop
@@ -596,9 +599,9 @@ def vcf(parser):
                 for i, gt in enumerate(gts)
                 if len(gt) == 2 and gt[0] == 0 and gt[1] == 0
             ]
+
             if len(hom_ref_idxs) > 3:
                 random.shuffle(hom_ref_idxs)
-                hom_ref_idxs = hom_ref_idxs[:3]
 
             hom_ref_samples = []
             for i in hom_ref_idxs:
@@ -639,12 +642,12 @@ def vcf(parser):
 
         if "CIPOS" in variant.info:
             v = variant.info["CIPOS"]
-            cipos = "--start_ci '%s,%s'" % (abs(v[0]), abs(v[1]))
+            cipos = "--start_ci '%s,%s'" % (abs(int(v[0])), abs(int(v[1])))
         else:
             cipos = ""
         if "CIEND" in variant.info:
             v = variant.info["CIEND"]
-            ciend = "--end_ci '%s,%s'" % (abs(v[0]), abs(v[1]))
+            ciend = "--end_ci '%s,%s'" % (abs(int(v[0])), abs(int(v[1])))
         else:
             ciend = ""
         # dynamically set Z to speed drawing and remove noise for larger events
@@ -668,7 +671,7 @@ def vcf(parser):
             else:
                 title_list.append(variant_sample)
 
-        template = ("samplot plot {extra_args} -z {z} -n {titles}"
+        template = ("samplot plot {extra_args} -z {z} -n {titles} "
                 + "{cipos} {ciend} {svtype} -c {chrom} -s {start} "
                 + "-e {end} -o {fig_path} -d {downsample} -b {bams}")
         start = variant.start

@@ -241,6 +241,9 @@
         let row = table.rows('.selected').data()[0]
         let img = new Image()
         img.src = `${row.svtype}_${row.chrom}_${row.start}_${row.end}.${plot_type}`
+        if ( row.chrom2) {
+            img.src = `${row.svtype}_${row.chrom}_${row.start}_${row.chrom2}_${row.end}.${plot_type}`
+        }
         let viewer = new Viewer(img, {
             hidden: function () {
                 viewer.destroy()
