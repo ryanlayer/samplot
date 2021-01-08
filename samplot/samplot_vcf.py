@@ -468,7 +468,6 @@ def vcf(parser):
                 print("Skipping {} at {}:{}-{}, variant length greater than max_mb".format(
                     svtype, variant.chrom, variant.start, variant.stop),file=sys.stderr)
             continue
-        
         if (variant.stop - variant.start < args.min_bp) and translocation_chrom is None:
             if args.debug:
                 print("Skipping {} at {}:{}-{}, variant length shorter than min_bp".format(
@@ -626,7 +625,7 @@ def vcf(parser):
         }
         if annotations:
             data_dict["overlaps"] = get_overlap(
-                annotations, variant.chrom, variant.start, variant.stop, translocation_chrom
+                annotations, variant.chrom, variant.start, variant.stop
             )
         if dn_row != "":
             data_dict["dn"] = ",".join(is_dn)
