@@ -179,6 +179,59 @@ rm -rf img/
 mkdir img
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_gff3_dir"
+rm -f $cmd_file
+rm -rf $test_dir
+run from_vcf_gff3 \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        --gff3 $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
+        --manual_run\
+        --command_file $cmd_file
+if [ $from_vcf_gff3 ]; then
+    assert_no_stderr
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
+fi
+
+
+rm -rf img/
+mkdir img
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_gff3_dir"
+rm -f $cmd_file
+rm -rf $test_dir
+run from_vcf_annotated \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        -T $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
+        -A $data_path"Alu.2_X.bed.gz" \
+        --manual_run\
+        --command_file $cmd_file
+if [ $from_vcf_annotated ]; then
+    assert_no_stderr
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
+fi
+
+
+rm -rf img/
+mkdir img
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_vcf_auto_dir"
 rm -rf $test_dir
 run from_vcf_auto \
