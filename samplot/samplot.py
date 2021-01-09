@@ -177,7 +177,7 @@ def points_in_window(points):
 
 # {{{ def get_tabix_iter(chrm, start, end, datafile):
 def get_tabix_iter(chrm, start, end, datafile):
-    """Gets an iterator from a tabix BED/GFF/GFF3 file
+    """Gets an iterator from a tabix BED/GFF3 file
 
     Used to avoid chrX vs. X notation issues when extracting data from
     annotation files
@@ -2209,7 +2209,7 @@ def add_plot(parent_parser):
             ext = os.path.splitext(fields[0])[1][1:]
         ext = ext.lower()
         if ext not in options:
-            parser.error("transcript file {} is not in GFF/GFF3 format".format(transcript_file))
+            parser.error("transcript file {} is not in GFF3 format".format(transcript_file))
 
         idx_file = transcript_file + ".tbi"
         if not os.path.isfile(idx_file):
@@ -3292,6 +3292,8 @@ def get_transcript_plan(ranges, transcript_file):
 
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, transcript_file)
+        if not itr:
+            continue
         for row in itr:
             gene_annotation = row.rstrip().split()
 
