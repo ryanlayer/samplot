@@ -104,12 +104,17 @@ def get_format_fields(ids, variant):
     returns:
         list
     """
-    fields = list()
-    for i in ids:
-        fields.append(
-            ["%s=%s" % (i, flatten(j.get(i, ""))) for j in variant.samples.values()]
-        )
-    return zip_lists(fields)
+    sample_format = []
+    for i,sample_fields in enumerate(variant.samples.values()):
+        for field_id in ids:
+            sample_field_val = flatten(sample_fields.get(field_id, ""))
+            if sample_field_val:
+                if len(sample_format) < i+1:
+                    sample_format.append("")
+                else:
+                    sample_format[i] += " "
+                sample_format[i] += "{}={}".format(field_id,sample_field_val)
+    return sample_format
 
 
 def get_format_title(samples, ids, variant):
@@ -175,8 +180,8 @@ def get_overlap(
             [i.split("\t")[2].lower() for i in tabix.fetch(chrom, start, end)]
         )
     except IndexError:
-        # probably not a gff or gtf
-        print("Invalid annotation file specified for --gff")
+        # probably not a gff3
+        print("Invalid annotation file specified for --gff3")
         overlaps = None
     except ValueError:
         if fix_chr:
@@ -415,8 +420,8 @@ def vcf(parser):
     vcf_samples_list = list(vcf_samples)
 
     annotations = None
-    if args.gff:
-        annotations = pysam.TabixFile(args.gff)
+    if args.gff3:
+        annotations = pysam.TabixFile(args.gff3)
 
     filters = [to_exprs(f) for f in args.filter]
 
@@ -721,7 +726,7 @@ def vcf(parser):
             html_template.render(
                 data=tabledata,
                 plot_type=args.output_type,
-                gff="true" if annotations else "false",
+                gff3="true" if annotations else "false",
                 denovo="true" if dn_row else "false",
             ),
             file=fh,
@@ -845,7 +850,7 @@ def add_vcf(parent_parser):
         help="comma separated list of FORMAT fields to include in sample plot title",
     )
     parser.add_argument(
-        "--gff",
+        "--gff3",
         help="genomic regions (.gff with .tbi in same directory) used when building HTML table and table filters",
     )
     parser.add_argument(
