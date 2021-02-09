@@ -277,7 +277,6 @@ def plot_coverage(
     max_coverage,
     tracktype,
     yaxis_label_fontsize,
-    same_yaxis_labels,
     max_coverage_points,
 ):
     """Plots high and low quality coverage for the region
@@ -314,8 +313,8 @@ def plot_coverage(
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    if max_coverage > 0:# and same_yaxis_labels:
-        max_plot_depth = max_coverage#+5
+    if max_coverage > 0:
+        max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(
             np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5)
@@ -2758,7 +2757,8 @@ def get_read_data(
         read_data["all_pairs"] = downsample_pairs(
             max_depth, z_score, read_data["all_pairs"]
         )
-
+    if not same_yaxis_scales:
+        max_coverage = 0
     return read_data, max_coverage
 
 
@@ -2871,7 +2871,6 @@ def plot_samples(
                 max_coverage,
                 coverage_tracktype,
                 yaxis_label_fontsize,
-                same_yaxis_scales,
                 max_coverage_points,
             )
 
@@ -3593,6 +3592,8 @@ def plot(parser):
             options.start_ci,
             options.end_ci,
         )
+    if options.max_coverage:
+        max_coverage = options.max_coverage
 
     # Plot each sample
     current_axis_idx = plot_samples(
@@ -3611,7 +3612,7 @@ def plot(parser):
         options.annotation_files,
         options.transcript_file,
         options.max_coverage_points,
-        min(max_coverage,options.max_coverage),
+        max_coverage,
         marker_size,
         options.coverage_only,
     )

@@ -15,7 +15,7 @@ sv_chrm=chr4
 sv_start=115928730
 sv_end=115931875
 sv_type=DEL
-out_file_name=$func_path"test.png"
+out_file_name=$func_path"test_del.png"
 
 rm -f $out_file_name
 run basic_operation \
@@ -74,11 +74,16 @@ if [ $coverage_only ]; then
 fi
 
 out_file_name=$func_path"test_same_yaxis.png"
+
+sv_chrm=chrX
+sv_start=101055330
+sv_end=101067156
+sv_type=DUP
 rm -f $out_file_name
 run same_yaxis \
     samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1 \
+        -b $bam_1 $bam_2 $bam_3\
         -o $out_file_name \
         -t $sv_type \
         --same_yaxis_scales
@@ -89,6 +94,10 @@ if [ $basic_operation ]; then
     assert_no_stderr
 fi
 
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
 out_file_name=$func_path"test_zoom.png"
 rm -f $out_file_name
 run basic_operation_zoom \
