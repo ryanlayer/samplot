@@ -314,8 +314,8 @@ def plot_coverage(
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    if max_coverage > 0 and same_yaxis_labels:
-        max_plot_depth = max_coverage+5
+    if max_coverage > 0:# and same_yaxis_labels:
+        max_plot_depth = max_coverage#+5
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(
             np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5)
@@ -2428,6 +2428,13 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
+        "--max_coverage",
+        default=0,
+        type=int,
+        help="apply a maximum coverage cutoff. Unlimited by default",
+    )
+
+    parser.add_argument(
         "--same_yaxis_scales",
         action="store_true",
         default=False,
@@ -3604,7 +3611,7 @@ def plot(parser):
         options.annotation_files,
         options.transcript_file,
         options.max_coverage_points,
-        max_coverage,
+        min(max_coverage,options.max_coverage),
         marker_size,
         options.coverage_only,
     )
