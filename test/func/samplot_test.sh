@@ -31,6 +31,49 @@ if [ $basic_operation ]; then
     assert_no_stderr
 fi
 
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
+out_file_name=$func_path"test_max_coverage.png"
+
+rm -f $out_file_name
+run max_coverage \
+    samplot plot \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $out_file_name \
+        --max_coverage 50\
+        -t $sv_type
+if [ $max_coverage ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
+out_file_name=$func_path"test_coverage_only.png"
+
+rm -f $out_file_name
+run coverage_only \
+    samplot plot \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 \
+        -o $out_file_name \
+        --coverage_only \
+        -t $sv_type
+if [ $coverage_only ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+out_file_name=$func_path"test_same_yaxis.png"
 rm -f $out_file_name
 run same_yaxis \
     samplot plot \
