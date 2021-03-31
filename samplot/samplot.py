@@ -177,7 +177,7 @@ def points_in_window(points):
 
 # {{{ def get_tabix_iter(chrm, start, end, datafile):
 def get_tabix_iter(chrm, start, end, datafile):
-    """Gets an iterator from a tabix BED/GFF/GFF3 file
+    """Gets an iterator from a tabix BED/GFF3 file
 
     Used to avoid chrX vs. X notation issues when extracting data from
     annotation files
@@ -277,7 +277,6 @@ def plot_coverage(
     max_coverage,
     tracktype,
     yaxis_label_fontsize,
-    same_yaxis_labels,
     max_coverage_points,
 ):
     """Plots high and low quality coverage for the region
@@ -314,8 +313,8 @@ def plot_coverage(
     cover_y_highqual = np.array(cover_y_highqual)
     cover_y_all = np.array(cover_y_all)
 
-    if max_coverage > 0 and same_yaxis_labels:
-        max_plot_depth = max_coverage+5
+    if max_coverage > 0:
+        max_plot_depth = max_coverage
     elif cover_y_all.max() > 3 * cover_y_all.mean():
         max_plot_depth = max(
             np.percentile(cover_y_all, 99.5), np.percentile(cover_y_all, 99.5)
@@ -2209,7 +2208,7 @@ def add_plot(parent_parser):
             ext = os.path.splitext(fields[0])[1][1:]
         ext = ext.lower()
         if ext not in options:
-            parser.error("transcript file {} is not in GFF/GFF3 format".format(transcript_file))
+            parser.error("transcript file {} is not in GFF3 format".format(transcript_file))
 
         idx_file = transcript_file + ".tbi"
         if not os.path.isfile(idx_file):
@@ -2425,6 +2424,13 @@ def add_plot(parent_parser):
         default=False,
         help="Hide all reads and show only coverage",
         required=False,
+    )
+
+    parser.add_argument(
+        "--max_coverage",
+        default=0,
+        type=int,
+        help="apply a maximum coverage cutoff. Unlimited by default",
     )
 
     parser.add_argument(
@@ -2751,7 +2757,8 @@ def get_read_data(
         read_data["all_pairs"] = downsample_pairs(
             max_depth, z_score, read_data["all_pairs"]
         )
-
+    if not same_yaxis_scales:
+        max_coverage = 0
     return read_data, max_coverage
 
 
@@ -2864,7 +2871,6 @@ def plot_samples(
                 max_coverage,
                 coverage_tracktype,
                 yaxis_label_fontsize,
-                same_yaxis_scales,
                 max_coverage_points,
             )
 
@@ -3292,6 +3298,8 @@ def get_transcript_plan(ranges, transcript_file):
 
     for r in ranges:
         itr = get_tabix_iter(r.chrm, r.start, r.end, transcript_file)
+        if not itr:
+            continue
         for row in itr:
             gene_annotation = row.rstrip().split()
 
@@ -3584,6 +3592,8 @@ def plot(parser):
             options.start_ci,
             options.end_ci,
         )
+    if options.max_coverage:
+        max_coverage = options.max_coverage
 
     # Plot each sample
     current_axis_idx = plot_samples(

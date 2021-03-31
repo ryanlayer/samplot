@@ -15,7 +15,7 @@ sv_chrm=chr4
 sv_start=115928730
 sv_end=115931875
 sv_type=DEL
-out_file_name=$func_path"test.png"
+out_file_name=$func_path"test_del.png"
 
 rm -f $out_file_name
 run basic_operation \
@@ -31,11 +31,59 @@ if [ $basic_operation ]; then
     assert_no_stderr
 fi
 
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
+out_file_name=$func_path"test_max_coverage.png"
+
+rm -f $out_file_name
+run max_coverage \
+    samplot plot \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 $bam_2 $bam_3 \
+        -o $out_file_name \
+        --max_coverage 50\
+        -t $sv_type
+if [ $max_coverage ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
+out_file_name=$func_path"test_coverage_only.png"
+
+rm -f $out_file_name
+run coverage_only \
+    samplot plot \
+        -c $sv_chrm -s $sv_start -e $sv_end \
+        -b $bam_1 \
+        -o $out_file_name \
+        --coverage_only \
+        -t $sv_type
+if [ $coverage_only ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+out_file_name=$func_path"test_same_yaxis.png"
+
+sv_chrm=chrX
+sv_start=101055330
+sv_end=101067156
+sv_type=DUP
 rm -f $out_file_name
 run same_yaxis \
     samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
-        -b $bam_1 \
+        -b $bam_1 $bam_2 $bam_3\
         -o $out_file_name \
         -t $sv_type \
         --same_yaxis_scales
@@ -46,6 +94,10 @@ if [ $basic_operation ]; then
     assert_no_stderr
 fi
 
+sv_chrm=chr4
+sv_start=115928730
+sv_end=115931875
+sv_type=DEL
 out_file_name=$func_path"test_zoom.png"
 rm -f $out_file_name
 run basic_operation_zoom \
@@ -174,6 +226,59 @@ if [ $from_vcf ]; then
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $cmd_file $( ls $cmd_file )
 fi
+
+rm -rf img/
+mkdir img
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_gff3_dir"
+rm -f $cmd_file
+rm -rf $test_dir
+run from_vcf_gff3 \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        --gff3 $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
+        --manual_run\
+        --command_file $cmd_file
+if [ $from_vcf_gff3 ]; then
+    assert_no_stderr
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
+fi
+
+
+rm -rf img/
+mkdir img
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_gff3_dir"
+rm -f $cmd_file
+rm -rf $test_dir
+run from_vcf_annotated \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        -T $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
+        -A $data_path"Alu.2_X.bed.gz" \
+        --manual_run\
+        --command_file $cmd_file
+if [ $from_vcf_annotated ]; then
+    assert_no_stderr
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $cmd_file $( ls $cmd_file )
+fi
+
 
 rm -rf img/
 mkdir img
