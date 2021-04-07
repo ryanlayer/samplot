@@ -2953,6 +2953,8 @@ def plot_samples(
             # if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps) == 1 else 3
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
+            curr_ax.ticklabel_format(useOffset=False, style='plain')
+            
             curr_ax.tick_params(axis="both", length=0)
             curr_ax.set_xticklabels([])
             if coverage_only:
