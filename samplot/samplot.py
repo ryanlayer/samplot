@@ -184,7 +184,7 @@ def get_tabix_iter(chrm, start, end, datafile):
     """
     try:
         tbx = pysam.TabixFile(datafile)
-    except OSError:
+    except:
         tbx = pysam.TabixFile(datafile, index=datafile+".csi")
 
 
