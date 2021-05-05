@@ -541,4 +541,25 @@ if [ $translocation ]; then
     assert_no_stderr
 fi
 
+
+out_file_name=$func_path"csi-annotation.png"
+bam=$data_path"2_59305747-59505747_X_151018513-151218513.BND.bam"
+run translocation \
+    samplot plot\
+        -c $sv_chrm_1 -s $sv_start_1 -e $sv_end_1 \
+        -c $sv_chrm_2 -s $sv_start_2 -e $sv_end_2 \
+        -b $bam \
+        -o $out_file_name \
+        -t $sv_type \
+        -A $data_path"Alu.2_X.csionly.bed.gz" \
+        -T $data_path"Homo_sapiens.GRCh37.csionly.2_X.gff3.gz" \
+        --zoom 10000
+if [ $translocation ]; then
+    assert_exit_code 0
+    assert_equal $out_file_name $( ls $out_file_name )
+    assert_no_stdout
+    assert_no_stderr
+fi
+
+
 rm -rf $func_path"img/" ssshtest

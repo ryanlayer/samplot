@@ -182,7 +182,12 @@ def get_tabix_iter(chrm, start, end, datafile):
     Used to avoid chrX vs. X notation issues when extracting data from
     annotation files
     """
-    tbx = pysam.TabixFile(datafile)
+    try:
+        tbx = pysam.TabixFile(datafile)
+    except:
+        tbx = pysam.TabixFile(datafile, index=datafile+".csi")
+
+
     itr = None
     try:
         itr = tbx.fetch(chrm, max(0, start - 1000), end + 1000)
@@ -2212,7 +2217,9 @@ def add_plot(parent_parser):
 
         idx_file = transcript_file + ".tbi"
         if not os.path.isfile(idx_file):
-            parser.error("transcript file {} is missing .tbi index file".format(transcript_file))
+            idx_file = transcript_file + ".csi"
+            if not os.path.isfile(idx_file):
+                parser.error("transcript file {} is missing .tbi/.csi index file".format(transcript_file))
         return transcript_file
 
     parser.add_argument(
@@ -2250,7 +2257,9 @@ def add_plot(parent_parser):
 
         idx_file = annotation_file + ".tbi"
         if not os.path.isfile(idx_file):
-            parser.error("annotation file {} is missing .tbi index file".format(annotation_file))
+            idx_file = annotation_file + ".csi"
+            if not os.path.isfile(idx_file):
+                parser.error("annotation file {} is missing .tbi index file".format(annotation_file))
         return annotation_file
 
     parser.add_argument(
