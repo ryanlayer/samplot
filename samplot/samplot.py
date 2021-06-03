@@ -3564,7 +3564,8 @@ def plot(parser):
 
     # set up sub plots
     matplotlib.rcParams.update({"font.size": 12})
-    fig = plt.figure(figsize=(plot_width, plot_height), dpi=options.dpi)
+    print(options.dpi)
+    fig = plt.figure(figsize=(plot_width, plot_height))
 
     # read alignment data
     read_data, max_coverage = get_read_data(
@@ -3657,7 +3658,7 @@ def plot(parser):
     matplotlib.rcParams["agg.path.chunksize"] = 100000
     plt.tight_layout(pad=0.8, h_pad=0.1, w_pad=0.1)
     try:
-        plt.savefig(output_file, dpi=100)
+        plt.savefig(output_file, dpi=options.dpi)
     except Exception as e:
         print(
             "Failed to save figure " + output_file
