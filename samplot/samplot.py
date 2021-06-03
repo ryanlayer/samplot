@@ -3564,7 +3564,6 @@ def plot(parser):
 
     # set up sub plots
     matplotlib.rcParams.update({"font.size": 12})
-    print(options.dpi)
     fig = plt.figure(figsize=(plot_width, plot_height))
 
     # read alignment data
