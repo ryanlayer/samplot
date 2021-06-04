@@ -3509,7 +3509,7 @@ def plot_transcript(
 def plot(parser, options, extra_args=None):
     """
     To support translocations, the SVs are specified as an array of 
-    genome_interval. For now we let that arry be size 1 or 2.
+    genome_interval. For now we let that array be size 1 or 2.
     """
 
     if options.print_args or options.json_only:
