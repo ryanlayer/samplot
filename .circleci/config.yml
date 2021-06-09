@@ -67,7 +67,8 @@ jobs:
       - checkout
       - *setup_p2
       - *install_samplot 
-      - *run_func_tests
+      - *run_plot_tests
+      - *run_vcf_tests
       - *run_unit_tests
   test-macos-python3:
     <<: *macos
@@ -75,7 +76,8 @@ jobs:
       - checkout
       - *setup_p3
       - *install_samplot
-      - *run_func_tests
+      - *run_plot_tests
+      - *run_vcf_tests
       - *run_unit_tests
 
 
