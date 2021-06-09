@@ -12,8 +12,6 @@ bam_2=$data_path"NA12889_restricted.bam"
 bam_3=$data_path"NA12890_restricted.bam"
 
 
-rm -rf img/
-mkdir img
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_vcf_dir"
@@ -35,9 +33,9 @@ if [ $from_vcf ]; then
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $cmd_file $( ls $cmd_file )
 fi
+rm -f $cmd_file
+rm -rf $test_dir
 
-rm -rf img/
-mkdir img
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_vcf_gff3_dir"
@@ -60,10 +58,10 @@ if [ $from_vcf_gff3 ]; then
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $cmd_file $( ls $cmd_file )
 fi
+rm -f $cmd_file
+rm -rf $test_dir
 
 
-rm -rf img/
-mkdir img
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_vcf_gff3_dir"
@@ -87,10 +85,10 @@ if [ $from_vcf_annotated ]; then
     assert_equal $test_dir/index.html $( ls $test_dir/index.html )
     assert_equal $cmd_file $( ls $cmd_file )
 fi
+rm -f $cmd_file
+rm -rf $test_dir
 
 
-rm -rf img/
-mkdir img
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_vcf_auto_dir"
@@ -113,6 +111,8 @@ if [ $from_vcf_auto ]; then
     assert_equal $test_dir/INV_12_12544867_12546613.png $( ls $test_dir/INV_12_12544867_12546613.png )
     assert_equal $test_dir/DEL_19_12694866_12698924.png $( ls $test_dir/DEL_19_12694866_12698924.png )
 fi
+rm -f $cmd_file
+rm -rf $test_dir
 
 
-rm -rf $func_path"img/" ssshtest
+rm -rf ssshtest
