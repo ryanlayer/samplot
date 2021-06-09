@@ -12,11 +12,17 @@ variables:
       shell: /bin/bash
       name: Setup Samplot python3 dependencies
       command: bash .circleci/setup.sh 3
-  run_func_tests: &run_func_tests
+  run_plot_tests: &run_plot_tests
     run:
       shell: /bin/bash
       name: Functional Tests for Samplot
       command: bash test/func/samplot_test.sh
+      no_output_timeout: 1h 
+  run_vcf_tests: &run_vcf_tests
+    run:
+      shell: /bin/bash
+      name: Functional Tests for Samplot
+      command: bash test/func/samplot_vcf_test.sh
       no_output_timeout: 1h 
   run_unit_tests: &run_unit_tests
     run:
@@ -43,7 +49,8 @@ jobs:
       - checkout
       - *setup_p2
       - *install_samplot 
-      - *run_func_tests
+      - *run_plot_tests
+      - *run_vcf_tests
       - *run_unit_tests
   test-linux-python3:
     <<: *linux
@@ -51,7 +58,8 @@ jobs:
       - checkout
       - *setup_p3
       - *install_samplot 
-      - *run_func_tests
+      - *run_plot_tests
+      - *run_vcf_tests
       - *run_unit_tests
   test-macos-python2:
     <<: *macos
