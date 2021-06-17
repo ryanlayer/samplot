@@ -109,6 +109,9 @@ optional arguments:
   --marker_size MARKER_SIZE
                         Size of marks on pairs and splits (default 3)
   --dpi DPI             Dots per inches (pixel count, default 300)
+  --annotation_scalar ANNOTATION_SCALAR
+                        scaling factor for the optional annotation/trascript
+                        tracks
   --zoom ZOOM           Only show +- zoom amount around breakpoints, much
                         faster for large regions. Ignored if region smaller
                         than --zoom (default 500000)
