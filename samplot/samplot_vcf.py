@@ -603,7 +603,6 @@ def get_denovos(
 
 def get_family_controls(
     ped,
-    samples,
     denovo_svs,
     variant_samples,
     ped_samples,
@@ -1022,7 +1021,7 @@ def generate_commands(
             dn_only,
             debug,
         )
-        if dn_only and len(denovo_svs <= 0):
+        if dn_only and (len(denovo_svs) <= 0):
             continue
 
         # save fields for the html.
