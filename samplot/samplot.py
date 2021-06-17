@@ -2295,7 +2295,7 @@ def add_plot(parent_parser):
         "--print_args",
         action="store_true",
         default=False,
-        help="Print commandline arguments",
+        help="Print commandline arguments to a json file, useful with PlotCritic",
         required=False,
     )
 
