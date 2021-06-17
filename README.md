@@ -64,7 +64,8 @@ optional arguments:
                         --annotation_files
   --coverage_tracktype {stack,superimpose,none}
                         type of track to use for low MAPQ coverage plot.
-  -a, --print_args      Print commandline arguments
+  -a, --print_args      Print commandline arguments to a json file, useful
+                        with PlotCritic
   -H PLOT_HEIGHT, --plot_height PLOT_HEIGHT
                         Plot height
   -W PLOT_WIDTH, --plot_width PLOT_WIDTH
@@ -110,7 +111,7 @@ optional arguments:
                         Size of marks on pairs and splits (default 3)
   --dpi DPI             Dots per inches (pixel count, default 300)
   --annotation_scalar ANNOTATION_SCALAR
-                        scaling factor for the optional annotation/trascript
+                        scaling factor for the optional annotation/transcript
                         tracks
   --zoom ZOOM           Only show +- zoom amount around breakpoints, much
                         faster for large regions. Ignored if region smaller
