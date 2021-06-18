@@ -30,6 +30,7 @@ if [ $basic_operation ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 sv_chrm=chr4
 sv_start=115928730
@@ -52,6 +53,8 @@ if [ $max_coverage ]; then
     assert_no_stderr
 fi
 
+rm $out_file_name
+
 sv_chrm=chr4
 sv_start=115928730
 sv_end=115931875
@@ -72,6 +75,7 @@ if [ $coverage_only ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 out_file_name=$func_path"test_same_yaxis.png"
 
@@ -93,6 +97,7 @@ if [ $basic_operation ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 sv_chrm=chr4
 sv_start=115928730
@@ -113,37 +118,40 @@ if [ $basic_operation_zoom ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
-sample_out_file_name=$func_path"sample.png"
+out_file_name=$func_path"sample.png"
 run sampling_normal \
     samplot plot\
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
-        -o $sample_out_file_name \
+        -o $out_file_name \
         -t $sv_type \
         -d 10
 if [ $sampling_normal ]; then
     assert_exit_code 0
-    assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+    assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
-sample_out_file_name=$func_path"sample_zoom.png"
+out_file_name=$func_path"sample_zoom.png"
 run sampling_normal_zoom \
     samplot plot \
         -c $sv_chrm -s $sv_start -e $sv_end \
         -b $bam_1 $bam_2 $bam_3 \
-        -o $sample_out_file_name \
+        -o $out_file_name \
         -t $sv_type \
         -d 10 \
         --zoom 500
 if [ $sampling_normal_zoom ]; then
     assert_exit_code 0
-    assert_equal $sample_out_file_name $( ls $sample_out_file_name )
+    assert_equal $out_file_name $( ls $out_file_name )
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 sv_chrm=chrX
 sv_start=101055330
@@ -166,6 +174,7 @@ if [ $common_insert_size_scale ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 out_file_name=$func_path"dup_zoom.png"
 rm -f $out_file_name
@@ -184,6 +193,7 @@ if [ $common_insert_size_scale_zoom ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 
 out_file_name=$func_path"no_sv_type.png"
@@ -202,108 +212,7 @@ if [ $no_sv_type ]; then
     assert_no_stdout
     assert_no_stderr
 fi
-
-rm -rf img/
-mkdir img
-vcf_file=$data_path"test.vcf"
-cmd_file=$func_path"test.cmd"
-test_dir=$func_path"test_vcf_dir"
-rm -f $cmd_file
-rm -rf $test_dir
-run from_vcf \
-    samplot vcf \
-        -d $test_dir \
-        --vcf $vcf_file \
-        --sample_ids HG002 HG003 HG004 \
-        -b $data_path"HG002_Illumina.bam" \
-        $data_path"HG003_Illumina.bam" \
-        $data_path"HG004_Illumina.bam" \
-        --manual_run\
-        --command_file $cmd_file
-if [ $from_vcf ]; then
-    assert_no_stderr
-    assert_exit_code 0
-    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
-    assert_equal $cmd_file $( ls $cmd_file )
-fi
-
-rm -rf img/
-mkdir img
-vcf_file=$data_path"test.vcf"
-cmd_file=$func_path"test.cmd"
-test_dir=$func_path"test_vcf_gff3_dir"
-rm -f $cmd_file
-rm -rf $test_dir
-run from_vcf_gff3 \
-    samplot vcf \
-        -d $test_dir \
-        --vcf $vcf_file \
-        --sample_ids HG002 HG003 HG004 \
-        -b $data_path"HG002_Illumina.bam" \
-        $data_path"HG003_Illumina.bam" \
-        $data_path"HG004_Illumina.bam" \
-        --gff3 $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
-        --manual_run\
-        --command_file $cmd_file
-if [ $from_vcf_gff3 ]; then
-    assert_no_stderr
-    assert_exit_code 0
-    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
-    assert_equal $cmd_file $( ls $cmd_file )
-fi
-
-
-rm -rf img/
-mkdir img
-vcf_file=$data_path"test.vcf"
-cmd_file=$func_path"test.cmd"
-test_dir=$func_path"test_vcf_gff3_dir"
-rm -f $cmd_file
-rm -rf $test_dir
-run from_vcf_annotated \
-    samplot vcf \
-        -d $test_dir \
-        --vcf $vcf_file \
-        --sample_ids HG002 HG003 HG004 \
-        -b $data_path"HG002_Illumina.bam" \
-        $data_path"HG003_Illumina.bam" \
-        $data_path"HG004_Illumina.bam" \
-        -T $data_path"Homo_sapiens.GRCh37.82.sort.2_X.gff3.gz"\
-        -A $data_path"Alu.2_X.bed.gz" \
-        --manual_run\
-        --command_file $cmd_file
-if [ $from_vcf_annotated ]; then
-    assert_no_stderr
-    assert_exit_code 0
-    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
-    assert_equal $cmd_file $( ls $cmd_file )
-fi
-
-
-rm -rf img/
-mkdir img
-vcf_file=$data_path"test.vcf"
-cmd_file=$func_path"test.cmd"
-test_dir=$func_path"test_vcf_auto_dir"
-rm -rf $test_dir
-run from_vcf_auto \
-    samplot vcf \
-        -d $test_dir \
-        --vcf $vcf_file \
-        --sample_ids HG002 HG003 HG004 \
-        -b $data_path"HG002_Illumina.bam" \
-        $data_path"HG003_Illumina.bam" \
-        $data_path"HG004_Illumina.bam" 
-if [ $from_vcf_auto ]; then
-    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 847. Rerun with -w 604 to override"
-    assert_exit_code 0
-    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
-    assert_equal $test_dir/DEL_1_24804397_24807302.png $( ls $test_dir/DEL_1_24804397_24807302.png )
-    assert_equal $test_dir/DUP_4_99813786_99817098.png $( ls $test_dir/DUP_4_99813786_99817098.png )
-    assert_equal $test_dir/DUP_11_67974431_67975639.png $( ls $test_dir/DUP_11_67974431_67975639.png )
-    assert_equal $test_dir/INV_12_12544867_12546613.png $( ls $test_dir/INV_12_12544867_12546613.png )
-    assert_equal $test_dir/DEL_19_12694866_12698924.png $( ls $test_dir/DEL_19_12694866_12698924.png )
-fi
+rm $out_file_name
 
 sv_chrm=X
 sv_start=101055330
@@ -326,6 +235,7 @@ if [ $nanopore_dup ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 out_file_name=$func_path"longread_nanopore_dup_zoom.png"
 rm -f $out_file_name
@@ -343,6 +253,7 @@ if [ $nanopore_dup_zoom ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 sv_chrm=4
 sv_start=115928730
@@ -364,6 +275,7 @@ if [ $nanopore_del ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 out_file_name=$func_path"longread_nanopore_del_zoom.png"
 rm -f $out_file_name
@@ -381,6 +293,7 @@ if [ $nanopore_del_zoom ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 sv_chrm=chr1
 sv_start=58343117
@@ -402,6 +315,7 @@ if [ $longread_del ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 out_file_name=$func_path"longread_del_zoom_big_zoom.png"
 rm -f $out_file_name
@@ -419,6 +333,7 @@ if [ $longread_del_zoom_big_zoom ]; then
     assert_in_stderr "Insufficient reads for fragment length estimate."
     assert_no_stdout
 fi
+rm $out_file_name
 
 
 out_file_name=$func_path"longread_del_zoom_zoom.png"
@@ -437,6 +352,7 @@ if [ $longread_del_zoom_zoom ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 sv_chrm=chr21
 sv_start=27373431
@@ -458,6 +374,7 @@ if [ $longread_inv ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 out_file_name=$func_path"longread_inv_zoom.png"
 rm -f $out_file_name
@@ -475,6 +392,7 @@ if [ $longread_inv_zoom ]; then
     assert_no_stdout
     assert_in_stderr "Insufficient reads for fragment length estimate."
 fi
+rm $out_file_name
 
 sv_chrm=1
 sv_start=89475845
@@ -496,6 +414,7 @@ if [ $linkedread_del ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 out_file_name=$func_path"linkedread_del_zoom.png"
 rm -f $out_file_name
@@ -513,6 +432,7 @@ if [ $linkedread_del_zoom ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 
 sv_chrm_1=2
@@ -540,6 +460,7 @@ if [ $translocation ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 
 out_file_name=$func_path"csi-annotation.png"
@@ -560,6 +481,7 @@ if [ $translocation ]; then
     assert_no_stdout
     assert_no_stderr
 fi
+rm $out_file_name
 
 
 rm -rf $func_path"img/" ssshtest

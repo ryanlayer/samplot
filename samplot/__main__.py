@@ -28,7 +28,7 @@ def main(args=None):
     add_vcf(sub)
 
     args,extra_args = parser.parse_known_args(args)
-    args.func(parser)
+    args.func(parser, args, extra_args)
 
 
 if __name__ == "__main__":

@@ -2295,7 +2295,7 @@ def add_plot(parent_parser):
         "--print_args",
         action="store_true",
         default=False,
-        help="Print commandline arguments",
+        help="Print commandline arguments to a json file, useful with PlotCritic",
         required=False,
     )
 
@@ -2466,6 +2466,13 @@ def add_plot(parent_parser):
         required=False,
     )
     parser.add_argument(
+        "--annotation_scalar",
+        type=float,
+        default=.3,
+        help="scaling factor for the optional annotation/trascript tracks",
+        required=False,
+    )
+    parser.add_argument(
         "--zoom",
         type=int,
         default=500000,
@@ -2530,8 +2537,8 @@ def set_plot_dimensions(
     """Chooses appropriate dimensions for the plot
 
     Includes the number of samples, whether a variant type is included, and
-    any annotations in height Includes the start, end, and window argument
-    in width If height and width are chosen by used, these are used instead
+    any annotations in height. Includes the start, end, and window argument
+    in width If height and width are chosen by user, these are used instead
 
     Return plot height, width, and window as integers
     """
@@ -3091,7 +3098,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
 # }}}
 
 # {{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
-def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data):
+def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data, annotation_scalar):
     """Helper function for creation of a correctly-sized GridSpec instance
     """
     # give one axis to display each sample
@@ -3119,9 +3126,9 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data)
             ratios[-1] = 9
 
     if annotation_files:
-        ratios += [0.3] * len(annotation_files)
+        ratios += [annotation_scalar] * len(annotation_files)
     if transcript_file:
-        ratios.append(2)
+        ratios.append(annotation_scalar * 3)
 
     return gridspec.GridSpec(num_ax, 1, height_ratios=ratios), num_ax
 
@@ -3174,7 +3181,7 @@ def get_plot_annotation_plan(ranges, annotation_file):
 
 # {{{def plot_annotations(annotation_files, chrom, start, end,
 def plot_annotations(
-    annotation_files, annotation_filenames, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i
+    annotation_files, annotation_filenames, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i, annotation_scalar,
 ):
     """Plots annotation information from region 
     """
@@ -3216,7 +3223,7 @@ def plot_annotations(
                 if step.info and not hide_annotation_labels:
                     ax.text(
                         p[0],
-                        0 + 0.1,
+                        0.06,
                         step.info,
                         color="black",
                         fontsize=annotation_fontsize,
@@ -3399,7 +3406,7 @@ def get_transcript_plan(ranges, transcript_file):
 
 # {{{ def plot_transcript(transcript_file, chrom, start, end,
 def plot_transcript(
-    transcript_file, transcript_filename, ranges, grid, annotation_fontsize, xaxis_label_fontsize
+    transcript_file, transcript_filename, ranges, grid, annotation_fontsize, xaxis_label_fontsize, annotation_scalar,
 ):
     """Plots a transcript file annotation
     """
@@ -3432,7 +3439,7 @@ def plot_transcript(
 
         ax.text(
             p[0],
-            transcript_idx + 0.02,
+            transcript_idx + 0.1,
             step.info["Name"],
             color="blue",
             fontsize=annotation_fontsize,
@@ -3499,12 +3506,11 @@ def plot_transcript(
 ########################################################################
 # main block
 ########################################################################
-def plot(parser):
+def plot(parser, options, extra_args=None):
     """
     To support translocations, the SVs are specified as an array of 
-    genome_interval. For now we let that arry be size 1 or 2.
+    genome_interval. For now we let that array be size 1 or 2.
     """
-    options = parser.parse_args()
 
     if options.print_args or options.json_only:
         print_arguments(options)
@@ -3564,7 +3570,7 @@ def plot(parser):
 
     # set up sub plots
     matplotlib.rcParams.update({"font.size": 12})
-    fig = plt.figure(figsize=(plot_width, plot_height), dpi=options.dpi)
+    fig = plt.figure(figsize=(plot_width, plot_height))
 
     # read alignment data
     read_data, max_coverage = get_read_data(
@@ -3589,6 +3595,7 @@ def plot(parser):
         options.annotation_files,
         options.sv_type,
         read_data,
+        options.annotation_scalar,
     )
     current_axis_idx = 0
 
@@ -3640,6 +3647,7 @@ def plot(parser):
             options.annotation_fontsize,
             grid,
             current_axis_idx,
+            options.annotation_scalar,
         )
 
     # Plot sorted/bgziped/tabixed transcript file
@@ -3651,13 +3659,14 @@ def plot(parser):
             grid,
             options.annotation_fontsize,
             options.xaxis_label_fontsize,
+            options.annotation_scalar,
         )
 
     # save
     matplotlib.rcParams["agg.path.chunksize"] = 100000
     plt.tight_layout(pad=0.8, h_pad=0.1, w_pad=0.1)
     try:
-        plt.savefig(output_file, dpi=100)
+        plt.savefig(output_file, dpi=options.dpi)
     except Exception as e:
         print(
             "Failed to save figure " + output_file
