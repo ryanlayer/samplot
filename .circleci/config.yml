@@ -32,7 +32,7 @@ variables:
       no_output_timeout: 1h 
   macos: &macos
     macos:
-      xcode: "9.4.1"
+      xcode: "12.5.1"
   linux: &linux
     machine: true
   install_samplot: &install_samplot
