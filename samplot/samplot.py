@@ -910,114 +910,6 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
 
 # }}}
 
-# {{{def get_split_event_type(split):
-def get_split_event_type(split):
-    """Decide what type of event the read supports (del/normal, dup, inv)
-    """
-
-    first = split[0]
-    second = split[1]
-    if first.pos.start > second.pos.end or first.pos.chrm > second.pos.chrm:
-        second = split[0]
-        first = split[1]
-
-    # first.strand, second.strand,
-    # first.query<second.query,first.start<second.start
-    event_type_by_strand_and_order = {
-        (True, False): "Inversion",  # mixed strands
-        (False, True): "Inversion",  # mixed strands
-        (True, True, True): "Deletion/Normal",  # forward strand
-        (True, True, False): "Duplication",  # forward strand
-        (False, False, False, False): "Deletion/Normal",  # reverse strand
-        (False, False, False, True): "Duplication",  # reverse strand
-        (False, False, True, True): "Deletion/Normal",  # reverse strand
-        (False, False, True, False): "Duplication",  # reverse strand
-    }
-    orientations = [first.strand, second.strand]
-
-    # if same strand, need query position info
-    if orientations[0] == orientations[1]:
-        # first query position smaller than second query position,
-        # normal for forward strand
-        orientations.append(first.query_pos < second.query_pos)
-
-        # reverse strand requires start position info
-        if False in orientations[:2]:
-            # first start smaller than second start, normal for forward strand
-            orientations.append(first.pos.start < second.pos.start)
-    event_type = event_type_by_strand_and_order[tuple(orientations)]
-
-    if first.pos.chrm != second.pos.chrm:
-        if event_type == "Inversion":
-            event_type = "InterChrmInversion"
-        else:
-            event_type = "InterChrm"
-
-    return event_type
-
-
-# }}}
-
-# {{{def get_split_insert_sizes(splits):
-def get_splits_insert_sizes(ranges, splits):
-    """Extracts the integer gap sizes for all split reads
-    Return list of integer gap sizes
-    """
-    split_insert_sizes = []
-
-    for hp in splits:
-        for read_name in splits[hp]:
-            sizes = get_split_insert_sizes(ranges, splits[hp][read_name])
-            if sizes:
-                split_insert_sizes += sizes
-    return split_insert_sizes
-
-
-# }}}
-
-# {{{def get_split_insert_sizes(ranges, srs):
-def get_split_insert_sizes(ranges, srs):
-    split_insert_sizes = []
-
-    srs = sorted(srs, key=lambda x: x.query_pos)
-    # only keep the alignments that are in a range
-    srs = [
-        sr
-        for sr in srs
-        if get_range_hit(ranges, sr.pos.chrm, sr.pos.start) != None
-        or get_range_hit(ranges, sr.pos.chrm, sr.pos.end) != None
-    ]
-
-    if len(srs) < 2:
-        return None
-
-    last = srs[0]
-
-    for i in range(1, len(srs)):
-        curr = srs[i]
-
-        # INTERCHROM
-        if last.pos.chrm != curr.pos.chrm:
-            split_insert_sizes.append(INTERCHROM_YAXIS)
-        # Inversion
-        elif last.strand != curr.strand:
-            split_insert_sizes.append(abs(curr.pos.end - last.pos.end))
-        # Duplication
-        elif curr.pos.start < last.pos.end:
-            split_insert_sizes.append(abs(last.pos.end - curr.pos.start))
-        # Deletion
-        elif curr.pos.start > last.pos.end:
-            split_insert_sizes.append(abs(curr.pos.start - last.pos.end))
-        else:
-            sys.stderr.write(
-                "WARNING: Could not classify event:" + str(last) + str(curr)
-            )
-        last = curr
-
-    return split_insert_sizes
-
-
-# }}}
 
 # {{{def get_split_plan(ranges, split):
 def get_split_plan(ranges, split, linked_plan=False):
@@ -1111,41 +1003,6 @@ def get_splits_plan(ranges, splits, linked_plan=False):
 
 # }}}
 
-# {{{def plot_split(split, y, ax, ranges):
-def plot_split(split, y, ax, ranges, marker_size):
-    """Plots a SplitRead at the y-position corresponding to insert size
-
-    If read lies outside the range-min or range_max, it is not plotted
-    """
-    start = split[0]
-    end = split[1]
-    if start.pos.chrm > end.pos.chrm or start.pos.start > end.pos.end:
-        end = split[0]
-        start = split[1]
-
-    p = [
-        map_genome_point_to_range_points(ranges, start.pos.chrm, start.pos.end),
-        map_genome_point_to_range_points(ranges, end.pos.chrm, end.pos.start),
-    ]
-
-    if not points_in_window(p):
-        return
-    event_type = get_split_event_type(split)
-    color = COLORS[event_type]
-
-    ax.plot(
-        p,
-        [y, y],
-        ":",
-        color=color,
-        alpha=0.25,
-        lw=1,
-        marker="o",
-        markersize=marker_size,
-    )
-
-
-# }}}
 
 # {{{def plot_split(split, y, ax, ranges):
 def plot_split_plan(ranges, step, ax, marker_size):
@@ -1665,28 +1522,6 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
 # }}}
 
-# {{{def get_long_read_max_gap(read_name, long_reads):
-def get_long_read_max_gap(read_name, long_reads):
-    """Finds the largest gap between alignments in LongRead alignments,
-    plus lengths of the  alignments 
-
-    Returns the integer max gap
-    """
-    alignments = []
-    for long_read in long_reads[read_name]:
-        for alignment in long_read.alignments:
-            alignments.append(alignment)
-    alignments.sort(key=lambda x: x.query_position)
-
-    # find biggest gap
-    max_gap = 0
-    for i in range(1, len(alignments)):
-        curr_gap = abs(alignments[i].start - alignments[i - 1].end)
-        max_gap = max(max_gap, curr_gap)
-    return max_gap
-
-
-# }}}
 
 ##Variant methods
 # {{{def plot_variant(sv, sv_type, ax, ranges):
