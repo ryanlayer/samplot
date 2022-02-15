@@ -3672,4 +3672,6 @@ def plot(parser, options, extra_args=None):
             "Failed to save figure " + output_file
         )
         print(e)
+
+    plt.close(fig)
 # }}}

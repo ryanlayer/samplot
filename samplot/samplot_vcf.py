@@ -13,6 +13,7 @@ import operator
 import os
 import random
 import sys
+import re
 
 import pysam
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -21,6 +22,8 @@ try:
     from shlex import quote
 except ImportError:
     from pipes import quote
+
+from .samplot import add_plot
 
 
 cmp_lookup = {
@@ -1085,6 +1088,25 @@ def generate_commands(
     return commands, table_data
 
 
+def run_plot_command(command_string: str):
+    # Setup a parser for translating the command_string
+    parent_parser = argparse.ArgumentParser()
+    sub_parser = parent_parser.add_subparsers(title="[sub-commands]", dest="command")
+    add_plot(sub_parser)
+
+    # Convert command_string to list and remove leading 'samplot' argument
+    # Taken from https://stackoverflow.com/a/524796.
+    # NOTE: If python2 is dropped, `shlex.split` could be used for simpler syntax
+    command = [p.strip("'") for p in re.split("( |\\\".*?\\\"|'.*?')", command_string.strip()) if p.strip()]
+    command = command[1:]
+
+    # Skipped parse_known_args here since extra_args are not used in `samplot plot`.
+    # This means that any fauly extra arguments given to `samplot vcf` will raise
+    # and error here
+    args = parent_parser.parse_args(command)
+    args.func(parent_parser, args)
+
+
 def vcf(parser, args, pass_through_args):
     """
     Generate commands and html for plotting/reviewing variants from VCF
@@ -1154,19 +1176,15 @@ def vcf(parser, args, pass_through_args):
         pass_through_args,
         args.debug,
     )
-    with open(args.command_file, "w") as outfile:
-        for command in commands:
-            outfile.write(command)
 
     write_site(table_data, args.out_dir, args.output_type, annotations, denovo_row)
 
-    if not args.manual_run:
-        import subprocess
-
-        # make runnable and then run it
-        os.chmod(args.command_file, 0o755)
-        subprocess.call(os.path.join(".", args.command_file), shell=True)
-        os.remove(args.command_file)
+    if args.manual_run:
+        with open(args.command_file, "w") as outfile:
+            outfile.writelines(commands)
+    else:
+        for command in commands:
+            run_plot_command(command)
 
 
 def add_vcf(parent_parser):
