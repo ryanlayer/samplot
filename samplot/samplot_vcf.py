@@ -1183,8 +1183,13 @@ def vcf(parser, args, pass_through_args):
         with open(args.command_file, "w") as outfile:
             outfile.writelines(commands)
     else:
-        for command in commands:
-            run_plot_command(command)
+        if args.threads == 1:
+            for command in commands:
+                run_plot_command(command)
+        else:
+            from multiprocessing import Pool
+            with Pool(processes=args.threads) as pool:
+                pool.map(run_plot_command, commands)
 
 
 def add_vcf(parent_parser):
@@ -1325,6 +1330,12 @@ def add_vcf(parent_parser):
         + "limited by any filtering arguments set",
         default=False,
         action="store_true",
+    )
+    parser.add_argument(
+        "-t", "--threads",
+        type=int,
+        default=1,
+        help="Number of threads to use to generate plots. Default: %(default)s",
     )
     parser.add_argument(
         "--debug",
