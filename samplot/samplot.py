@@ -5,6 +5,7 @@ import os
 import random
 import re
 import sys
+from argparse import SUPPRESS
 
 import matplotlib
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
@@ -690,6 +691,14 @@ def get_pair_event_type(pe_read):
 
 # }}}
 
+def jitter(value, bounds: float = 0.1) -> float:
+    """
+    Offset value by a random value within the defined bounds
+    """
+    assert 0.0 < bounds < 1.0
+    return value * (1 + bounds * random.uniform(-1, 1))
+
+
 # {{{def plot_pair_plan(ranges, step, ax):
 def plot_pair_plan(ranges, step, ax, marker_size):
     p = [
@@ -706,7 +715,8 @@ def plot_pair_plan(ranges, step, ax, marker_size):
     if not points_in_window(p):
         return False
 
-    y = step.info["INSERTSIZE"]
+    # Offset y-values using jitter to avoid overlapping lines
+    y = jitter(step.info["INSERTSIZE"], bounds=0.08)
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -1163,7 +1173,8 @@ def plot_split_plan(ranges, step, ax, marker_size):
     if not points_in_window(p):
         return False
 
-    y = step.info["INSERTSIZE"]
+    # Offset y-values using jitter to avoid overlapping lines
+    y = jitter(step.info["INSERTSIZE"], bounds=0.08)
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -2488,7 +2499,12 @@ def add_plot(parent_parser):
         help="Print debug statements",
         required=False
     )
-
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=9999,
+        help=SUPPRESS,
+    )
     parser.set_defaults(func=plot)
 
 
@@ -3511,7 +3527,7 @@ def plot(parser, options, extra_args=None):
     To support translocations, the SVs are specified as an array of 
     genome_interval. For now we let that array be size 1 or 2.
     """
-
+    random.seed(options.random_seed)
     if options.print_args or options.json_only:
         print_arguments(options)
         if options.json_only:
