@@ -695,12 +695,12 @@ def jitter(value, bounds: float = 0.1) -> float:
     """
     Offset value by a random value within the defined bounds
     """
-    assert 0.0 < bounds < 1.0
+    assert 0.0 <= bounds < 1.0
     return value * (1 + bounds * random.uniform(-1, 1))
 
 
 # {{{def plot_pair_plan(ranges, step, ax):
-def plot_pair_plan(ranges, step, ax, marker_size):
+def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -715,8 +715,11 @@ def plot_pair_plan(ranges, step, ax, marker_size):
     if not points_in_window(p):
         return False
 
+    y = step.info["INSERTSIZE"]
+
     # Offset y-values using jitter to avoid overlapping lines
-    y = jitter(step.info["INSERTSIZE"], bounds=0.08)
+    y = jitter(y, bounds=jitter_bounds)
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -741,7 +744,7 @@ def plot_pair_plan(ranges, step, ax, marker_size):
 
 # {{{def plot_pairs(pairs,
 def plot_pairs(
-    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size
+    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
 ):
     """Plots all PairedEnd reads for the region
     """
@@ -754,7 +757,7 @@ def plot_pairs(
     max_event, steps = plan
 
     for step in steps:
-        plot_pair_plan(ranges, step, ax, marker_size)
+        plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -1158,7 +1161,7 @@ def plot_split(split, y, ax, ranges, marker_size):
 # }}}
 
 # {{{def plot_split(split, y, ax, ranges):
-def plot_split_plan(ranges, step, ax, marker_size):
+def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -1173,8 +1176,11 @@ def plot_split_plan(ranges, step, ax, marker_size):
     if not points_in_window(p):
         return False
 
+    y = step.info["INSERTSIZE"]
+
     # Offset y-values using jitter to avoid overlapping lines
-    y = jitter(step.info["INSERTSIZE"], bounds=0.08)
+    y = jitter(y, bounds=jitter_bounds)
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -1195,7 +1201,7 @@ def plot_split_plan(ranges, step, ax, marker_size):
 
 # {{{def plot_splits(splits,
 def plot_splits(
-    splits, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size
+    splits, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
 ):
     """Plots all SplitReads for the region
     """
@@ -1207,7 +1213,7 @@ def plot_splits(
     max_event, steps = plan
 
     for step in steps:
-        plot_split_plan(ranges, step, ax, marker_size)
+        plot_split_plan(ranges, step, ax, marker_size, jitter_bounds)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -2468,7 +2474,16 @@ def add_plot(parent_parser):
         help="Size of marks on pairs and splits (default 3)",
         required=False,
     )
-    
+    parser.add_argument(
+        "--jitter",
+        type=float,
+        nargs="?",
+        const=0.08,
+        default=0.0,
+        help="Add uniform random noice to insert sizes. This can be helpful "
+             "to resolve overlapping entries. Either a custom value (<1.0) is "
+             "supplied or %(const)s will be used."
+    )
     parser.add_argument(
         "--dpi",
         type=int,
@@ -2852,11 +2867,15 @@ def plot_samples(
     max_coverage,
     marker_size,
     coverage_only,
+    jitter_bounds,
 ):
 
     """Plots all samples
     """
     max_insert_size = 0
+
+    # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
+    ylim_margin = max(1.02 + jitter_bounds, 1.10)
     for i in range(len(bams)):
         #ax is never used, annotating this for readability
         ax = plt.subplot(grid[ax_i])
@@ -2933,6 +2952,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -2942,6 +2962,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds,
                 )
 
             cover_axs[hp] = cover_ax
@@ -2974,9 +2995,9 @@ def plot_samples(
             curr_ax = axs[j]
             curr_ax.set_xlim([0, 1])
             if same_yaxis_scales:
-                curr_ax.set_ylim([0, max(1, max_insert_size * 1.10)])
+                curr_ax.set_ylim([0, max(1, max_insert_size * ylim_margin)])
             else:
-                curr_ax.set_ylim([0, max(1, curr_max_insert_size * 1.10)])
+                curr_ax.set_ylim([0, max(1, curr_max_insert_size * ylim_margin)])
             curr_ax.spines["top"].set_visible(False)
             curr_ax.spines["bottom"].set_visible(False)
             curr_ax.spines["left"].set_visible(False)
@@ -3649,6 +3670,7 @@ def plot(parser, options, extra_args=None):
         max_coverage,
         marker_size,
         options.coverage_only,
+        options.jitter,
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
