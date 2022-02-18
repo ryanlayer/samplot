@@ -2410,14 +2410,6 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
-        "--common_insert_size",
-        action="store_true",
-        default=False,
-        help="Set common insert size for all plots",
-        required=False,
-    )
-
-    parser.add_argument(
         "--hide_annotation_labels",
         action="store_true",
         default=False,
