@@ -87,14 +87,6 @@ def flatten(value, sep=","):
     return flat
 
 
-def zip_lists(value):
-    """
-    >>> zip_lists([[0,1,2], [3,4,5]])
-    ['0 3', '1 4', '2 5']
-    """
-    return [flatten(i, sep=" ") for i in zip(*value)]
-
-
 def get_format_fields(ids, variant):
     """
     args:
