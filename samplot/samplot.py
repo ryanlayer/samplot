@@ -1901,6 +1901,7 @@ def plot_linked_reads(
     curr_min_insert_size,
     curr_max_insert_size,
     marker_size,
+    jitter_bounds,
 ):
     """Plots all LinkedReads for the region
     """
@@ -1911,6 +1912,8 @@ def plot_linked_reads(
             continue
 
         insert_size, steps = plan
+
+        insert_size = jitter(insert_size, bounds=jitter_bounds)
 
         if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
@@ -1936,11 +1939,11 @@ def plot_linked_reads(
 
         for pair_step in steps[0].info["PAIR_STEPS"]:
             pair_step.info["INSERTSIZE"] = insert_size
-            plot_pair_plan(ranges, pair_step, ax, marker_size)
+            plot_pair_plan(ranges, pair_step, ax, marker_size, jitter_bounds)
 
         for split_step in steps[0].info["SPLIT_STEPS"]:
             split_step.info["INSERTSIZE"] = insert_size
-            plot_split_plan(ranges, split_step, ax, marker_size)
+            plot_split_plan(ranges, split_step, ax, marker_size, jitter_bounds)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -2935,6 +2938,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds
                 )
             elif len(curr_long_reads) > 0:
                 curr_min_insert_size, curr_max_insert_size = plot_long_reads(
