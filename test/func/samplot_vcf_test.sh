@@ -160,7 +160,7 @@ run denovo_only_noped \
         -b $data_path"HG002_Illumina.bam" \
         $data_path"HG003_Illumina.bam" \
         $data_path"HG004_Illumina.bam" \
-        --dn_only\
+        --dn_only
 if [ $denovo_only_noped ]; then
     assert_in_stderr "Missing --ped, required when using --dn_only"
 fi
