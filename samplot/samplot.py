@@ -2310,7 +2310,7 @@ def add_plot(parent_parser):
         nargs="?",
         const=0.08,
         default=0.0,
-        help="Add uniform random noice to insert sizes. This can be helpful "
+        help="Add uniform random noise to insert sizes. This can be helpful "
              "to resolve overlapping entries. Either a custom value (<1.0) is "
              "supplied or %(const)s will be used."
     )
