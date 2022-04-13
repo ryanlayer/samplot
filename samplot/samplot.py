@@ -3281,7 +3281,8 @@ def plot_transcript(
     if not transcript_filename:
         transcript_filename = os.path.basename(transcript_file)
     transcript_idx = 0
-    arrow_loc = 0.02
+    transcript_idx_max = 0
+    currect_transcript_end = 0
     ax = plt.subplot(grid[-1])
 
     transcript_plan = get_transcript_plan(ranges, transcript_file)
@@ -3300,6 +3301,12 @@ def plot_transcript(
             p[0] = 0
         if p[1] is None:
             p[1] = 0
+
+        # Reset transcript index outside of current stack
+        if p[0] > currect_transcript_end:
+            transcript_idx = 0
+
+        currect_transcript_end = max(p[1], currect_transcript_end)
 
         ax.plot(
             p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5
@@ -3352,10 +3359,11 @@ def plot_transcript(
                 )
 
         transcript_idx += 1
+        transcript_idx_max = max(transcript_idx, transcript_idx_max)
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx * -0.1, 0.01+(transcript_idx * 1.01)])
+    ax.set_ylim([transcript_idx_max * -0.1, 0.01+(transcript_idx_max * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
