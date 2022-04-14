@@ -3319,23 +3319,32 @@ def plot_transcript(
             color="blue",
             fontsize=annotation_fontsize,
         )
+        # Print arrows throughout gene to show direction.
+        nr_arrows = 2 + int((p[1]-p[0])/0.02)
+        arrow_locs = np.linspace(p[0], p[1], nr_arrows)
+        arrowprops = dict(arrowstyle="->", color="cornflowerblue", lw=0.5,
+                          mutation_aspect=2, mutation_scale=3)
 
         if step.info["Strand"]:
-            ax.annotate(
-                "",
-                xy=(1, transcript_idx),
-                xytext=(1 - arrow_loc, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add left-facing arrows
+            for arrow_loc in arrow_locs[1:]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[0], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
         else:
-            ax.annotate(
-                "",
-                xy=(1 - arrow_loc, transcript_idx),
-                xytext=(1, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add right-facing arrows
+            for arrow_loc in arrow_locs[:-1]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[1], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
 
         if step.info["Exons"]:
             for exon in step.info["Exons"]:
