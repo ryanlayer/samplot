@@ -3312,13 +3312,6 @@ def plot_transcript(
             p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5
         )
 
-        ax.text(
-            p[0],
-            transcript_idx + 0.1,
-            step.info["Name"],
-            color="blue",
-            fontsize=annotation_fontsize,
-        )
         # Print arrows throughout gene to show direction.
         nr_arrows = 2 + int((p[1]-p[0])/0.02)
         arrow_locs = np.linspace(p[0], p[1], nr_arrows)
@@ -3348,7 +3341,7 @@ def plot_transcript(
 
         if step.info["Exons"]:
             for exon in step.info["Exons"]:
-                p = [
+                p_exon = [
                     map_genome_point_to_range_points(
                         ranges, exon.start_pos.chrm, exon.start_pos.start
                     ),
@@ -3356,16 +3349,25 @@ def plot_transcript(
                         ranges, exon.end_pos.chrm, exon.end_pos.end
                     ),
                 ]
-                if not points_in_window(p):
+                if not points_in_window(p_exon):
                     continue
 
                 ax.plot(
-                    p,
+                    p_exon,
                     [transcript_idx, transcript_idx],
                     "-",
                     color="cornflowerblue",
                     lw=4,
                 )
+
+        ax.text(
+            sum(p)/2,
+            transcript_idx + 0.1,
+            step.info["Name"],
+            color="blue",
+            fontsize=annotation_fontsize,
+            ha="center"
+        )
 
         transcript_idx += 1
         transcript_idx_max = max(transcript_idx, transcript_idx_max)
