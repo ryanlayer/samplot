@@ -3176,8 +3176,6 @@ def get_interval_range_plan_start_end(ranges, interval):
 
 # {{{def get_transcript_plan(ranges, transcript_file):
 def get_transcript_plan(ranges, transcript_file):
-    transcript_plan = []
-
     genes = {}
     transcripts = {}
     cdss = {}
@@ -3195,6 +3193,9 @@ def get_transcript_plan(ranges, transcript_file):
                 )
 
                 info["strand"] = gene_annotation[6] == "+"
+
+                if "Name" not in info:
+                    continue
 
                 genes[info["Name"]] = [
                     genome_interval(
