@@ -3309,7 +3309,8 @@ def plot_transcript(
         currect_transcript_end = max(p[1], currect_transcript_end)
 
         ax.plot(
-            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5
+            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5,
+            solid_capstyle="butt",
         )
 
         # Print arrows throughout gene to show direction.
@@ -3357,6 +3358,7 @@ def plot_transcript(
                     [transcript_idx, transcript_idx],
                     "-",
                     color="cornflowerblue",
+                    solid_capstyle="butt",
                     lw=4,
                 )
 
