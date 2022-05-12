@@ -3281,7 +3281,8 @@ def plot_transcript(
     if not transcript_filename:
         transcript_filename = os.path.basename(transcript_file)
     transcript_idx = 0
-    arrow_loc = 0.02
+    transcript_idx_max = 0
+    currect_transcript_end = 0
     ax = plt.subplot(grid[-1])
 
     transcript_plan = get_transcript_plan(ranges, transcript_file)
@@ -3301,38 +3302,47 @@ def plot_transcript(
         if p[1] is None:
             p[1] = 0
 
+        # Reset transcript index outside of current stack
+        if p[0] > currect_transcript_end:
+            transcript_idx = 0
+
+        currect_transcript_end = max(p[1], currect_transcript_end)
+
         ax.plot(
-            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5
+            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5,
+            solid_capstyle="butt",
         )
 
-        ax.text(
-            p[0],
-            transcript_idx + 0.1,
-            step.info["Name"],
-            color="blue",
-            fontsize=annotation_fontsize,
-        )
+        # Print arrows throughout gene to show direction.
+        nr_arrows = 2 + int((p[1]-p[0])/0.02)
+        arrow_locs = np.linspace(p[0], p[1], nr_arrows)
+        arrowprops = dict(arrowstyle="->", color="cornflowerblue", lw=0.5,
+                          mutation_aspect=2, mutation_scale=3)
 
         if step.info["Strand"]:
-            ax.annotate(
-                "",
-                xy=(1, transcript_idx),
-                xytext=(1 - arrow_loc, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add left-facing arrows
+            for arrow_loc in arrow_locs[1:]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[0], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
         else:
-            ax.annotate(
-                "",
-                xy=(1 - arrow_loc, transcript_idx),
-                xytext=(1, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add right-facing arrows
+            for arrow_loc in arrow_locs[:-1]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[1], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
 
         if step.info["Exons"]:
             for exon in step.info["Exons"]:
-                p = [
+                p_exon = [
                     map_genome_point_to_range_points(
                         ranges, exon.start_pos.chrm, exon.start_pos.start
                     ),
@@ -3340,22 +3350,33 @@ def plot_transcript(
                         ranges, exon.end_pos.chrm, exon.end_pos.end
                     ),
                 ]
-                if not points_in_window(p):
+                if not points_in_window(p_exon):
                     continue
 
                 ax.plot(
-                    p,
+                    p_exon,
                     [transcript_idx, transcript_idx],
                     "-",
                     color="cornflowerblue",
+                    solid_capstyle="butt",
                     lw=4,
                 )
 
+        ax.text(
+            sum(p)/2,
+            transcript_idx + 0.1,
+            step.info["Name"],
+            color="blue",
+            fontsize=annotation_fontsize,
+            ha="center"
+        )
+
         transcript_idx += 1
+        transcript_idx_max = max(transcript_idx, transcript_idx_max)
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx * -0.1, 0.01+(transcript_idx * 1.01)])
+    ax.set_ylim([transcript_idx_max * -0.1, 0.01+(transcript_idx_max * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
