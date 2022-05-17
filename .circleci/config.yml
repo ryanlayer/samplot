@@ -29,7 +29,7 @@ variables:
     macos:
       xcode: "12.5.1"
   linux: &linux
-    machine: true
+    machine: ubuntu-2004:202201-02
   install_samplot: &install_samplot
     run:
       name: Install Samplot
