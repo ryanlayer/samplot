@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from argparse import SUPPRESS
 
 import matplotlib
+
 matplotlib.use("Agg")  # must be before imports of submodules in matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
@@ -18,6 +19,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 import pysam
 import warnings
+
 warnings.filterwarnings(
     "ignore", "FixedFormatter should only be used together with FixedLocator"
 )
@@ -25,9 +27,7 @@ from matplotlib.offsetbox import AnchoredText
 
 # TODO move the plotter classes to a separate module and import
 # this in that module
-from .interval_utils import (
-    GenomeInterval, genomic_to_axes, interval_in_range
-)
+from .interval_utils import GenomeInterval, genomic_to_axes, interval_in_range
 
 
 INTERCHROM_YAXIS = 5000
@@ -78,7 +78,7 @@ class plan_step:
         end_pos: GenomeInterval,
         event,
         # TODO dont make it None just give it empty dict
-        info: dict | None = None, 
+        info: dict | None = None,
     ):
         self.start_pos = start_pos
         self.end_pos = end_pos
@@ -131,7 +131,7 @@ def map_genome_point_to_range_points(ranges, chrm, point):
 
 
 # TODO move to intervals module
-def points_in_window(points): # TODO add param for tolerance
+def points_in_window(points):  # TODO add param for tolerance
     """
     Checks whether these points lie within the window of interest
     Points is a list of one start, one end coordinate (ints)
@@ -2711,8 +2711,6 @@ def plot_samples(
                     jitter_bounds,
                 )
 
-
-
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
@@ -3006,16 +3004,17 @@ class BedPePlotter:
     contain intervals that came from a stix query of the same interval of the
     SV. Therefore a tabix iterator is not necessary.
     """
-    file: str # input file
-    ranges: list[GenomeInterval] # range of regions in the plot
+
+    file: str  # input file
+    ranges: list[GenomeInterval]  # range of regions in the plot
     sv_type: str
     grid: gridspec.GridSpec
     title: str
     xaxis_label_fontsize: int
     yaxis_label_fontsize: int
-    ax_idx: int # which axes object plot on
+    ax_idx: int  # which axes object plot on
     _plan: list[plan_step] = []
-    _min_insert_size: int = sys.maxsize # used to keep track of insert size of all plots
+    _min_insert_size: int = sys.maxsize  # used to keep track of insert size of all plots
     _max_insert_size: int = int(0)
 
     def _load_regions(self) -> list[PeInterval]:
@@ -3025,11 +3024,13 @@ class BedPePlotter:
         with open(self.file) as f:
             for line in f:
                 A = line.rstrip().split()
-                pe_regions.append(PeInterval(
-                    first=GenomeInterval(A[0], int(A[1]), int(A[2])),
-                    second=GenomeInterval(A[3], int(A[4]), int(A[5])),
-                    read_type=A[6],
-                ))
+                pe_regions.append(
+                    PeInterval(
+                        first=GenomeInterval(A[0], int(A[1]), int(A[2])),
+                        second=GenomeInterval(A[3], int(A[4]), int(A[5])),
+                        read_type=A[6],
+                    )
+                )
         return pe_regions
 
     def _get_bedpe_plan(self) -> None:
@@ -3054,23 +3055,24 @@ class BedPePlotter:
 
             start = GenomeInterval(
                 pair.first.chrm,
-                x:=max(pair.first.start, self.ranges[first_hit].start),
-                x
+                x := max(pair.first.start, self.ranges[first_hit].start),
+                x,
             )
             end = GenomeInterval(
                 pair.second.chrm,
-                x:=min(pair.second.end, self.ranges[second_hit].start),
-                x
+                x := min(pair.second.end, self.ranges[second_hit].start),
+                x,
             )
             self._plan.append(
                 plan_step(
                     start_pos=start,
                     end_pos=end,
                     event="PAIREND",
-                    info=dict(TYPE=self.sv_type, INSERT_SIZE=insert_size)
+                    info=dict(TYPE=self.sv_type, INSERT_SIZE=insert_size),
                 )
             )
         # return bedpe_plan
+
     def _set_axis_elements(self, ax):
         # ax.set_xlim(self.ranges[0].start, self.ranges[0].end)
         # ax.set_ylim(0, INTERCHROM_YAXIS)
@@ -3078,7 +3080,7 @@ class BedPePlotter:
         # ax.set_ylabel("Insert Size")
         # ax.set_title("BedPE regions")
 
-        ylim_margin = 1.02 # experiment with this
+        ylim_margin = 1.02  # experiment with this
 
         ax.set_xlim([0, 1])
         ax.set_ylim([0, max(1, self._max_insert_size * ylim_margin)])
@@ -3088,12 +3090,11 @@ class BedPePlotter:
         ax.spines["right"].set_visible(False)
         ax.tick_params(axis="y", labelsize=self.yaxis_label_fontsize)
         # if there's one hp, 6 ticks fit. Otherwise, do 3
-        tick_count = 6 # experiment with this
+        tick_count = 6  # experiment with this
         ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
         ax.ticklabel_format(useOffset=False, style="plain")
         ax.tick_params(axis="both", length=0)
         ax.set_xticklabels([])
-
 
     def plot(self, marker_size):
         """
@@ -3107,14 +3108,8 @@ class BedPePlotter:
         for step in self._plan:
             # from genome space to plot space
             points = (
-                genomic_to_axes(
-                    ranges=self.ranges,
-                    coord=step.start_pos.startCoord,
-                ),
-                genomic_to_axes(
-                    ranges=self.ranges,
-                    coord=step.end_pos.endCoord,
-                ),
+                genomic_to_axes(ranges=self.ranges, coord=step.start_pos.startCoord,),
+                genomic_to_axes(ranges=self.ranges, coord=step.end_pos.endCoord,),
             )
             if not points_in_window:
                 continue
@@ -3122,29 +3117,17 @@ class BedPePlotter:
             insert_size = step.info["INSERT_SIZE"]
             color = COLORS[step.info["TYPE"]]
 
-            linestyle = '-' if step.event == "PAIREND" else '--'
-            marker = 's' if step.event == "PAIREND" else 'o'
+            linestyle = "-" if step.event == "PAIREND" else "--"
+            marker = "s" if step.event == "PAIREND" else "o"
             ax.plot(
                 points,
                 [insert_size, insert_size],
                 linestyle=linestyle,
                 marker=marker,
                 color=color,
-                markersize=marker_size
+                markersize=marker_size,
             )
         self._set_axis_elements(ax)
-                
-
-
-            
-
-        
-
-
-        
-
-
-
 
 
 def plot_annotations(
@@ -3669,7 +3652,6 @@ def plot(parser, options, extra_args=None):
         )
         B.plot(marker_size=options.marker_size)
         current_axis_idx += 1
-
 
     # Plot annotation files
     if options.annotation_files:

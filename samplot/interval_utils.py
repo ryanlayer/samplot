@@ -114,10 +114,7 @@ def interval_in_range(
     return
 
 
-def genomic_to_axes(
-    ranges: list[GenomeInterval],
-    coord: GenomeCoord,
-) -> float | None:
+def genomic_to_axes(ranges: list[GenomeInterval], coord: GenomeCoord,) -> float | None:
     """
     Map a genomic coordinate to plot space (x-axis).
     """
@@ -151,4 +148,3 @@ def genomic_to_axes(
 #     ):
 #         return False
 #     return True
-
