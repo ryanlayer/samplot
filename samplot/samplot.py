@@ -5,10 +5,11 @@ import os
 import random
 import re
 import sys
+from dataclasses import dataclass
 from argparse import SUPPRESS
 
 import matplotlib
-matplotlib.use("Agg") #must be before imports of submodules in matplotlib
+matplotlib.use("Agg")  # must be before imports of submodules in matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
@@ -17,9 +18,16 @@ import matplotlib.ticker as ticker
 import numpy as np
 import pysam
 import warnings
-warnings.filterwarnings('ignore', 'FixedFormatter should only be used together with FixedLocator')
+warnings.filterwarnings(
+    "ignore", "FixedFormatter should only be used together with FixedLocator"
+)
 from matplotlib.offsetbox import AnchoredText
 
+# TODO move the plotter classes to a separate module and import
+# this in that module
+from .interval_utils import (
+    GenomeInterval, genomic_to_axes, interval_in_range
+)
 
 
 INTERCHROM_YAXIS = 5000
@@ -57,11 +65,21 @@ CIGAR_MAP = {
     "B": 9,
 }
 
-# {{{class plan_step:
+
+# TODO make dataclass
+# TODO make kwonly
 class plan_step:
+    # TODO is this needed? What is this variable for?
     step_events = ["Align", "ANNOTATION"]
 
-    def __init__(self, start_pos, end_pos, event, info=None):
+    def __init__(
+        self,
+        start_pos: GenomeInterval,
+        end_pos: GenomeInterval,
+        event,
+        # TODO dont make it None just give it empty dict
+        info: dict | None = None, 
+    ):
         self.start_pos = start_pos
         self.end_pos = end_pos
         self.event = event
@@ -69,67 +87,27 @@ class plan_step:
 
     def __str__(self):
         if self.info:
-            return (
-                "Step("
-                + str(self.start_pos)
-                + ", "
-                + str(self.end_pos)
-                + ", "
-                + self.event
-                + ", "
-                + str(self.info)
-                + ")"
-            )
+            return f"Step({self.start_pos}, {self.end_pos}, {self.event}, {self.info})"
         else:
-            return (
-                "Step("
-                + str(self.start_pos)
-                + ", "
-                + str(self.end_pos)
-                + ", "
-                + self.event
-                + ")"
-            )
+            return f"Step({self.start_pos}, {self.end_pos}, {self.event})"
 
     def __repr__(self):
         return str(self)
 
-
-# }}}
-
-# {{{class genome_interval:
-class genome_interval:
-    def __init__(self, chrm, start, end):
-        self.chrm = chrm
-        self.start = start
-        self.end = end
-
-    def __str__(self):
-        return "(" + self.chrm + "," + str(self.start) + "," + str(self.end) + ")"
-
-    def __repr__(self):
-        return str(self)
-
-    def __eq__(self, gi2):
-        return self.chrm == gi2.chrm and self.start == gi2.start and self.end == gi2.end
-
-    """ return -1 if before, 0 if in, 1 if after """
-
-    def intersect(self, gi):
-        if gi.chrm.replace("chr", "") < self.chrm.replace("chr", "") or gi.end < self.start:
-            return -1
-        elif gi.chrm.replace("chr", "") > self.chrm.replace("chr", "") or gi.start > self.end:
-            return 1
-        else:
-            return 0
+    @property
+    def interval(self):
+        return GenomeInterval(self.chrm, self.start_pos, self.end_pos)
 
 
-# }}}
-
-# {{{def get_range_hit(ranges, chrm, point):
-def get_range_hit(ranges, chrm, point):
+def get_range_hit(ranges, chrm, point) -> int | None:
+    """
+    Returns the index of the range that the point lies in,
+    and None otherwise. TODO instead of none use -1
+    """
     for j in range(len(ranges)):
         r = ranges[j]
+        # TODO I dont think that it should be the responsibility
+        # of this function to handle chrm prefix
         if (
             r.chrm.replace("chr", "") == chrm.replace("chr", "")
             and r.start <= point
@@ -139,9 +117,6 @@ def get_range_hit(ranges, chrm, point):
     return None
 
 
-# }}}
-
-# {{{def map_genome_point_to_range_points(ranges, chrm, point):
 def map_genome_point_to_range_points(ranges, chrm, point):
     range_hit = get_range_hit(ranges, chrm, point)
 
@@ -155,14 +130,14 @@ def map_genome_point_to_range_points(ranges, chrm, point):
     return p
 
 
-# }}}
-
-# {{{def points_in_window(points):
-def points_in_window(points):
-    """Checks whether these points lie within the window of interest
-
+# TODO move to intervals module
+def points_in_window(points): # TODO add param for tolerance
+    """
+    Checks whether these points lie within the window of interest
     Points is a list of one start, one end coordinate (ints)
     """
+    # TODO use all(points) for none check
+    # TODO dont do this compound comparison, could use numpy function
     if (
         None in points
         or points[0] < -5
@@ -174,23 +149,21 @@ def points_in_window(points):
     return True
 
 
-# }}}
-
-# {{{ def get_tabix_iter(chrm, start, end, datafile):
 def get_tabix_iter(chrm, start, end, datafile):
-    """Gets an iterator from a tabix BED/GFF3 file
-
+    """
+    Gets an iterator from a tabix BED/GFF3 file
     Used to avoid chrX vs. X notation issues when extracting data from
     annotation files
     """
     try:
         tbx = pysam.TabixFile(datafile)
     except:
-        tbx = pysam.TabixFile(datafile, index=datafile+".csi")
-
+        tbx = pysam.TabixFile(datafile, index=datafile + ".csi")
 
     itr = None
     try:
+        # TODO why do the +/- 1000 here?
+        # is it because of the plot window?
         itr = tbx.fetch(chrm, max(0, start - 1000), end + 1000)
     except ValueError:
         # try and account for chr/no chr prefix
@@ -217,10 +190,9 @@ def get_tabix_iter(chrm, start, end, datafile):
     return itr
 
 
-# }}}
-
 ##Coverage methods
-# {{{def add_coverage(bam_file, read, coverage, separate_mqual):
+# TODO these types of functions should be put together into a class
+# or put into a separate module
 def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
     """Adds a read to the known coverage 
     
@@ -272,9 +244,6 @@ def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
             curr_pos += length
 
 
-# }}}
-
-# {{{def plot_coverage(coverage,
 def plot_coverage(
     coverage,
     ax,
@@ -298,13 +267,13 @@ def plot_coverage(
 
     for i in range(len(ranges)):
         r = ranges[i]
-        region_len = r.end-r.start
+        region_len = r.end - r.start
         downsample = 1
         if region_len > max_coverage_points:
             downsample = int(region_len / max_coverage_points)
 
-        for i,pos in enumerate(range(r.start, r.end + 1)):
-            if i%downsample !=  0: 
+        for i, pos in enumerate(range(r.start, r.end + 1)):
+            if i % downsample != 0:
                 continue
             cover_x.append(map_genome_point_to_range_points(ranges, r.chrm, pos))
             if r.chrm in coverage and pos in coverage[r.chrm]:
@@ -373,7 +342,7 @@ def plot_coverage(
     tick_count = max(int(max_plot_depth / tick_count), 1)
 
     # set axis parameters
-    #ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
+    # ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     ax2.spines["top"].set_visible(False)
@@ -390,10 +359,7 @@ def plot_coverage(
     return ax2
 
 
-# }}}
-
 ##Pair End methods
-# {{{class PairedEnd:
 class PairedEnd:
     """container of paired-end read info
 
@@ -409,7 +375,7 @@ class PairedEnd:
         Molecular identifier and Haplotype are integers if present, else
         False
         """
-        self.pos = genome_interval(chrm, start, end)
+        self.pos = GenomeInterval(chrm, start, end)
         self.strand = not (is_reverse)
         # molecular identifier - linked reads only
         self.MI = None
@@ -432,9 +398,6 @@ class PairedEnd:
         )
 
 
-# }}}
-
-# {{{ def add_pair_end(bam_file, read, pairs, linked_reads):
 def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     """adds a (mapped, primary, non-supplementary, and paired) read to the
     pairs list
@@ -490,9 +453,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     pairs[pe.HP][read.query_name].sort(key=lambda x: x.pos.start)
 
 
-# }}}
-
-# {{{def sample_normal(max_depth, pairs, z):
 def sample_normal(max_depth, pairs, z):
     """Downsamples paired-end reads 
     
@@ -549,9 +509,6 @@ def sample_normal(max_depth, pairs, z):
     return sampled_pairs
 
 
-# }}}
-
-# {{{def get_pairs_insert_sizes(pairs):
 def get_pairs_insert_sizes(ranges, pairs):
     """Extracts the integer insert sizes for all pairs
 
@@ -561,7 +518,7 @@ def get_pairs_insert_sizes(ranges, pairs):
 
     for hp in pairs:
         for read_name in pairs[hp]:
-            if len(pairs[hp][read_name]) == 2:
+            if len(pairs[hp][read_name]) == 2:  # TODO combine ifs
                 size = get_pair_insert_size(ranges, pairs[hp][read_name])
 
                 if size:
@@ -570,9 +527,6 @@ def get_pairs_insert_sizes(ranges, pairs):
     return pair_insert_sizes
 
 
-# }}}
-
-# {{{def get_pair_insert_size(ranges, pair):
 def get_pair_insert_size(ranges, pair):
     """ Gives the outer distance
     """
@@ -596,15 +550,14 @@ def get_pair_insert_size(ranges, pair):
         return None
 
 
-# }}}
-
-# {{{ def get_pairs_plan(ranges, pairs, linked_plan=False):
 def get_pairs_plan(ranges, pairs, linked_plan=False):
     steps = []
     max_event = 0
 
     insert_sizes = []
 
+    # TODO if pairs is a dictionary, then you can
+    # iterate over keys, values with pairs.items()
     for read_name in pairs:
         pair = pairs[read_name]
 
@@ -623,9 +576,6 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
     return plan
 
 
-# }}}
-
-# {{{def get_pair_plan(ranges, pair, linked_plan=False):
 def get_pair_plan(ranges, pair, linked_plan=False):
     if pair == None or len(pair) != 2:
         return None
@@ -653,13 +603,13 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     first_hit = first_s_hit if first_s_hit != None else first_e_hit
     second_hit = second_e_hit if second_e_hit != None else second_s_hit
 
-    start = genome_interval(
+    start = GenomeInterval(
         first.pos.chrm,
         max(first.pos.start, ranges[first_hit].start),
         max(first.pos.start, ranges[first_hit].start),
     )
 
-    end = genome_interval(
+    end = GenomeInterval(
         second.pos.chrm,
         min(second.pos.end, ranges[second_hit].end),
         min(second.pos.end, ranges[second_hit].end),
@@ -673,9 +623,6 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     return insert_size, step
 
 
-# }}}
-
-# {{{def get_pair_event_type(pe_read):
 def get_pair_event_type(pe_read):
     """Decide what type of event the read supports (del/normal, dup, inv)
     """
@@ -689,8 +636,6 @@ def get_pair_event_type(pe_read):
     return event_type
 
 
-# }}}
-
 def jitter(value, bounds: float = 0.1) -> float:
     """
     Offset value by a random value within the defined bounds
@@ -699,7 +644,6 @@ def jitter(value, bounds: float = 0.1) -> float:
     return value * (1 + bounds * random.uniform(-1, 1))
 
 
-# {{{def plot_pair_plan(ranges, step, ax):
 def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
@@ -736,21 +680,25 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
         markersize=marker_size,
         zorder=10,
     )
-
     return True
 
 
-# }}}
-
-# {{{def plot_pairs(pairs,
 def plot_pairs(
-    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
+    pairs,
+    ax,
+    ranges,
+    curr_min_insert_size,
+    curr_max_insert_size,
+    marker_size,
+    jitter_bounds,
 ):
     """Plots all PairedEnd reads for the region
     """
 
     plan = get_pairs_plan(ranges, pairs)
 
+    # TODO what's the point of this block?
+    # seems like a naked expression?
     if not plan:
         [curr_min_insert_size, curr_max_insert_size]
 
@@ -767,10 +715,7 @@ def plot_pairs(
     return [curr_min_insert_size, curr_max_insert_size]
 
 
-# }}}
-
 ##Split Read methods
-# {{{class SplitRead:
 class SplitRead:
     """container of split read info
 
@@ -786,7 +731,7 @@ class SplitRead:
         Molecular identifier and Haplotype are integers if present, else
         False
         """
-        self.pos = genome_interval(chrm, start, end)
+        self.pos = GenomeInterval(chrm, start, end)
         self.strand = strand
         self.query_pos = query_pos
         # molecular identifier - linked reads only
@@ -811,9 +756,6 @@ class SplitRead:
         )
 
 
-# }}}
-
-# {{{def calc_query_pos_from_cigar(cigar, strand):
 def calc_query_pos_from_cigar(cigar, strand):
     """Uses the CIGAR string to determine the query position of a read
 
@@ -851,9 +793,6 @@ def calc_query_pos_from_cigar(cigar, strand):
     return qs_pos, qe_pos
 
 
-# }}}
-
-# {{{def add_split(read, splits, bam_file, linked_reads):
 def add_split(read, splits, bam_file, linked_reads, ignore_hp):
     """adds a (primary, non-supplementary) read to the splits list
 
@@ -907,7 +846,7 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
         pos = int(A[1])
         strand = A[2] == "+"
         cigar = A[3]
-        #mapq and nm are never used, annotating this for code readability 
+        # mapq and nm are never used, annotating this for code readability
         mapq = int(A[4])
         nm = int(A[5])
         qs_pos, qe_pos = calc_query_pos_from_cigar(cigar, strand)
@@ -921,10 +860,6 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
         splits[sr.HP][read.query_name].sort(key=lambda x: x.pos.start)
 
 
-# }}}
-
-
-# {{{def get_split_plan(ranges, split):
 def get_split_plan(ranges, split, linked_plan=False):
     """
     There can be 2 or more alignments in a split. Plot only those that are in a
@@ -966,12 +901,12 @@ def get_split_plan(ranges, split, linked_plan=False):
             and lr_steps[i + 1].info["TYPE"] != "Align"
             and lr_steps[i + 2].info["TYPE"] == "Align"
         ):
-            start = genome_interval(
+            start = GenomeInterval(
                 lr_steps[i].end_pos.chrm,
                 lr_steps[i].end_pos.end,
                 lr_steps[i].end_pos.end,
             )
-            end = genome_interval(
+            end = GenomeInterval(
                 lr_steps[i + 2].start_pos.chrm,
                 lr_steps[i + 2].start_pos.start,
                 lr_steps[i + 2].start_pos.start,
@@ -987,9 +922,6 @@ def get_split_plan(ranges, split, linked_plan=False):
     return max_gap, sr_steps
 
 
-# }}}
-
-# {{{def get_splits_plan(ranges, splits, linked_plan=False):
 def get_splits_plan(ranges, splits, linked_plan=False):
     steps = []
     max_event = 0
@@ -1014,10 +946,6 @@ def get_splits_plan(ranges, splits, linked_plan=False):
     return plan
 
 
-# }}}
-
-
-# {{{def plot_split(split, y, ax, ranges):
 def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
@@ -1026,6 +954,7 @@ def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
         map_genome_point_to_range_points(ranges, step.end_pos.chrm, step.end_pos.end),
     ]
 
+    # TODO replace with if any(p) -- it does the same thing
     if None in p:
         return False
 
@@ -1052,13 +981,17 @@ def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
         marker="o",
         markersize=marker_size,
     )
+    # TODO should this be returning True?
 
 
-# }}}
-
-# {{{def plot_splits(splits,
 def plot_splits(
-    splits, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
+    splits,
+    ax,
+    ranges,
+    curr_min_insert_size,
+    curr_max_insert_size,
+    marker_size,
+    jitter_bounds,
 ):
     """Plots all SplitReads for the region
     """
@@ -1080,10 +1013,7 @@ def plot_splits(
     return [curr_min_insert_size, curr_max_insert_size]
 
 
-# }}}
-
 ##Long Read methods
-# {{{class Alignment:
 class Alignment:
     """container of alignment info, from CIGAR string
 
@@ -1097,7 +1027,7 @@ class Alignment:
         Genomic interval is defined by start, end, and query_pos integers
         Strand is bool (True for forward)
         """
-        self.pos = genome_interval(chrm, start, end)
+        self.pos = GenomeInterval(chrm, start, end)
         self.strand = strand
         self.query_position = query_position
 
@@ -1116,18 +1046,9 @@ class Alignment:
         )
 
     def __repr__(self):
-        return "Alignment(%s,%s,%s,%s,%s)" % (
-            self.pos.chrm,
-            self.pos.start,
-            self.pos.end,
-            self.strand,
-            self.query_position,
-        )
+        return "Alignment(" + self.__str__() + ")"
 
 
-# }}}
-
-# {{{class LongRead:
 class LongRead:
     """container of LongRead info
 
@@ -1149,9 +1070,6 @@ class LongRead:
         return "LongRead(" + str(self) + ")"
 
 
-# }}}
-
-# {{{def get_alignments_from_cigar(chrm,
 def get_alignments_from_cigar(chrm, curr_pos, strand, cigartuples, reverse=False):
     """Breaks CIGAR string into individual Aignments
 
@@ -1184,14 +1102,12 @@ def get_alignments_from_cigar(chrm, curr_pos, strand, cigartuples, reverse=False
     return alignments
 
 
-# }}}
-
-# {{{def get_cigartuples_from_string(cigarstring):
 def get_cigartuples_from_string(cigarstring):
     """Extracts operations,lengths as tuples from cigar string"
 
     Returns list of tuples of [operation,length]
     """
+    # TODO is regex the best way?
     cigartuples = []
     for match in re.findall(r"(\d+)([A-Z]{1})", cigarstring):
         length = int(match[0])
@@ -1201,9 +1117,6 @@ def get_cigartuples_from_string(cigarstring):
     return cigartuples
 
 
-# }}}
-
-# {{{def merge_alignments(min_gap, alignments):
 def merge_alignments(min_gap, alignments):
     """Combines previously identified alignments if close together
     Alignments are combined if within min_gap distance
@@ -1216,6 +1129,7 @@ def merge_alignments(min_gap, alignments):
         if len(merged_alignments) == 0:
             merged_alignments.append(alignment)
         else:
+            # TODO this should just be an elif
             if (
                 alignment.pos.chrm == merged_alignments[-1].pos.chrm
                 and alignment.pos.start < merged_alignments[-1].pos.end + min_gap
@@ -1226,9 +1140,6 @@ def merge_alignments(min_gap, alignments):
     return merged_alignments
 
 
-# }}}
-
-# {{{def add_long_reads(bam_file, read, long_reads, min_event_size):
 def add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp):
     """Adds a (primary, non-supplementary, long) read to the long_reads list
 
@@ -1287,9 +1198,6 @@ def add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp):
     long_reads[hp][read.query_name].append(LongRead(merged_alignments))
 
 
-# }}}
-
-# {{{def add_align_step(alignment, steps, ranges):
 def add_align_step(alignment, steps, ranges):
     # alignment can span ranges
     start_range_hit_i = get_range_hit(ranges, alignment.pos.chrm, alignment.pos.start)
@@ -1301,12 +1209,12 @@ def add_align_step(alignment, steps, ranges):
 
     # start is not in range, use end hit
     if start_range_hit_i == None:
-        start = genome_interval(
+        start = GenomeInterval(
             alignment.pos.chrm,
             max(alignment.pos.start, ranges[end_range_hit_i].start),
             max(alignment.pos.start, ranges[end_range_hit_i].start),
         )
-        end = genome_interval(
+        end = GenomeInterval(
             alignment.pos.chrm,
             min(alignment.pos.end, ranges[end_range_hit_i].end),
             min(alignment.pos.end, ranges[end_range_hit_i].end),
@@ -1314,12 +1222,12 @@ def add_align_step(alignment, steps, ranges):
         steps.append(plan_step(start, end, "LONGREAD", info={"TYPE": "Align"}))
     # end is not in range, use start hit
     elif end_range_hit_i == None:
-        start = genome_interval(
+        start = GenomeInterval(
             alignment.pos.chrm,
             max(alignment.pos.start, ranges[start_range_hit_i].start),
             max(alignment.pos.start, ranges[start_range_hit_i].start),
         )
-        end = genome_interval(
+        end = GenomeInterval(
             alignment.pos.chrm,
             min(alignment.pos.end, ranges[start_range_hit_i].end),
             min(alignment.pos.end, ranges[start_range_hit_i].end),
@@ -1327,12 +1235,12 @@ def add_align_step(alignment, steps, ranges):
         steps.append(plan_step(start, end, "LONGREAD", info={"TYPE": "Align"}))
     # both are in the same range
     elif start_range_hit_i == end_range_hit_i:
-        start = genome_interval(
+        start = GenomeInterval(
             alignment.pos.chrm,
             max(alignment.pos.start, ranges[start_range_hit_i].start),
             max(alignment.pos.start, ranges[start_range_hit_i].start),
         )
-        end = genome_interval(
+        end = GenomeInterval(
             alignment.pos.chrm,
             min(alignment.pos.end, ranges[end_range_hit_i].end),
             min(alignment.pos.end, ranges[end_range_hit_i].end),
@@ -1340,24 +1248,24 @@ def add_align_step(alignment, steps, ranges):
         steps.append(plan_step(start, end, "LONGREAD", info={"TYPE": "Align"}))
     # in different ranges
     else:
-        start_1 = genome_interval(
+        start_1 = GenomeInterval(
             alignment.pos.chrm,
             max(alignment.pos.start, ranges[start_range_hit_i].start),
             max(alignment.pos.start, ranges[start_range_hit_i].start),
         )
-        end_1 = genome_interval(
+        end_1 = GenomeInterval(
             alignment.pos.chrm,
             ranges[start_range_hit_i].end,
             ranges[start_range_hit_i].end,
         )
         steps.append(plan_step(start_1, end_1, "LONGREAD", info={"TYPE": "Align"}))
 
-        start_2 = genome_interval(
+        start_2 = GenomeInterval(
             alignment.pos.chrm,
             ranges[end_range_hit_i].start,
             ranges[end_range_hit_i].start,
         )
-        end_2 = genome_interval(
+        end_2 = GenomeInterval(
             alignment.pos.chrm,
             min(alignment.pos.end, ranges[end_range_hit_i].end),
             min(alignment.pos.end, ranges[end_range_hit_i].end),
@@ -1365,9 +1273,6 @@ def add_align_step(alignment, steps, ranges):
         steps.append(plan_step(start_2, end_2, "LONGREAD", info={"TYPE": "Align"}))
 
 
-# }}}
-
-# {{{def get_long_read_plan(read_name, long_reads, ranges):
 def get_long_read_plan(read_name, long_reads, ranges):
     """Create a plan to render a long read
 
@@ -1436,15 +1341,15 @@ def get_long_read_plan(read_name, long_reads, ranges):
         # INTER CHROM
         if curr.pos.chrm != last.pos.chrm:
             if curr.strand != last.strand:
-                start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
+                start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
 
-                end = genome_interval(curr.pos.chrm, curr.pos.end, curr.pos.end)
+                end = GenomeInterval(curr.pos.chrm, curr.pos.end, curr.pos.end)
 
                 info = {"TYPE": "InterChrmInversion"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
             else:
-                start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-                end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+                start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+                end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
                 info = {"TYPE": "InterChrm"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
 
@@ -1454,8 +1359,8 @@ def get_long_read_plan(read_name, long_reads, ranges):
             # it is possible that we have a complex even that
             # is an inverted Duplication
             if curr.pos.start < last.pos.end:
-                start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-                end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+                start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+                end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
                 info = {"TYPE": "Deletion"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
             if curr.strand != primary_strand:
@@ -1469,14 +1374,14 @@ def get_long_read_plan(read_name, long_reads, ranges):
                 #               ^.......^
                 #             end           end
 
-                start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-                end = genome_interval(curr.pos.chrm, curr.pos.end, curr.pos.end)
+                start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+                end = GenomeInterval(curr.pos.chrm, curr.pos.end, curr.pos.end)
                 info = {"TYPE": "Inversion"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
             else:
                 if curr.pos.start < last.pos.end:
-                    start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-                    end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+                    start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+                    end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
                     info = {"TYPE": "Duplication"}
                     steps.append(plan_step(start, end, "LONGREAD", info=info))
 
@@ -1490,23 +1395,23 @@ def get_long_read_plan(read_name, long_reads, ranges):
                 # ^.......^
                 # start   start
 
-                start = genome_interval(last.pos.chrm, last.pos.start, last.pos.start)
-                end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+                start = GenomeInterval(last.pos.chrm, last.pos.start, last.pos.start)
+                end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
                 info = {"TYPE": "Inversion"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
 
             add_align_step(curr, steps, ranges)
         # Duplication
         elif curr.pos.start < last.pos.end:
-            start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-            end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+            start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+            end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
             info = {"TYPE": "Duplication"}
             steps.append(plan_step(start, end, "LONGREAD", info=info))
             add_align_step(curr, steps, ranges)
         # Deletion
         else:
-            start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-            end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start)
+            start = GenomeInterval(last.pos.chrm, last.pos.end, last.pos.end)
+            end = GenomeInterval(curr.pos.chrm, curr.pos.start, curr.pos.start)
             info = {"TYPE": "Deletion"}
             # steps.append(plan_step(start, end, 'LONGREAD', info=info))
             steps.append(plan_step(start, end, "LONGREAD", info={"TYPE": "Deletion"}))
@@ -1537,11 +1442,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
     return plan
 
 
-# }}}
-
-
 ##Variant methods
-# {{{def plot_variant(sv, sv_type, ax, ranges):
 def plot_variant(sv, sv_type, ax, ranges):
     """Plots the variant bar at the top of the image
 
@@ -1586,9 +1487,6 @@ def plot_variant(sv, sv_type, ax, ranges):
     ax.set_title(sv_title, fontsize=8)
 
 
-# }}}
-
-# {{{def plot_confidence_interval(chrm, breakpoint,ci, ax, ranges):
 def plot_confidence_interval(chrm, breakpoint, ci, ax, ranges):
     """Plots a confidence interval on the variant bar
     """
@@ -1616,9 +1514,6 @@ def plot_confidence_interval(chrm, breakpoint, ci, ax, ranges):
     ax.set_yticklabels([])
 
 
-# }}}
-
-# {{{def create_variant_plot(grid,
 def create_variant_plot(grid, ax_i, sv, sv_type, ranges, start_ci, end_ci):
     """Plots the pieces of the variant bar at the top, including bar and
     confidence intervals 
@@ -1647,10 +1542,7 @@ def create_variant_plot(grid, ax_i, sv, sv_type, ranges, start_ci, end_ci):
     return ax_i
 
 
-# }}}
-
 # Linked Reads methods
-# {{{ def get_linked_plan(ranges, pairs, splits, linked_reads, gem_name):
 def get_linked_plan(ranges, pairs, splits, linked_reads, gem_name):
     insert_sizes = []
 
@@ -1700,8 +1592,8 @@ def get_linked_plan(ranges, pairs, splits, linked_reads, gem_name):
     for i in range(len(ranges)):
         if len(gem_poss[i]) == 0:
             continue
-        start = genome_interval(ranges[i].chrm, min(gem_poss[i]), min(gem_poss[i]))
-        end = genome_interval(ranges[i].chrm, max(gem_poss[i]), max(gem_poss[i]))
+        start = GenomeInterval(ranges[i].chrm, min(gem_poss[i]), min(gem_poss[i]))
+        end = GenomeInterval(ranges[i].chrm, max(gem_poss[i]), max(gem_poss[i]))
         gem_steps.append(plan_step(start, end, "LINKED"))
 
     # if the gem extends beyond the range, then push the end pos to the
@@ -1724,9 +1616,6 @@ def get_linked_plan(ranges, pairs, splits, linked_reads, gem_name):
     return max(insert_sizes), gem_steps
 
 
-# }}}
-
-# {{{ def plot_linked_reads(pairs,
 def plot_linked_reads(
     pairs,
     splits,
@@ -1738,7 +1627,8 @@ def plot_linked_reads(
     marker_size,
     jitter_bounds,
 ):
-    """Plots all LinkedReads for the region
+    """
+    Plots all LinkedReads for the region
     """
     for linked_read in linked_reads:
         plan = get_linked_plan(ranges, pairs, splits, linked_reads, linked_read)
@@ -1783,11 +1673,9 @@ def plot_linked_reads(
     return [curr_min_insert_size, curr_max_insert_size]
 
 
-# }}}
-
-# {{{def plot_long_reads(long_reads,
 def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size):
-    """Plots all LongReads for the region
+    """
+    Plots all LongReads for the region
     """
 
     Path = mpath.Path
@@ -1810,6 +1698,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
         steps = long_read_plan[1]
         for step in steps:
 
+            # TODO name this something better like genomic2range
             p = [
                 map_genome_point_to_range_points(
                     ranges, step.start_pos.chrm, step.start_pos.start
@@ -1867,10 +1756,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
     return [curr_min_insert_size, curr_max_insert_size]
 
 
-# }}}
-
 ##Setup
-# {{{def pair(arg):
 def pair(arg):
     """Defines behavior for ArgParse pairs 
 
@@ -1886,9 +1772,6 @@ def pair(arg):
         sys.exit("Invalid pair values")
 
 
-# }}}
-
-# {{{def print_arguments(options):
 def print_arguments(options):
     """Prints out the arguments to samplot as a json object
 
@@ -1917,10 +1800,8 @@ def print_arguments(options):
             json.dump(args_info, outfile)
 
 
-# }}}
-
-
-# {{{def setup_arguments():
+# TODO this function needs a better name like add_args
+# also it should just be moved to a separate file and imported
 def add_plot(parent_parser):
     """Defines the allowed arguments for plot function
     """
@@ -1959,9 +1840,14 @@ def add_plot(parent_parser):
         required=False,
     )
 
+    # TODO surely there is a better way than a nested function here
+    # for these file check operations, maybe these functions should
+    # be moved to a separate file and renamed to check_bam, check_gff, etc.
     def bam_file(bam):
         if not os.path.isfile(bam):
-            parser.error("alignment file {} does not exist or is not a valid file".format(bam))
+            parser.error(
+                "alignment file {} does not exist or is not a valid file".format(bam)
+            )
         options = ["sam", "bam", "cram"]
         idx_options = ["sai", "bai", "crai", "csi"]
         fields = os.path.splitext(bam)
@@ -1969,16 +1855,16 @@ def add_plot(parent_parser):
         if ext not in options:
             parser.error("alignment file {} is not in SAM/BAM/CRAM format".format(bam))
         idx_type = idx_options[options.index(ext)]
-        #try the type-specific index name
+        # try the type-specific index name
         picard_bam = os.path.splitext(bam)[0]
-        if (not os.path.isfile(bam + "." + idx_type) and 
-                not os.path.isfile(picard_bam + "." + idx_type)):
+        if not os.path.isfile(bam + "." + idx_type) and not os.path.isfile(
+            picard_bam + "." + idx_type
+        ):
             idx_type = idx_options[3]
-            #try the csi index name
+            # try the csi index name
             if not os.path.isfile(bam + "." + idx_type):
                 parser.error("alignment file {} has no index".format(bam))
         return bam
-
 
     parser.add_argument(
         "-b",
@@ -1990,20 +1876,19 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
-        "-o", 
-        "--output_file", 
-        type=str, 
-        help="Output file name/type. "
-        +"Defaults to {type}_{chrom}_{start}_{end}.png",
+        "-o",
+        "--output_file",
+        type=str,
+        help="Output file name/type. " + "Defaults to {type}_{chrom}_{start}_{end}.png",
         required=False,
     )
-    
+
     parser.add_argument(
         "--output_dir",
         type=str,
         default=".",
         help="Output directory name. Defaults to working dir. "
-        +"Ignored if --output_file is set",
+        + "Ignored if --output_file is set",
         required=False,
     )
 
@@ -2027,10 +1912,11 @@ def add_plot(parent_parser):
 
     parser.add_argument(
         "-c",
-        "--chrom", type=str,
+        "--chrom",
+        type=str,
         help="Chromosome (add multiple for translocation/BND events)",
         action="append",
-        required=True
+        required=True,
     )
 
     parser.add_argument(
@@ -2057,10 +1943,14 @@ def add_plot(parent_parser):
         help="SV type. If omitted, plot is created " + "without variant bar",
         required=False,
     )
-    
+
     def gff_file(transcript_file):
         if not os.path.isfile(transcript_file):
-            parser.error("transcript file {} does not exist or is not a valid file".format(transcript_file))
+            parser.error(
+                "transcript file {} does not exist or is not a valid file".format(
+                    transcript_file
+                )
+            )
         options = ["gff", "gff3"]
         fields = os.path.splitext(transcript_file)
         ext = fields[1][1:]
@@ -2068,17 +1958,24 @@ def add_plot(parent_parser):
             ext = os.path.splitext(fields[0])[1][1:]
         ext = ext.lower()
         if ext not in options:
-            parser.error("transcript file {} is not in GFF3 format".format(transcript_file))
+            parser.error(
+                "transcript file {} is not in GFF3 format".format(transcript_file)
+            )
 
         idx_file = transcript_file + ".tbi"
         if not os.path.isfile(idx_file):
             idx_file = transcript_file + ".csi"
             if not os.path.isfile(idx_file):
-                parser.error("transcript file {} is missing .tbi/.csi index file".format(transcript_file))
+                parser.error(
+                    "transcript file {} is missing .tbi/.csi index file".format(
+                        transcript_file
+                    )
+                )
         return transcript_file
 
     parser.add_argument(
-        "-T", "--transcript_file",
+        "-T",
+        "--transcript_file",
         help="GFF3 of transcripts",
         required=False,
         type=gff_file,
@@ -2090,7 +1987,7 @@ def add_plot(parent_parser):
         required=False,
         type=str,
     )
-    
+
     parser.add_argument(
         "--max_coverage_points",
         help="number of points to plot in coverage axis (downsampled from region size for speed)",
@@ -2101,20 +1998,30 @@ def add_plot(parent_parser):
 
     def bed_file(annotation_file):
         if not os.path.isfile(annotation_file):
-            parser.error("annotation file {} does not exist or is not a valid file".format(annotation_file))
+            parser.error(
+                "annotation file {} does not exist or is not a valid file".format(
+                    annotation_file
+                )
+            )
         fields = os.path.splitext(annotation_file)
         ext = fields[1][1:]
         if ext == "gz":
             ext = os.path.splitext(fields[0])[1][1:]
         ext = ext.lower()
         if ext != "bed":
-            parser.error("annotation file {} is not in BED format".format(annotation_file))
+            parser.error(
+                "annotation file {} is not in BED format".format(annotation_file)
+            )
 
         idx_file = annotation_file + ".tbi"
         if not os.path.isfile(idx_file):
             idx_file = annotation_file + ".csi"
             if not os.path.isfile(idx_file):
-                parser.error("annotation file {} is missing .tbi index file".format(annotation_file))
+                parser.error(
+                    "annotation file {} is missing .tbi index file".format(
+                        annotation_file
+                    )
+                )
         return annotation_file
 
     parser.add_argument(
@@ -2127,7 +2034,7 @@ def add_plot(parent_parser):
         + "mappability, etc.)",
         required=False,
     )
-    
+
     parser.add_argument(
         "--annotation_filenames",
         type=str,
@@ -2311,8 +2218,8 @@ def add_plot(parent_parser):
         const=0.08,
         default=0.0,
         help="Add uniform random noise to insert sizes. This can be helpful "
-             "to resolve overlapping entries. Either a custom value (<1.0) is "
-             "supplied or %(const)s will be used."
+        "to resolve overlapping entries. Either a custom value (<1.0) is "
+        "supplied or %(const)s will be used.",
     )
     parser.add_argument(
         "--dpi",
@@ -2324,7 +2231,7 @@ def add_plot(parent_parser):
     parser.add_argument(
         "--annotation_scalar",
         type=float,
-        default=.3,
+        default=0.3,
         help="scaling factor for the optional annotation/trascript tracks",
         required=False,
     )
@@ -2333,29 +2240,37 @@ def add_plot(parent_parser):
         type=int,
         default=500000,
         help="Only show +- zoom amount around breakpoints, "
-            +"much faster for large regions. "
-            +"Ignored if region smaller than --zoom (default 500000)",
+        + "much faster for large regions. "
+        + "Ignored if region smaller than --zoom (default 500000)",
         required=False,
     )
 
+    # TODO this doesn't seem to be used at all?
     parser.add_argument(
-        "--debug",
+        "--debug", type=str, help="Print debug statements", required=False
+    )
+
+    parser.add_argument("--random-seed", type=int, default=9999, help=SUPPRESS)
+
+    # TODO add support for multiple bedpe files
+    parser.add_argument(
+        "--bedpe",
+        dest="bedpe",
+        type=str,  # TODO use a validation function like in annoation, bam, etc.
+        help="BEDPE file with breakpoints to plot",  # TODO specify format
+        required=False,
+    )
+    parser.add_argument(
+        "--bedpe-title",
+        dest="bedpe_title",
         type=str,
-        help="Print debug statements",
-        required=False
+        help="Title for the BEDPE track",
+        default="BEDPE",
     )
-    parser.add_argument(
-        "--random-seed",
-        type=int,
-        default=9999,
-        help=SUPPRESS,
-    )
+
     parser.set_defaults(func=plot)
 
 
-# }}}
-
-# {{{def estimate_fragment_len(bam)
 def estimate_fragment_len(bam, reference):
     try:
         if not reference:
@@ -2382,7 +2297,6 @@ def estimate_fragment_len(bam, reference):
         return 0
 
 
-# {{{def set_plot_dimensions(sv,
 def set_plot_dimensions(
     sv,
     sv_type,
@@ -2392,6 +2306,7 @@ def set_plot_dimensions(
     reference,
     annotation_files,
     transcript_file,
+    bedpe_file,
     arg_window,
     zoom,
 ):
@@ -2403,6 +2318,7 @@ def set_plot_dimensions(
 
     Return plot height, width, and window as integers
     """
+    # TODO account for multiple bedpe files
 
     plot_height = 5
     plot_width = 8
@@ -2414,6 +2330,9 @@ def set_plot_dimensions(
             num_subplots += 0.3 * len(annotation_files)
         if transcript_file:
             num_subplots += 0.3
+        if bedpe_file:
+            num_subplots += 1
+
         plot_height = 2 + num_subplots
 
     if arg_plot_width:
@@ -2448,6 +2367,8 @@ def set_plot_dimensions(
                 if (0 < frag_len) and (window < 1.5 * frag_len):
                     old_window = window
                     window = int(1.5 * frag_len)
+                    # TODO multiline string with triplle quotes
+                    # TODO use f string
                     print(
                         "Window size is under 1.5x the estimated fragment length "
                         + "and will be resized to {}. Rerun with -w {} to override".format(
@@ -2455,9 +2376,9 @@ def set_plot_dimensions(
                         ),
                         file=sys.stderr,
                     )
-
+            # TODO should put this after if window>=zoom to avoid computing twice
             ranges = [
-                genome_interval(
+                GenomeInterval(
                     sv[0].chrm, max(0, sv[0].start - window), sv[0].end + window
                 )
             ]
@@ -2466,12 +2387,10 @@ def set_plot_dimensions(
             if window >= zoom:
                 window = zoom
                 ranges = [
-                    genome_interval(
-                        sv[0].chrm,
-                        max(0, sv[0].start - window),
-                        sv[0].start + window,
+                    GenomeInterval(
+                        sv[0].chrm, max(0, sv[0].start - window), sv[0].start + window
                     ),
-                    genome_interval(
+                    GenomeInterval(
                         sv[0].chrm, max(0, sv[0].end - window), sv[0].end + window
                     ),
                 ]
@@ -2484,10 +2403,10 @@ def set_plot_dimensions(
                 window = 1000
 
             ranges = [
-                genome_interval(
+                GenomeInterval(
                     sv[0].chrm, max(0, sv[0].start - window), sv[0].start + window
                 ),
-                genome_interval(
+                GenomeInterval(
                     sv[1].chrm, max(0, sv[1].end - window), sv[1].end + window
                 ),
             ]
@@ -2495,14 +2414,11 @@ def set_plot_dimensions(
             sys.stderr.write(str(len(sv)) + " genome splits are not supported")
             sys.exit(1)
     else:
-        ranges = [genome_interval(sv[0].chrm, sv[0].start, sv[0].end)]
+        ranges = [GenomeInterval(sv[0].chrm, sv[0].start, sv[0].end)]
 
     return plot_height, plot_width, window, ranges
 
 
-# }}}
-
-# {{{def get_read_data(ranges,
 def get_read_data(
     ranges,
     bams,
@@ -2549,10 +2465,13 @@ def get_read_data(
                     bam_file_name, "rc", reference_filename=reference
                 )
         except Exception as err:
-            print("Error:", err, 
-                    "This can be caused by issues with the alignment file. "
-                    +"Please make sure that it is sorted and indexed before trying again",
-                    file=sys.stderr)
+            print(
+                "Error:",
+                err,
+                "This can be caused by issues with the alignment file. "
+                + "Please make sure that it is sorted and indexed before trying again",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         pairs = {}
@@ -2583,12 +2502,15 @@ def get_read_data(
 
                 if not coverage_only:
                     if read.query_length >= long_read_length:
-                        add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp)
+                        add_long_reads(
+                            bam_file, read, long_reads, min_event_size, ignore_hp
+                        )
                     else:
                         add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
                         add_split(read, splits, bam_file, linked_reads, ignore_hp)
                 add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp)
 
+        # TODO map len then 'not any(...)'
         if (
             len(pairs) == 0
             and len(splits) == 0
@@ -2597,8 +2519,7 @@ def get_read_data(
         ):
             if not coverage_only:
                 print(
-                    "Warning: No data returned from fetch in "
-                    + "regions  "
+                    "Warning: No data returned from fetch in regions "
                     + " ".join([str(r) for r in ranges])
                     + " from "
                     + bam_file_name,
@@ -2639,9 +2560,6 @@ def get_read_data(
     return read_data, max_coverage
 
 
-# }}}
-
-# {{{def downsample_pairs(max_depth, z_score, all_pairs):
 def downsample_pairs(max_depth, z_score, all_pairs):
     """Downsamples to keep only max_depth normal pairs from all PairedEnd
     reads 
@@ -2654,9 +2572,6 @@ def downsample_pairs(max_depth, z_score, all_pairs):
     return all_pairs
 
 
-# }}}
-
-# {{{def set_haplotypes(curr_coverage):
 def set_haplotypes(curr_coverage):
     """Creates a list to manage counting haplotypes for subplots
     """
@@ -2675,9 +2590,6 @@ def set_haplotypes(curr_coverage):
     return hps
 
 
-# }}}
-
-# {{{def plot_samples(ranges,
 def plot_samples(
     ranges,
     read_data,
@@ -2693,32 +2605,33 @@ def plot_samples(
     yaxis_label_fontsize,
     annotation_files,
     transcript_file,
+    bedpe_file,
     max_coverage_points,
     max_coverage,
     marker_size,
     coverage_only,
     jitter_bounds,
 ):
-
-    """Plots all samples
+    """ Plots all samples
     """
     max_insert_size = 0
 
     # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
     ylim_margin = max(1.02 + jitter_bounds, 1.10)
     for i in range(len(bams)):
-        #ax is never used, annotating this for readability
+        # ax is never used, annotating this for readability
         ax = plt.subplot(grid[ax_i])
         hps = set_haplotypes(read_data["all_coverages"][i])
         inner_axs = gridspec.GridSpecFromSubplotSpec(
             len(hps), 1, subplot_spec=grid[ax_i], wspace=0.0, hspace=0.5
         )
+        # TODO why is this a dict and not a list?
         axs = {}
         for j in range(len(hps)):
             axs[j] = plt.subplot(inner_axs[hps[j]])
 
-        curr_min_insert_size = None
-        curr_max_insert_size = 0
+        curr_min_insert_size = int(sys.maxsize)
+        curr_max_insert_size = int(0)
 
         cover_axs = {}
         for hp in hps:
@@ -2744,6 +2657,8 @@ def plot_samples(
             if hp in read_data["all_coverages"][i]:
                 curr_coverage = read_data["all_coverages"][i][hp]
 
+            # we save the coverage ax separately to give separate
+            # axes labels for coverage and insert size.
             cover_ax = plot_coverage(
                 curr_coverage,
                 curr_ax,
@@ -2765,7 +2680,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
-                    jitter_bounds
+                    jitter_bounds,
                 )
             elif len(curr_long_reads) > 0:
                 curr_min_insert_size, curr_max_insert_size = plot_long_reads(
@@ -2783,7 +2698,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
-                    jitter_bounds
+                    jitter_bounds,
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -2796,11 +2711,12 @@ def plot_samples(
                     jitter_bounds,
                 )
 
+
+
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
 
-        # {{{ set axis parameters
         # set the axis title to be either one passed in or filename
         curr_ax = axs[hps[0]]
         if titles and len(titles) == len(bams):
@@ -2837,17 +2753,25 @@ def plot_samples(
             # if there's one hp, 6 ticks fit. Otherwise, do 3
             tick_count = 6 if len(hps) == 1 else 3
             curr_ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
-            curr_ax.ticklabel_format(useOffset=False, style='plain')
-            
+            curr_ax.ticklabel_format(useOffset=False, style="plain")
+
             curr_ax.tick_params(axis="both", length=0)
             curr_ax.set_xticklabels([])
             if coverage_only:
                 curr_ax.yaxis.set_visible(False)
 
+        # using the presence of other info sources to get the index of the
+        # last axis to be used for the coverage axis.
         last_sample_num = number_of_axes - 1
         if annotation_files:
             last_sample_num -= len(annotation_files)
         if transcript_file:
+            last_sample_num -= 1
+        if bedpe_file:
+            # TODO actually maybe dont want this
+            # if we dont do it then the axes below the
+            # bedpe intervals will have the labels which
+            # could be desireable.
             last_sample_num -= 1
 
         if ax_i == last_sample_num:
@@ -2878,24 +2802,20 @@ def plot_samples(
             else:
                 sys.stderr.write("Ranges greater than 2 are not supported\n")
                 sys.exit(1)
-            
+
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
-    
+
         curr_ax = axs[hps[int(len(hps) / 2)]]
         curr_ax.set_ylabel("Insert size", fontsize=8)
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
         cover_ax.set_ylabel("Coverage", fontsize=8)
-        # }}}
 
         ax_i += 1
     return ax_i
 
 
-# }}}
-
-# {{{def plot_legend(fig, legend_fontsize):
 def plot_legend(fig, legend_fontsize, marker_size):
     """Plots the figure legend
     """
@@ -2963,10 +2883,15 @@ def plot_legend(fig, legend_fontsize, marker_size):
     )
 
 
-# }}}
-
-# {{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
-def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data, annotation_scalar):
+def create_gridspec(
+    bams,
+    transcript_file,
+    annotation_files,
+    bedpe_file,
+    sv_type,
+    read_data,
+    annotation_scalar,
+):
     """Helper function for creation of a correctly-sized GridSpec instance
     """
     # give one axis to display each sample
@@ -2976,12 +2901,13 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data,
     if sv_type:
         num_ax += 1
 
-    # add another if a annotation file is given
+    # add if we are displaying addional information from provided files
     if transcript_file:
         num_ax += 1
-
     if annotation_files:
         num_ax += len(annotation_files)
+    if bedpe_file:
+        num_ax += 1
 
     # set the relative sizes for each
     ratios = []
@@ -2991,20 +2917,21 @@ def create_gridspec(bams, transcript_file, annotation_files, sv_type, read_data,
     for i in range(len(bams)):
         ratios.append(len(read_data["all_coverages"][i]) * 3)
         if len(read_data["all_coverages"]) > 0:
-            ratios[-1] = 9
+            ratios[-1] = 9  # TODO this needs an explanation
 
+    if bedpe_file:
+        # TODO I dont know how to set this.  Ideally, it should
+        # be similar to the height ratio of a bam plot
+        ratios.append(3)
     if annotation_files:
         ratios += [annotation_scalar] * len(annotation_files)
     if transcript_file:
-        ratios.append(annotation_scalar * 3)
+        ratios.append(annotation_scalar * 3)  # TODO make a transcript scalar?
 
     return gridspec.GridSpec(num_ax, 1, height_ratios=ratios), num_ax
 
 
-# }}}
-
 ##Annotations/Transcript methods
-# {{{def get_plot_annotation_plan(ranges, annotation_file):
 def get_plot_annotation_plan(ranges, annotation_file):
     annotation_plan = []
     for r in ranges:
@@ -3018,7 +2945,7 @@ def get_plot_annotation_plan(ranges, annotation_file):
             start = int(A[1])
             end = int(A[2])
 
-            interval = genome_interval(chrm, start, end)
+            interval = GenomeInterval(chrm, start, end)
 
             # check to see if any part of this alignment overlaps a plot
             # range
@@ -3028,8 +2955,8 @@ def get_plot_annotation_plan(ranges, annotation_file):
                     in_range = True
             if in_range:
                 step = plan_step(
-                    genome_interval(chrm, start, start),
-                    genome_interval(chrm, end, end),
+                    GenomeInterval(chrm, start, start),
+                    GenomeInterval(chrm, end, end),
                     "ANNOTATION",
                 )
                 if len(A) > 3:
@@ -3045,11 +2972,190 @@ def get_plot_annotation_plan(ranges, annotation_file):
     return annotation_plan
 
 
-# }}}
+# ----------------------------------------------------------------------------
+# plotting for bedpe stix output
+# ----------------------------------------------------------------------------
+@dataclass
+class PeInterval:
+    first: GenomeInterval
+    second: GenomeInterval
+    read_type: str
 
-# {{{def plot_annotations(annotation_files, chrom, start, end,
+    def insert_size(self):
+        """
+        Returns distance between the paired end intervals
+        """
+        if self.first.chrm != self.second.chrm:
+            return INTERCHROM_YAXIS
+        return abs(self.first.end - self.second.start)
+
+
+@dataclass(kw_only=True)
+class BedPePlotter:
+    """
+    This class contains methods for adding a plot from the input bedpe file.
+    The bedpe will contain the following columns:
+
+        chrA, startA, endA, chrB, startB, endB, {paired|split}
+
+    Depending on the content of the final column we will plot the interval as a
+    paired-end read, or as a split-read.
+
+    NOTE:
+    While not true in all cases, we are assuming for now that the bedpe will
+    contain intervals that came from a stix query of the same interval of the
+    SV. Therefore a tabix iterator is not necessary.
+    """
+    file: str # input file
+    ranges: list[GenomeInterval] # range of regions in the plot
+    sv_type: str
+    grid: gridspec.GridSpec
+    title: str
+    xaxis_label_fontsize: int
+    yaxis_label_fontsize: int
+    ax_idx: int # which axes object plot on
+    _plan: list[plan_step] = []
+    _min_insert_size: int = sys.maxsize # used to keep track of insert size of all plots
+    _max_insert_size: int = int(0)
+
+    def _load_regions(self) -> list[PeInterval]:
+        """put all bedpe lines into an paired interval data structure
+        """
+        pe_regions: list[PeInterval] = []
+        with open(self.file) as f:
+            for line in f:
+                A = line.rstrip().split()
+                pe_regions.append(PeInterval(
+                    first=GenomeInterval(A[0], int(A[1]), int(A[2])),
+                    second=GenomeInterval(A[3], int(A[4]), int(A[5])),
+                    read_type=A[6],
+                ))
+        return pe_regions
+
+    def _get_bedpe_plan(self) -> None:
+        """From the bedpe file determine which intervals should be plotted
+        and return as a list of plan_step.
+        """
+        # bedpe_plan: list[plan_step] = []
+
+        pe_regions = self._load_regions()
+        for pair in pe_regions:
+            first_hit = interval_in_range(self.ranges, pair.first)
+            second_hit = interval_in_range(self.ranges, pair.second)
+
+            if (first_hit == None) or (second_hit == None):
+                continue
+
+            insert_size = pair.insert_size()
+            if insert_size < self._min_insert_size:
+                self._min_insert_size = insert_size
+            elif insert_size > self._max_insert_size:
+                self._max_insert_size = insert_size
+
+            start = GenomeInterval(
+                pair.first.chrm,
+                x:=max(pair.first.start, self.ranges[first_hit].start),
+                x
+            )
+            end = GenomeInterval(
+                pair.second.chrm,
+                x:=min(pair.second.end, self.ranges[second_hit].start),
+                x
+            )
+            self._plan.append(
+                plan_step(
+                    start_pos=start,
+                    end_pos=end,
+                    event="PAIREND",
+                    info=dict(TYPE=self.sv_type, INSERT_SIZE=insert_size)
+                )
+            )
+        # return bedpe_plan
+    def _set_axis_elements(self, ax):
+        # ax.set_xlim(self.ranges[0].start, self.ranges[0].end)
+        # ax.set_ylim(0, INTERCHROM_YAXIS)
+        # ax.set_xlabel("Chromosome Position")
+        # ax.set_ylabel("Insert Size")
+        # ax.set_title("BedPE regions")
+
+        ylim_margin = 1.02 # experiment with this
+
+        ax.set_xlim([0, 1])
+        ax.set_ylim([0, max(1, self._max_insert_size * ylim_margin)])
+        ax.spines["top"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(axis="y", labelsize=self.yaxis_label_fontsize)
+        # if there's one hp, 6 ticks fit. Otherwise, do 3
+        tick_count = 6 # experiment with this
+        ax.yaxis.set_major_locator(ticker.LinearLocator(tick_count))
+        ax.ticklabel_format(useOffset=False, style="plain")
+        ax.tick_params(axis="both", length=0)
+        ax.set_xticklabels([])
+
+
+    def plot(self, marker_size):
+        """
+        Plot the bedpe intervals according to event type.
+        Paired end is solid, split is dashed, just as with
+        the bam plot.
+        """
+        ax: plt.Axes = plt.subplot(self.grid[self.ax_idx])
+        self._get_bedpe_plan()
+
+        for step in self._plan:
+            # from genome space to plot space
+            points = (
+                genomic_to_axes(
+                    ranges=self.ranges,
+                    coord=step.start_pos.startCoord,
+                ),
+                genomic_to_axes(
+                    ranges=self.ranges,
+                    coord=step.end_pos.endCoord,
+                ),
+            )
+            if not points_in_window:
+                continue
+
+            insert_size = step.info["INSERT_SIZE"]
+            color = COLORS[step.info["TYPE"]]
+
+            linestyle = '-' if step.event == "PAIREND" else '--'
+            marker = 's' if step.event == "PAIREND" else 'o'
+            ax.plot(
+                points,
+                [insert_size, insert_size],
+                linestyle=linestyle,
+                marker=marker,
+                color=color,
+                markersize=marker_size
+            )
+        self._set_axis_elements(ax)
+                
+
+
+            
+
+        
+
+
+        
+
+
+
+
+
 def plot_annotations(
-    annotation_files, annotation_filenames, ranges, hide_annotation_labels, annotation_fontsize, grid, ax_i, annotation_scalar,
+    annotation_files,
+    annotation_filenames,
+    ranges,
+    hide_annotation_labels,
+    annotation_fontsize,
+    grid,
+    ax_i,
+    annotation_scalar,
 ):
     """Plots annotation information from region 
     """
@@ -3058,7 +3164,7 @@ def plot_annotations(
         for annotation_file in annotation_files:
             annotation_filenames.append(os.path.basename(annotation_file))
 
-    for i,annotation_file in enumerate(annotation_files):
+    for i, annotation_file in enumerate(annotation_files):
         annotation_plan = get_plot_annotation_plan(ranges, annotation_file)
         annotation_filename = annotation_filenames[i]
 
@@ -3113,9 +3219,6 @@ def plot_annotations(
             ax.set_yticklabels([])
 
 
-# }}}
-
-# {{{def get_interval_range_plan_start_end(ranges, interval):
 def get_interval_range_plan_start_end(ranges, interval):
 
     # transcript can span ranges
@@ -3131,7 +3234,6 @@ def get_interval_range_plan_start_end(ranges, interval):
             ):
                 start_range_hit_i = i
                 end_range_hit_i = i
-
     start = None
     end = None
     # neither end is in range, add nothing
@@ -3139,32 +3241,32 @@ def get_interval_range_plan_start_end(ranges, interval):
         return None, None
     # start is in, end is not
     elif end_range_hit_i == None:
-        start = genome_interval(
+        start = GenomeInterval(
             interval.chrm,
             max(interval.start, ranges[start_range_hit_i].start),
             max(interval.start, ranges[start_range_hit_i].start),
         )
-        end = genome_interval(
+        end = GenomeInterval(
             interval.chrm, ranges[start_range_hit_i].end, ranges[start_range_hit_i].end
         )
     # end is in, start is not
     elif start_range_hit_i == None:
-        start = genome_interval(
+        start = GenomeInterval(
             interval.chrm, ranges[end_range_hit_i].start, ranges[end_range_hit_i].start
         )
-        end = genome_interval(
+        end = GenomeInterval(
             interval.chrm,
             min(interval.end, ranges[end_range_hit_i].end),
             min(interval.end, ranges[end_range_hit_i].end),
         )
     # in same range or in different ranges
     else:
-        start = genome_interval(
+        start = GenomeInterval(
             interval.chrm,
             max(interval.start, ranges[start_range_hit_i].start),
             max(interval.start, ranges[start_range_hit_i].start),
         )
-        end = genome_interval(
+        end = GenomeInterval(
             interval.chrm,
             min(interval.end, ranges[end_range_hit_i].end),
             min(interval.end, ranges[end_range_hit_i].end),
@@ -3172,9 +3274,7 @@ def get_interval_range_plan_start_end(ranges, interval):
     return start, end
 
 
-# }}}
-
-# {{{def get_transcript_plan(ranges, transcript_file):
+# TODO all the plan functions should be part of a class, or put in a separate namespace
 def get_transcript_plan(ranges, transcript_file):
     genes = {}
     transcripts = {}
@@ -3188,6 +3288,7 @@ def get_transcript_plan(ranges, transcript_file):
             gene_annotation = row.rstrip().split()
 
             if gene_annotation[2] == "gene":
+                # TODO dict comprehension
                 info = dict(
                     [list(val.split("=")) for val in gene_annotation[8].split(";")]
                 )
@@ -3198,7 +3299,7 @@ def get_transcript_plan(ranges, transcript_file):
                     continue
 
                 genes[info["Name"]] = [
-                    genome_interval(
+                    GenomeInterval(
                         gene_annotation[0],
                         int(gene_annotation[3]),
                         int(gene_annotation[4]),
@@ -3214,7 +3315,7 @@ def get_transcript_plan(ranges, transcript_file):
                 if info["Parent"] not in transcripts:
                     transcripts[info["Parent"]] = {}
                 transcripts[info["Parent"]][info["ID"]] = [
-                    genome_interval(
+                    GenomeInterval(
                         gene_annotation[0],
                         int(gene_annotation[3]),
                         int(gene_annotation[4]),
@@ -3234,7 +3335,7 @@ def get_transcript_plan(ranges, transcript_file):
                     cdss[info["Parent"]][info["ID"]] = []
 
                 cdss[info["Parent"]][info["ID"]].append(
-                    genome_interval(
+                    GenomeInterval(
                         gene_annotation[0],
                         int(gene_annotation[3]),
                         int(gene_annotation[4]),
@@ -3271,13 +3372,17 @@ def get_transcript_plan(ranges, transcript_file):
     return transcript_plan
 
 
-# }}}
-
-# {{{ def plot_transcript(transcript_file, chrom, start, end,
 def plot_transcript(
-    transcript_file, transcript_filename, ranges, grid, annotation_fontsize, xaxis_label_fontsize, annotation_scalar,
+    transcript_file,
+    transcript_filename,
+    ranges,
+    grid,
+    annotation_fontsize,
+    xaxis_label_fontsize,
+    annotation_scalar,
 ):
-    """Plots a transcript file annotation
+    """
+    Plots a transcript file annotation
     """
     if not transcript_filename:
         transcript_filename = os.path.basename(transcript_file)
@@ -3310,15 +3415,24 @@ def plot_transcript(
         currect_transcript_end = max(p[1], currect_transcript_end)
 
         ax.plot(
-            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5,
+            p,
+            [transcript_idx, transcript_idx],
+            "-",
+            color="cornflowerblue",
+            lw=0.5,
             solid_capstyle="butt",
         )
 
         # Print arrows throughout gene to show direction.
-        nr_arrows = 2 + int((p[1]-p[0])/0.02)
+        nr_arrows = 2 + int((p[1] - p[0]) / 0.02)
         arrow_locs = np.linspace(p[0], p[1], nr_arrows)
-        arrowprops = dict(arrowstyle="->", color="cornflowerblue", lw=0.5,
-                          mutation_aspect=2, mutation_scale=3)
+        arrowprops = dict(
+            arrowstyle="->",
+            color="cornflowerblue",
+            lw=0.5,
+            mutation_aspect=2,
+            mutation_scale=3,
+        )
 
         if step.info["Strand"]:
             # Add left-facing arrows
@@ -3364,12 +3478,12 @@ def plot_transcript(
                 )
 
         ax.text(
-            sum(p)/2,
+            sum(p) / 2,
             transcript_idx + 0.1,
             step.info["Name"],
             color="blue",
             fontsize=annotation_fontsize,
-            ha="center"
+            ha="center",
         )
 
         transcript_idx += 1
@@ -3377,7 +3491,7 @@ def plot_transcript(
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx_max * -0.1, 0.01+(transcript_idx_max * 1.01)])
+    ax.set_ylim([transcript_idx_max * -0.1, 0.01 + (transcript_idx_max * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
@@ -3390,23 +3504,25 @@ def plot_transcript(
     ax.set_title(transcript_filename, fontsize=8, loc="left")
 
 
-# }}}
-
-
 ########################################################################
 # main block
 ########################################################################
+# TODO options is a bad name for the variable.
+# it should be called args, just like the name of the
+# variable that was passed from __main__.py
+# Also extra args should just be remove as it appears to not be used
 def plot(parser, options, extra_args=None):
     """
     To support translocations, the SVs are specified as an array of 
-    genome_interval. For now we let that array be size 1 or 2.
+    GenomeInterval. For now we let that array be size 1 or 2.
     """
-    random.seed(options.random_seed)
+    random.seed(options.random_seed)  # TODO is this for the jitter option?
     if options.print_args or options.json_only:
         print_arguments(options)
         if options.json_only:
             sys.exit(0)
 
+    # output file naming ------------------------------------------------------
     if options.output_file:
         output_file = options.output_file
     else:
@@ -3422,27 +3538,32 @@ def plot(parser, options, extra_args=None):
             output_file = os.path.join(options.output_dir, "_".join(name_fields))
         else:
             output_file = os.path.join(options.output_dir, "_".join(name_fields[1:]))
-    if (options.annotation_files 
-            and options.annotation_filenames 
-            and len(options.annotation_files) != len(options.annotation_filenames)):
-        print("annotation filenames do not match annotation files", file=sys.stderr)
-        sys.exit()
+
+    # check input file consistency --------------------------------------------
+    # TODO move to function, and don't call it here
+    # maybe call in the add_plot function?
+    if (
+        options.annotation_files
+        and options.annotation_filenames
+        and len(options.annotation_files) != len(options.annotation_filenames)
+    ):
+        sys.exit("annotation filenames do not match annotation files")
 
     for bam in options.bams:
-        if ".cram" in bam:
-            if not options.reference:
-                parser.print_help(sys.stderr)
-                sys.exit("Error: Missing reference for CRAM")
+        if (".cram" in bam) and (not options.reference):
+            parser.print_help(sys.stderr)
+            sys.exit("Error: Missing reference for CRAM")
 
     if len(options.chrom) != len(options.start) != len(options.end):
-        print("The number of chromosomes, starts, and ends do not match.", file=sys.stderr)
-        sys.exit()
+        sys.exit("The number of chromosomes, starts, and ends do not match.")
 
+    # set up plot --------------------------------------------------------------
+    # this for loop could be moved
     sv = []
-    for i in range(len(options.chrom)):
-        options.chrom[i] = options.chrom[i].replace("chr", "")
-        sv.append(genome_interval(options.chrom[i], options.start[i], options.end[i]))
-    # set up plot
+    for i in range(len(options.chrom)):  # TODO use zip instead
+        options.chrom[i] = options.chrom[i].replace("chr", "")  # TODO why
+        sv.append(GenomeInterval(options.chrom[i], options.start[i], options.end[i]))
+
     plot_height, plot_width, window, ranges = set_plot_dimensions(
         sv,
         options.sv_type,
@@ -3452,17 +3573,20 @@ def plot(parser, options, extra_args=None):
         options.reference,
         options.annotation_files,
         options.transcript_file,
+        options.bedpe,
         options.window,
         options.zoom,
     )
 
     marker_size = options.marker_size
 
-    # set up sub plots
+    # set up sub plots ---------------------------------------------------------
     matplotlib.rcParams.update({"font.size": 12})
     fig = plt.figure(figsize=(plot_width, plot_height))
 
-    # read alignment data
+    # TODO in the future will separate extraction of data
+    # into a separate modules, and come up with generic data structures
+    # used to add elements like coverage and discordant reads, etc to the  plot.
     read_data, max_coverage = get_read_data(
         ranges,
         options.bams,
@@ -3478,15 +3602,17 @@ def plot(parser, options, extra_args=None):
         options.ignore_hp,
     )
 
-    # set up grid organizer
     grid, num_ax = create_gridspec(
         options.bams,
         options.transcript_file,
         options.annotation_files,
+        options.bedpe_file,
         options.sv_type,
         read_data,
         options.annotation_scalar,
     )
+    # TODO presumably this axis index will be incremented
+    # after each axis has a plot added to it.  Seems fragile.
     current_axis_idx = 0
 
     # plot variant on top
@@ -3504,29 +3630,46 @@ def plot(parser, options, extra_args=None):
         max_coverage = options.max_coverage
 
     # Plot each sample
-    current_axis_idx = plot_samples(
-        ranges,
-        read_data,
-        grid,
-        current_axis_idx,
-        num_ax,
-        options.bams,
-        options.chrom,
-        options.coverage_tracktype,
-        options.titles,
-        options.same_yaxis_scales,
-        options.xaxis_label_fontsize,
-        options.yaxis_label_fontsize,
-        options.annotation_files,
-        options.transcript_file,
-        options.max_coverage_points,
-        max_coverage,
-        marker_size,
-        options.coverage_only,
-        options.jitter,
+    current_axis_idx = plot_samples(  # TODO these params need to be kwargs
+        ranges=ranges,
+        read_data=read_data,
+        grid=grid,
+        ax_i=current_axis_idx,
+        number_of_axes=num_ax,
+        bams=options.bams,
+        chrom=options.chrom,
+        coverage_tracktype=options.coverage_tracktype,
+        titles=options.titles,
+        same_yaxis_scales=options.same_yaxis_scales,
+        xaxis_label_fontsize=options.xaxis_label_fontsize,
+        yaxis_label_fontsize=options.yaxis_label_fontsize,
+        annotation_files=options.annotation_files,
+        transcript_file=options.transcript_file,
+        bedpe_file=options.bedpe_file,
+        max_coverage_points=options.max_coverage_points,
+        max_coverage=max_coverage,
+        marker_size=marker_size,
+        coverage_only=options.coverage_only,
+        jitter_bounds=options.jitter,
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
+
+    # plot bedpe intervals
+    if options.bedpe_file:
+        B = BedPePlotter(
+            file=options.bedpe_file,
+            ranges=ranges,
+            sv_type=options.sv_type,
+            grid=grid,
+            title=options.bedpe_title,
+            xaxis_label_fontsize=options.xaxis_label_fontsize,
+            yaxis_label_fontsize=options.yaxis_label_fontsize,
+            ax_idx=current_axis_idx,
+        )
+        B.plot(marker_size=options.marker_size)
+        current_axis_idx += 1
+
 
     # Plot annotation files
     if options.annotation_files:
@@ -3559,10 +3702,7 @@ def plot(parser, options, extra_args=None):
     try:
         plt.savefig(output_file, dpi=options.dpi)
     except Exception as e:
-        print(
-            "Failed to save figure " + output_file
-        )
+        print("Failed to save figure " + output_file)
         print(e)
 
     plt.close(fig)
-# }}}

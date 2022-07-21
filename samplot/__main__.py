@@ -24,9 +24,14 @@ def main(args=None):
     sub = parser.add_subparsers(title="[sub-commands]", dest="command")
     sub.required = True
 
+    # TODO instead of doing this, just check the subcommand 
+    # and call the appropriate function.
+    # These functions just add args to the parser. 
     add_plot(sub)
     add_vcf(sub)
 
+    # TODO this is such a opaque way to call the function,
+    # change this to be as explicit as possible
     args,extra_args = parser.parse_known_args(args)
     args.func(parser, args, extra_args)
 
