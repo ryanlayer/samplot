@@ -9,6 +9,8 @@ some of the utilities here and what can be found in
 samplot.py.  Eventually, those will be replaced if
 applicable with these.
 """
+
+from __future__ import annotations
 from dataclasses import dataclass
 
 

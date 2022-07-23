@@ -28,7 +28,7 @@ setup(
     package_data={"": ["LICENSE", "README.md"]},
     data_files=[("samplot", ["samplot/templates/samplot_vcf.html"])],
     include_package_data=True,
-    install_requires=requires,
+    # install_requires=requires,
     license="MIT",
     zip_safe=False,
     entry_points={"console_scripts": ["samplot = samplot.__main__:main"]},

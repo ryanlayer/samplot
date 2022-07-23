@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-from __future__ import print_function
+
+from __future__ import annotations # TODO once python 3.10 gets better support, remove this
 
 import os
 import random
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from argparse import SUPPRESS
 
 import matplotlib
@@ -35,8 +36,11 @@ INTERCHROM_YAXIS = 5000
 COLORS = {
     "Deletion/Normal": "black",
     "Deletion": "black",
+    "DEL": "black",
     "Duplication": "red",
+    "DUP": "red",
     "Inversion": "blue",
+    "INV": "blue",
     "InterChrmInversion": "blue",
     "InterChrm": "black",
 }
@@ -93,10 +97,6 @@ class plan_step:
 
     def __repr__(self):
         return str(self)
-
-    @property
-    def interval(self):
-        return GenomeInterval(self.chrm, self.start_pos, self.end_pos)
 
 
 def get_range_hit(ranges, chrm, point) -> int | None:
@@ -636,6 +636,8 @@ def get_pair_event_type(pe_read):
     return event_type
 
 
+# TODO move this to the interval_utils module since it
+# is used to manipulate paired end and split intervals' insert size
 def jitter(value, bounds: float = 0.1) -> float:
     """
     Offset value by a random value within the defined bounds
@@ -2255,7 +2257,7 @@ def add_plot(parent_parser):
     # TODO add support for multiple bedpe files
     parser.add_argument(
         "--bedpe",
-        dest="bedpe",
+        dest="bedpe_file",
         type=str,  # TODO use a validation function like in annoation, bam, etc.
         help="BEDPE file with breakpoints to plot",  # TODO specify format
         required=False,
@@ -2619,8 +2621,7 @@ def plot_samples(
     # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
     ylim_margin = max(1.02 + jitter_bounds, 1.10)
     for i in range(len(bams)):
-        # ax is never used, annotating this for readability
-        ax = plt.subplot(grid[ax_i])
+        plt.subplot(grid[ax_i])
         hps = set_haplotypes(read_data["all_coverages"][i])
         inner_axs = gridspec.GridSpecFromSubplotSpec(
             len(hps), 1, subplot_spec=grid[ax_i], wspace=0.0, hspace=0.5
@@ -2766,10 +2767,6 @@ def plot_samples(
         if transcript_file:
             last_sample_num -= 1
         if bedpe_file:
-            # TODO actually maybe dont want this
-            # if we dont do it then the axes below the
-            # bedpe intervals will have the labels which
-            # could be desireable.
             last_sample_num -= 1
 
         if ax_i == last_sample_num:
@@ -2920,7 +2917,7 @@ def create_gridspec(
     if bedpe_file:
         # TODO I dont know how to set this.  Ideally, it should
         # be similar to the height ratio of a bam plot
-        ratios.append(3)
+        ratios.append(9)
     if annotation_files:
         ratios += [annotation_scalar] * len(annotation_files)
     if transcript_file:
@@ -2988,7 +2985,8 @@ class PeInterval:
         return abs(self.first.end - self.second.start)
 
 
-@dataclass(kw_only=True)
+# @dataclass(kw_only=True)
+@dataclass # TODO when python3.10 gets better support, use the kw_only=True option
 class BedPePlotter:
     """
     This class contains methods for adding a plot from the input bedpe file.
@@ -3013,7 +3011,8 @@ class BedPePlotter:
     xaxis_label_fontsize: int
     yaxis_label_fontsize: int
     ax_idx: int  # which axes object plot on
-    _plan: list[plan_step] = []
+    jitter_bounds: float = 0.0
+    _plan: list[plan_step] = field(default_factory=list)
     _min_insert_size: int = sys.maxsize  # used to keep track of insert size of all plots
     _max_insert_size: int = int(0)
 
@@ -3067,7 +3066,7 @@ class BedPePlotter:
                 plan_step(
                     start_pos=start,
                     end_pos=end,
-                    event="PAIREND",
+                    event="PAIREND" if pair.read_type == "paired" else "SPLIT",
                     info=dict(TYPE=self.sv_type, INSERT_SIZE=insert_size),
                 )
             )
@@ -3080,7 +3079,8 @@ class BedPePlotter:
         # ax.set_ylabel("Insert Size")
         # ax.set_title("BedPE regions")
 
-        ylim_margin = 1.02  # experiment with this
+        # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
+        ylim_margin = max(1.02 + self.jitter_bounds, 1.10)
 
         ax.set_xlim([0, 1])
         ax.set_ylim([0, max(1, self._max_insert_size * ylim_margin)])
@@ -3095,6 +3095,39 @@ class BedPePlotter:
         ax.ticklabel_format(useOffset=False, style="plain")
         ax.tick_params(axis="both", length=0)
         ax.set_xticklabels([])
+
+
+        labels = []
+        if len(self.ranges) == 1:
+            labels = [
+                int(self.ranges[0].start + l * (self.ranges[0].end - self.ranges[0].start))
+                for l in ax.xaxis.get_majorticklocs()
+            ]
+        elif len(self.ranges) == 2:
+            x_ticks = ax.xaxis.get_majorticklocs()
+            labels_per_range = int(
+                len(ax.xaxis.get_majorticklocs()) / len(self.ranges)
+            )
+            labels = [
+                int(self.ranges[0].start + l * (self.ranges[0].end - self.ranges[0].start))
+                for l in x_ticks[:labels_per_range]
+            ]
+            try:
+                labels += [
+                    int(self.ranges[-1].start + l * (self.ranges[-1].end - self.ranges[-1].start))
+                    for l in x_ticks[labels_per_range:]
+                ]
+            except:
+                sys.exit(labels_per_range)
+
+        ax.set_xticklabels(labels, fontsize=self.xaxis_label_fontsize)
+        chrms = [x.chrm for x in self.ranges]
+        ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=self.xaxis_label_fontsize)
+        ax.set_ylabel("Insert size", fontsize=self.xaxis_label_fontsize)
+
+
+
+
 
     def plot(self, marker_size):
         """
@@ -3114,7 +3147,7 @@ class BedPePlotter:
             if not points_in_window:
                 continue
 
-            insert_size = step.info["INSERT_SIZE"]
+            insert_size = jitter(step.info["INSERT_SIZE"], self.jitter_bounds)
             color = COLORS[step.info["TYPE"]]
 
             linestyle = "-" if step.event == "PAIREND" else "--"
@@ -3556,7 +3589,7 @@ def plot(parser, options, extra_args=None):
         options.reference,
         options.annotation_files,
         options.transcript_file,
-        options.bedpe,
+        options.bedpe_file,
         options.window,
         options.zoom,
     )
