@@ -129,10 +129,12 @@ def genomic_to_axes(ranges: list[GenomeInterval], coord: GenomeCoord,) -> float 
     # like pattern, but leave unchanged for now
     if range_hit is None:
         return
-    p = 1.0 / len(ranges) * range_hit + (1.0 / len(ranges)) * (
-        float(coord.at - ranges[range_hit].start)
-        / float(ranges[range_hit].end - ranges[range_hit].start)
-    )
+    r = ranges[range_hit]
+    margin = float(r.end - r.start)
+    r_scale = (1.0/len(ranges)) # ex: 1/3 for 3 ranges
+    r_offset = r_scale * range_hit
+    p = r_scale * float(coord.at - r.start) / margin + r_offset
+
     return p
 
 

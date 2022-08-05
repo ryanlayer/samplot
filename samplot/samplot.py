@@ -28,7 +28,7 @@ from matplotlib.offsetbox import AnchoredText
 
 # TODO move the plotter classes to a separate module and import
 # this in that module
-from .interval_utils import GenomeInterval, genomic_to_axes, interval_in_range
+from .interval_utils import GenomeCoord, GenomeInterval, genomic_to_axes, interval_in_range
 
 
 INTERCHROM_YAXIS = 5000
@@ -3032,7 +3032,7 @@ class BedPePlotter:
                 )
         return pe_regions
 
-    def _get_bedpe_plan(self) -> None:
+    def _get_plan(self) -> None:
         """From the bedpe file determine which intervals should be plotted
         and return as a list of plan_step.
         """
@@ -3054,13 +3054,13 @@ class BedPePlotter:
 
             start = GenomeInterval(
                 pair.first.chrm,
-                x := max(pair.first.start, self.ranges[first_hit].start),
-                x,
+                pair.first.start,
+                pair.first.start,
             )
             end = GenomeInterval(
                 pair.second.chrm,
-                x := min(pair.second.end, self.ranges[second_hit].start),
-                x,
+                pair.second.end,
+                pair.second.end,
             )
             self._plan.append(
                 plan_step(
@@ -3073,11 +3073,6 @@ class BedPePlotter:
         # return bedpe_plan
 
     def _set_axis_elements(self, ax):
-        # ax.set_xlim(self.ranges[0].start, self.ranges[0].end)
-        # ax.set_ylim(0, INTERCHROM_YAXIS)
-        # ax.set_xlabel("Chromosome Position")
-        # ax.set_ylabel("Insert Size")
-        # ax.set_title("BedPE regions")
 
         # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
         ylim_margin = max(1.02 + self.jitter_bounds, 1.10)
@@ -3125,8 +3120,19 @@ class BedPePlotter:
         ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=self.xaxis_label_fontsize)
         ax.set_ylabel("Insert size", fontsize=self.xaxis_label_fontsize)
 
+        # if there are multiple ranges
+        # Note: currently only <= 2 ranges are supported
+        # if n:=float(len(self.ranges)) > 1:
+        for i in range(1, len(self.ranges)): # if 2 then 1 if 3 then 1, 2
+            ax.axvline(x=1.0/(i+1), color="white", linewidth=5)
 
-
+        # for n in ax.xaxis.get_majorticklocs():
+        #     ax.axvline(
+        #         x=n,
+        #         color="black",
+        #         linestyle="--",
+        #         linewidth=0.5,
+        #     )
 
 
     def plot(self, marker_size):
@@ -3136,15 +3142,14 @@ class BedPePlotter:
         the bam plot.
         """
         ax: plt.Axes = plt.subplot(self.grid[self.ax_idx])
-        self._get_bedpe_plan()
-
+        self._get_plan()
         for step in self._plan:
             # from genome space to plot space
             points = (
                 genomic_to_axes(ranges=self.ranges, coord=step.start_pos.startCoord,),
                 genomic_to_axes(ranges=self.ranges, coord=step.end_pos.endCoord,),
             )
-            if not points_in_window:
+            if not points_in_window(points):
                 continue
 
             insert_size = jitter(step.info["INSERT_SIZE"], self.jitter_bounds)
@@ -3159,8 +3164,11 @@ class BedPePlotter:
                 marker=marker,
                 color=color,
                 markersize=marker_size,
+                alpha=0.05,
+                linewidth=0.5,
             )
         self._set_axis_elements(ax)
+
 
 
 def plot_annotations(
