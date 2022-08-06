@@ -118,6 +118,35 @@ rm -rf $test_dir
 
 vcf_file=$data_path"test.vcf"
 cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_auto_multithread_dir"
+rm -rf $test_dir
+run from_vcf_auto_multithread \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        -t 2
+if [ $from_vcf_auto_multithread ]; then
+    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 847. Rerun with -w 604 to override"
+    assert_exit_code 0
+    assert_equal $test_dir/index.html $( ls $test_dir/index.html )
+    assert_equal $test_dir/DEL_1_24804397_24807302.png $( ls $test_dir/DEL_1_24804397_24807302.png )
+    assert_equal $test_dir/DUP_4_99813786_99817098.png $( ls $test_dir/DUP_4_99813786_99817098.png )
+    assert_equal $test_dir/DUP_11_67974431_67975639.png $( ls $test_dir/DUP_11_67974431_67975639.png )
+    assert_equal $test_dir/INV_12_12544867_12546613.png $( ls $test_dir/INV_12_12544867_12546613.png )
+    assert_equal $test_dir/DEL_19_12694866_12698924.png $( ls $test_dir/DEL_19_12694866_12698924.png )
+    assert_equal $test_dir/TRA_1_24804398_43059290.png $( ls $test_dir/TRA_1_24804398_43059290.png )
+    assert_equal $test_dir/TRA_1_24804399_99813787.png $( ls $test_dir/TRA_1_24804399_99813787.png )
+fi
+rm -f $cmd_file
+rm -rf $test_dir
+
+
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
 test_dir=$func_path"test_plotall_dir"
 rm -f $cmd_file
 rm -rf $test_dir
@@ -147,9 +176,43 @@ fi
 rm -f $cmd_file
 rm -rf $test_dir
 
+
 vcf_file=$data_path"test.vcf"
-cmd_file="test.cmd"
-test_dir="test_vcf_dir"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_plotall_multithread_dir"
+rm -f $cmd_file
+rm -rf $test_dir
+run plot_all_multithread \
+    samplot vcf \
+        -d $test_dir \
+        --vcf $vcf_file \
+        --sample_ids HG002 HG003 HG004 \
+        -b $data_path"HG002_Illumina.bam" \
+        $data_path"HG003_Illumina.bam" \
+        $data_path"HG004_Illumina.bam" \
+        --plot_all \
+        -t 2
+if [ $plot_all_multithread ]; then
+    assert_in_stderr "Window size is under 1.5x the estimated fragment length and will be resized to 847. Rerun with -w 604 to override"
+    assert_exit_code 0
+    assert_equal "$test_dir/index.html" $( ls $test_dir/index.html )
+    assert_equal "$test_dir/DEL_19_12694866_12698924.png" $( ls "$test_dir/DEL_19_12694866_12698924.png" )
+    assert_equal "$test_dir/DUP_4_99813786_99817098.png" $( ls "$test_dir/DUP_4_99813786_99817098.png" )
+    assert_equal "$test_dir/DUP_4_99813786_99817098.png" $( ls "$test_dir/DUP_4_99813786_99817098.png" )
+    assert_equal "$test_dir/TRA_1_24804398_43059290.png" $( ls $test_dir/TRA_1_24804398_43059290.png )
+    assert_equal "$test_dir/TRA_1_24804399_99813787.png" $( ls $test_dir/TRA_1_24804399_99813787.png )
+    assert_equal "$test_dir/DEL_1_24804397_24807302.png" $( ls "$test_dir/DEL_1_24804397_24807302.png" )
+    assert_equal "$test_dir/DUP_11_67974431_67975639.png" $( ls "$test_dir/DUP_11_67974431_67975639.png" )
+    assert_equal "$test_dir/INV_12_12544867_12546613.png" $( ls "$test_dir/INV_12_12544867_12546613.png" )
+
+fi
+rm -f $cmd_file
+rm -rf $test_dir
+
+
+vcf_file=$data_path"test.vcf"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_dir"
 ped_file=$data_path"test.ped"
 
 run denovo_only_noped \
@@ -160,17 +223,17 @@ run denovo_only_noped \
         -b $data_path"HG002_Illumina.bam" \
         $data_path"HG003_Illumina.bam" \
         $data_path"HG004_Illumina.bam" \
-        --dn_only\
+        --dn_only
 if [ $denovo_only_noped ]; then
     assert_in_stderr "Missing --ped, required when using --dn_only"
 fi
-rm -f $cmd_file
-rm -rf $test_dir
 
 vcf_file=$data_path"test.vcf"
-cmd_file="test.cmd"
-test_dir="test_vcf_dir"
+cmd_file=$func_path"test.cmd"
+test_dir=$func_path"test_vcf_dir"
 ped_file=$data_path"test.ped"
+rm -f $cmd_file
+rm -rf $test_dir
 
 run denovo_only \
     samplot vcf \
@@ -180,16 +243,19 @@ run denovo_only \
         -b $data_path"HG002_Illumina.bam" \
         $data_path"HG003_Illumina.bam" \
         $data_path"HG004_Illumina.bam" \
-        --dn_only\
+        --dn_only \
         --ped $data_path"test.ped"
 if [ $denovo_only ]; then
     assert_no_stderr
     assert_exit_code 0
-    assert_equal "$test_dir/DEL_19_12694867_12698924.png" $( ls "$test_dir/DEL_19_12694866_12698924.png" )
-    assert_equal "ls: test_vcf_dir/DUP_4_99813786_99817098.png: No such file or directory" $( ls "$test_dir/DUP_4_99813786_99817098.png" )
+    echo "===================================================================="
+    ls "$test_dir/DUP_4_99813786_99817098.png"
+    echo "===================================================================="
+    assert_equal "$test_dir/DEL_19_12694867_12698924.png" $( ls "$test_dir/DEL_19_12694867_12698924.png" )
+    assert_equal "" $( ls "$test_dir/DUP_4_99813786_99817098.png" )
     assert_equal "" $( ls "$test_dir/TRA_1_24804399_43059290.png" )
     assert_equal "" $( ls "$test_dir/TRA_1_24804398_99813787.png" )
     assert_equal "" $( ls "$test_dir/DEL_1_24804397_24807302.png" )
 fi
 
-rm -rf ssshtest
+# rm -rf ssshtest

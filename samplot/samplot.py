@@ -5,6 +5,7 @@ import os
 import random
 import re
 import sys
+from argparse import SUPPRESS
 
 import matplotlib
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
@@ -690,8 +691,16 @@ def get_pair_event_type(pe_read):
 
 # }}}
 
+def jitter(value, bounds: float = 0.1) -> float:
+    """
+    Offset value by a random value within the defined bounds
+    """
+    assert 0.0 <= bounds < 1.0
+    return value * (1 + bounds * random.uniform(-1, 1))
+
+
 # {{{def plot_pair_plan(ranges, step, ax):
-def plot_pair_plan(ranges, step, ax, marker_size):
+def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -707,6 +716,10 @@ def plot_pair_plan(ranges, step, ax, marker_size):
         return False
 
     y = step.info["INSERTSIZE"]
+
+    # Offset y-values using jitter to avoid overlapping lines
+    y = jitter(y, bounds=jitter_bounds)
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -731,7 +744,7 @@ def plot_pair_plan(ranges, step, ax, marker_size):
 
 # {{{def plot_pairs(pairs,
 def plot_pairs(
-    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size
+    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
 ):
     """Plots all PairedEnd reads for the region
     """
@@ -744,7 +757,7 @@ def plot_pairs(
     max_event, steps = plan
 
     for step in steps:
-        plot_pair_plan(ranges, step, ax, marker_size)
+        plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -910,114 +923,6 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
 
 # }}}
 
-# {{{def get_split_event_type(split):
-def get_split_event_type(split):
-    """Decide what type of event the read supports (del/normal, dup, inv)
-    """
-
-    first = split[0]
-    second = split[1]
-    if first.pos.start > second.pos.end or first.pos.chrm > second.pos.chrm:
-        second = split[0]
-        first = split[1]
-
-    # first.strand, second.strand,
-    # first.query<second.query,first.start<second.start
-    event_type_by_strand_and_order = {
-        (True, False): "Inversion",  # mixed strands
-        (False, True): "Inversion",  # mixed strands
-        (True, True, True): "Deletion/Normal",  # forward strand
-        (True, True, False): "Duplication",  # forward strand
-        (False, False, False, False): "Deletion/Normal",  # reverse strand
-        (False, False, False, True): "Duplication",  # reverse strand
-        (False, False, True, True): "Deletion/Normal",  # reverse strand
-        (False, False, True, False): "Duplication",  # reverse strand
-    }
-    orientations = [first.strand, second.strand]
-
-    # if same strand, need query position info
-    if orientations[0] == orientations[1]:
-        # first query position smaller than second query position,
-        # normal for forward strand
-        orientations.append(first.query_pos < second.query_pos)
-
-        # reverse strand requires start position info
-        if False in orientations[:2]:
-            # first start smaller than second start, normal for forward strand
-            orientations.append(first.pos.start < second.pos.start)
-    event_type = event_type_by_strand_and_order[tuple(orientations)]
-
-    if first.pos.chrm != second.pos.chrm:
-        if event_type == "Inversion":
-            event_type = "InterChrmInversion"
-        else:
-            event_type = "InterChrm"
-
-    return event_type
-
-
-# }}}
-
-# {{{def get_split_insert_sizes(splits):
-def get_splits_insert_sizes(ranges, splits):
-    """Extracts the integer gap sizes for all split reads
-    Return list of integer gap sizes
-    """
-    split_insert_sizes = []
-
-    for hp in splits:
-        for read_name in splits[hp]:
-            sizes = get_split_insert_sizes(ranges, splits[hp][read_name])
-            if sizes:
-                split_insert_sizes += sizes
-    return split_insert_sizes
-
-
-# }}}
-
-# {{{def get_split_insert_sizes(ranges, srs):
-def get_split_insert_sizes(ranges, srs):
-    split_insert_sizes = []
-
-    srs = sorted(srs, key=lambda x: x.query_pos)
-    # only keep the alignments that are in a range
-    srs = [
-        sr
-        for sr in srs
-        if get_range_hit(ranges, sr.pos.chrm, sr.pos.start) != None
-        or get_range_hit(ranges, sr.pos.chrm, sr.pos.end) != None
-    ]
-
-    if len(srs) < 2:
-        return None
-
-    last = srs[0]
-
-    for i in range(1, len(srs)):
-        curr = srs[i]
-
-        # INTERCHROM
-        if last.pos.chrm != curr.pos.chrm:
-            split_insert_sizes.append(INTERCHROM_YAXIS)
-        # Inversion
-        elif last.strand != curr.strand:
-            split_insert_sizes.append(abs(curr.pos.end - last.pos.end))
-        # Duplication
-        elif curr.pos.start < last.pos.end:
-            split_insert_sizes.append(abs(last.pos.end - curr.pos.start))
-        # Deletion
-        elif curr.pos.start > last.pos.end:
-            split_insert_sizes.append(abs(curr.pos.start - last.pos.end))
-        else:
-            sys.stderr.write(
-                "WARNING: Could not classify event:" + str(last) + str(curr)
-            )
-        last = curr
-
-    return split_insert_sizes
-
-
-# }}}
 
 # {{{def get_split_plan(ranges, split):
 def get_split_plan(ranges, split, linked_plan=False):
@@ -1111,44 +1016,9 @@ def get_splits_plan(ranges, splits, linked_plan=False):
 
 # }}}
 
-# {{{def plot_split(split, y, ax, ranges):
-def plot_split(split, y, ax, ranges, marker_size):
-    """Plots a SplitRead at the y-position corresponding to insert size
-
-    If read lies outside the range-min or range_max, it is not plotted
-    """
-    start = split[0]
-    end = split[1]
-    if start.pos.chrm > end.pos.chrm or start.pos.start > end.pos.end:
-        end = split[0]
-        start = split[1]
-
-    p = [
-        map_genome_point_to_range_points(ranges, start.pos.chrm, start.pos.end),
-        map_genome_point_to_range_points(ranges, end.pos.chrm, end.pos.start),
-    ]
-
-    if not points_in_window(p):
-        return
-    event_type = get_split_event_type(split)
-    color = COLORS[event_type]
-
-    ax.plot(
-        p,
-        [y, y],
-        ":",
-        color=color,
-        alpha=0.25,
-        lw=1,
-        marker="o",
-        markersize=marker_size,
-    )
-
-
-# }}}
 
 # {{{def plot_split(split, y, ax, ranges):
-def plot_split_plan(ranges, step, ax, marker_size):
+def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -1164,6 +1034,10 @@ def plot_split_plan(ranges, step, ax, marker_size):
         return False
 
     y = step.info["INSERTSIZE"]
+
+    # Offset y-values using jitter to avoid overlapping lines
+    y = jitter(y, bounds=jitter_bounds)
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
@@ -1184,7 +1058,7 @@ def plot_split_plan(ranges, step, ax, marker_size):
 
 # {{{def plot_splits(splits,
 def plot_splits(
-    splits, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size
+    splits, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
 ):
     """Plots all SplitReads for the region
     """
@@ -1196,7 +1070,7 @@ def plot_splits(
     max_event, steps = plan
 
     for step in steps:
-        plot_split_plan(ranges, step, ax, marker_size)
+        plot_split_plan(ranges, step, ax, marker_size, jitter_bounds)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -1665,28 +1539,6 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
 # }}}
 
-# {{{def get_long_read_max_gap(read_name, long_reads):
-def get_long_read_max_gap(read_name, long_reads):
-    """Finds the largest gap between alignments in LongRead alignments,
-    plus lengths of the  alignments 
-
-    Returns the integer max gap
-    """
-    alignments = []
-    for long_read in long_reads[read_name]:
-        for alignment in long_read.alignments:
-            alignments.append(alignment)
-    alignments.sort(key=lambda x: x.query_position)
-
-    # find biggest gap
-    max_gap = 0
-    for i in range(1, len(alignments)):
-        curr_gap = abs(alignments[i].start - alignments[i - 1].end)
-        max_gap = max(max_gap, curr_gap)
-    return max_gap
-
-
-# }}}
 
 ##Variant methods
 # {{{def plot_variant(sv, sv_type, ax, ranges):
@@ -1884,6 +1736,7 @@ def plot_linked_reads(
     curr_min_insert_size,
     curr_max_insert_size,
     marker_size,
+    jitter_bounds,
 ):
     """Plots all LinkedReads for the region
     """
@@ -1894,6 +1747,8 @@ def plot_linked_reads(
             continue
 
         insert_size, steps = plan
+
+        insert_size = jitter(insert_size, bounds=jitter_bounds)
 
         if not curr_min_insert_size or curr_min_insert_size > insert_size:
             curr_min_insert_size = insert_size
@@ -1919,11 +1774,11 @@ def plot_linked_reads(
 
         for pair_step in steps[0].info["PAIR_STEPS"]:
             pair_step.info["INSERTSIZE"] = insert_size
-            plot_pair_plan(ranges, pair_step, ax, marker_size)
+            plot_pair_plan(ranges, pair_step, ax, marker_size, jitter_bounds)
 
         for split_step in steps[0].info["SPLIT_STEPS"]:
             split_step.info["INSERTSIZE"] = insert_size
-            plot_split_plan(ranges, split_step, ax, marker_size)
+            plot_split_plan(ranges, split_step, ax, marker_size, jitter_bounds)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -2410,14 +2265,6 @@ def add_plot(parent_parser):
     )
 
     parser.add_argument(
-        "--common_insert_size",
-        action="store_true",
-        default=False,
-        help="Set common insert size for all plots",
-        required=False,
-    )
-
-    parser.add_argument(
         "--hide_annotation_labels",
         action="store_true",
         default=False,
@@ -2457,7 +2304,16 @@ def add_plot(parent_parser):
         help="Size of marks on pairs and splits (default 3)",
         required=False,
     )
-    
+    parser.add_argument(
+        "--jitter",
+        type=float,
+        nargs="?",
+        const=0.08,
+        default=0.0,
+        help="Add uniform random noise to insert sizes. This can be helpful "
+             "to resolve overlapping entries. Either a custom value (<1.0) is "
+             "supplied or %(const)s will be used."
+    )
     parser.add_argument(
         "--dpi",
         type=int,
@@ -2488,7 +2344,12 @@ def add_plot(parent_parser):
         help="Print debug statements",
         required=False
     )
-
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=9999,
+        help=SUPPRESS,
+    )
     parser.set_defaults(func=plot)
 
 
@@ -2836,11 +2697,15 @@ def plot_samples(
     max_coverage,
     marker_size,
     coverage_only,
+    jitter_bounds,
 ):
 
     """Plots all samples
     """
     max_insert_size = 0
+
+    # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
+    ylim_margin = max(1.02 + jitter_bounds, 1.10)
     for i in range(len(bams)):
         #ax is never used, annotating this for readability
         ax = plt.subplot(grid[ax_i])
@@ -2900,6 +2765,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds
                 )
             elif len(curr_long_reads) > 0:
                 curr_min_insert_size, curr_max_insert_size = plot_long_reads(
@@ -2917,6 +2783,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -2926,6 +2793,7 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
+                    jitter_bounds,
                 )
 
             cover_axs[hp] = cover_ax
@@ -2958,9 +2826,9 @@ def plot_samples(
             curr_ax = axs[j]
             curr_ax.set_xlim([0, 1])
             if same_yaxis_scales:
-                curr_ax.set_ylim([0, max(1, max_insert_size * 1.10)])
+                curr_ax.set_ylim([0, max(1, max_insert_size * ylim_margin)])
             else:
-                curr_ax.set_ylim([0, max(1, curr_max_insert_size * 1.10)])
+                curr_ax.set_ylim([0, max(1, curr_max_insert_size * ylim_margin)])
             curr_ax.spines["top"].set_visible(False)
             curr_ax.spines["bottom"].set_visible(False)
             curr_ax.spines["left"].set_visible(False)
@@ -3308,8 +3176,6 @@ def get_interval_range_plan_start_end(ranges, interval):
 
 # {{{def get_transcript_plan(ranges, transcript_file):
 def get_transcript_plan(ranges, transcript_file):
-    transcript_plan = []
-
     genes = {}
     transcripts = {}
     cdss = {}
@@ -3327,6 +3193,9 @@ def get_transcript_plan(ranges, transcript_file):
                 )
 
                 info["strand"] = gene_annotation[6] == "+"
+
+                if "Name" not in info:
+                    continue
 
                 genes[info["Name"]] = [
                     genome_interval(
@@ -3413,7 +3282,8 @@ def plot_transcript(
     if not transcript_filename:
         transcript_filename = os.path.basename(transcript_file)
     transcript_idx = 0
-    arrow_loc = 0.02
+    transcript_idx_max = 0
+    currect_transcript_end = 0
     ax = plt.subplot(grid[-1])
 
     transcript_plan = get_transcript_plan(ranges, transcript_file)
@@ -3433,38 +3303,47 @@ def plot_transcript(
         if p[1] is None:
             p[1] = 0
 
+        # Reset transcript index outside of current stack
+        if p[0] > currect_transcript_end:
+            transcript_idx = 0
+
+        currect_transcript_end = max(p[1], currect_transcript_end)
+
         ax.plot(
-            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5
+            p, [transcript_idx, transcript_idx], "-", color="cornflowerblue", lw=0.5,
+            solid_capstyle="butt",
         )
 
-        ax.text(
-            p[0],
-            transcript_idx + 0.1,
-            step.info["Name"],
-            color="blue",
-            fontsize=annotation_fontsize,
-        )
+        # Print arrows throughout gene to show direction.
+        nr_arrows = 2 + int((p[1]-p[0])/0.02)
+        arrow_locs = np.linspace(p[0], p[1], nr_arrows)
+        arrowprops = dict(arrowstyle="->", color="cornflowerblue", lw=0.5,
+                          mutation_aspect=2, mutation_scale=3)
 
         if step.info["Strand"]:
-            ax.annotate(
-                "",
-                xy=(1, transcript_idx),
-                xytext=(1 - arrow_loc, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add left-facing arrows
+            for arrow_loc in arrow_locs[1:]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[0], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
         else:
-            ax.annotate(
-                "",
-                xy=(1 - arrow_loc, transcript_idx),
-                xytext=(1, transcript_idx),
-                arrowprops=dict(arrowstyle="->", color="cornflowerblue", lw=1),
-                annotation_clip=True,
-            )
+            # Add right-facing arrows
+            for arrow_loc in arrow_locs[:-1]:
+                ax.annotate(
+                    "",
+                    xy=(arrow_loc, transcript_idx),
+                    xytext=(p[1], transcript_idx),
+                    arrowprops=arrowprops,
+                    annotation_clip=True,
+                )
 
         if step.info["Exons"]:
             for exon in step.info["Exons"]:
-                p = [
+                p_exon = [
                     map_genome_point_to_range_points(
                         ranges, exon.start_pos.chrm, exon.start_pos.start
                     ),
@@ -3472,22 +3351,33 @@ def plot_transcript(
                         ranges, exon.end_pos.chrm, exon.end_pos.end
                     ),
                 ]
-                if not points_in_window(p):
+                if not points_in_window(p_exon):
                     continue
 
                 ax.plot(
-                    p,
+                    p_exon,
                     [transcript_idx, transcript_idx],
                     "-",
                     color="cornflowerblue",
+                    solid_capstyle="butt",
                     lw=4,
                 )
 
+        ax.text(
+            sum(p)/2,
+            transcript_idx + 0.1,
+            step.info["Name"],
+            color="blue",
+            fontsize=annotation_fontsize,
+            ha="center"
+        )
+
         transcript_idx += 1
+        transcript_idx_max = max(transcript_idx, transcript_idx_max)
 
     # set axis parameters
     ax.set_xlim([0, 1])
-    ax.set_ylim([transcript_idx * -0.1, 0.01+(transcript_idx * 1.01)])
+    ax.set_ylim([transcript_idx_max * -0.1, 0.01+(transcript_idx_max * 1.01)])
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
@@ -3511,7 +3401,7 @@ def plot(parser, options, extra_args=None):
     To support translocations, the SVs are specified as an array of 
     genome_interval. For now we let that array be size 1 or 2.
     """
-
+    random.seed(options.random_seed)
     if options.print_args or options.json_only:
         print_arguments(options)
         if options.json_only:
@@ -3633,6 +3523,7 @@ def plot(parser, options, extra_args=None):
         max_coverage,
         marker_size,
         options.coverage_only,
+        options.jitter,
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
@@ -3672,4 +3563,6 @@ def plot(parser, options, extra_args=None):
             "Failed to save figure " + output_file
         )
         print(e)
+
+    plt.close(fig)
 # }}}
