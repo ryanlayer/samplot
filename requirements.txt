@@ -1,5 +1,5 @@
 matplotlib
 numpy
-pysam>=0.15.2
+pysam>=0.15
 wget
 Jinja2

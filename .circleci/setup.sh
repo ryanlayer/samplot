@@ -38,12 +38,6 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
 
     mkdir -p $WORKSPACE/anaconda/conda-bld/$tag-64
 
-    #step 2: downgrade python3.8 to 3.7
-    if (( $pythonversion == 3 ))
-    then
-        conda install -y python=3.7
-    fi
-
     # step 3: setup channels
     conda config --system --add channels defaults
     conda config --system --add channels r
@@ -54,9 +48,3 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
     conda install -y --file requirements.txt
 
 fi
-
-
-
-
-
-
