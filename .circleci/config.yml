@@ -2,11 +2,6 @@
 version: 2
 
 variables:
-  setup_p2: &setup_p2
-    run:
-      shell: /bin/bash
-      name: Setup Samplot python2 dependencies
-      command: bash .circleci/setup.sh 2
   setup_p3: &setup_p3
     run:
       shell: /bin/bash
@@ -34,7 +29,7 @@ variables:
     macos:
       xcode: "12.5.1"
   linux: &linux
-    machine: true
+    machine: ubuntu-2004:202201-02
   install_samplot: &install_samplot
     run:
       name: Install Samplot
@@ -43,29 +38,11 @@ variables:
 
 
 jobs:
-  test-linux-python2:
-    <<: *linux
-    steps:
-      - checkout
-      - *setup_p2
-      - *install_samplot 
-      - *run_plot_tests
-      - *run_vcf_tests
-      - *run_unit_tests
   test-linux-python3:
     <<: *linux
     steps:
       - checkout
       - *setup_p3
-      - *install_samplot 
-      - *run_plot_tests
-      - *run_vcf_tests
-      - *run_unit_tests
-  test-macos-python2:
-    <<: *macos
-    steps:
-      - checkout
-      - *setup_p2
       - *install_samplot 
       - *run_plot_tests
       - *run_vcf_tests
@@ -85,9 +62,7 @@ workflows:
   version: 2
   samplot-unit-tests:
     jobs:
-      - test-linux-python2
       - test-linux-python3
-      - test-macos-python2
       - test-macos-python3
   samplot-nightly-unit-tests:
     triggers:
@@ -98,12 +73,5 @@ workflows:
               only:
                 - master
     jobs:
-      - test-linux-python2
       - test-linux-python3
-      - test-macos-python2
       - test-macos-python3
-
-
-
-
-

@@ -8,11 +8,11 @@ WORKSPACE=$(pwd)
 echo "export PATH=$WORKSPACE/anaconda/bin:$PATH" >> $BASH_ENV
 source $BASH_ENV
 
-## Passed from .circleci/config.yml (Only 2 or 3 permited)
+## Passed from .circleci/config.yml (Only 3 permited)
 pythonversion=$1
-if (( $pythonversion != 2 && $pythonversion != 3 ))
+if (( $pythonversion != 3 ))
 then
-    echo -e "\nERROR: Python 2 or 3 designation required. Python version $pythonversion was supplied. Please correct and run again\n"
+    echo -e "\nERROR: Python 3 designation required. Python version $pythonversion was supplied. Please correct and run again\n"
     exit 1   
 fi 
 
@@ -38,12 +38,6 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
 
     mkdir -p $WORKSPACE/anaconda/conda-bld/$tag-64
 
-    #step 2: downgrade python3.8 to 3.7
-    if (( $pythonversion == 3 ))
-    then
-        conda install -y python=3.7
-    fi
-
     # step 3: setup channels
     conda config --system --add channels defaults
     conda config --system --add channels r
@@ -54,9 +48,3 @@ if [[ ! -d $WORKSPACE/anaconda ]]; then
     conda install -y --file requirements.txt
 
 fi
-
-
-
-
-
-

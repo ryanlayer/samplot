@@ -57,6 +57,14 @@ CIGAR_MAP = {
     "B": 9,
 }
 
+def strip_chr(chrom):
+    """
+    safer way to replace chr string, to support non-human genomes
+    """
+    if chrom[:3] == "chr":
+        chrom = chrom[3:]
+    return chrom
+
 # {{{class plan_step:
 class plan_step:
     step_events = ["Align", "ANNOTATION"]
@@ -116,9 +124,9 @@ class genome_interval:
     """ return -1 if before, 0 if in, 1 if after """
 
     def intersect(self, gi):
-        if gi.chrm.replace("chr", "") < self.chrm.replace("chr", "") or gi.end < self.start:
+        if strip_chr(gi.chrm) < strip_chr(self.chrm) or gi.end < self.start:
             return -1
-        elif gi.chrm.replace("chr", "") > self.chrm.replace("chr", "") or gi.start > self.end:
+        elif strip_chr(gi.chrm) > strip_chr(self.chrm) or gi.start > self.end:
             return 1
         else:
             return 0
@@ -131,7 +139,7 @@ def get_range_hit(ranges, chrm, point):
     for j in range(len(ranges)):
         r = ranges[j]
         if (
-            r.chrm.replace("chr", "") == chrm.replace("chr", "")
+            strip_chr(r.chrm) == strip_chr(chrm)
             and r.start <= point
             and r.end >= point
         ):
@@ -229,7 +237,7 @@ def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
     Quality is determined by separate_mqual, which is min quality
     """
 
-    chrm = bam_file.get_reference_name(read.reference_id).replace("chr", "")
+    chrm = strip_chr(bam_file.get_reference_name(read.reference_id))
 
     hp = 0
 
@@ -3013,7 +3021,7 @@ def get_plot_annotation_plan(ranges, annotation_file):
             continue
         for row in itr:
             A = row.rstrip().split()
-            A[0] = A[0].replace("chr", "")
+            A[0] = strip_chr(A[0])
             chrm = A[0]
             start = int(A[1])
             end = int(A[2])
@@ -3125,7 +3133,7 @@ def get_interval_range_plan_start_end(ranges, interval):
     if start_range_hit_i is None and end_range_hit_i is None:
         for i, range_item in enumerate(ranges):
             if (
-                (range_item.chrm.replace("chr", "") == interval.chrm.replace("chr", ""))
+                (strip_chr(range_item.chrm) == strip_chr(interval.chrm))
                 and (interval.start <= range_item.start <= interval.end)
                 and (interval.start <= range_item.end <= interval.end)
             ):
@@ -3440,7 +3448,7 @@ def plot(parser, options, extra_args=None):
 
     sv = []
     for i in range(len(options.chrom)):
-        options.chrom[i] = options.chrom[i].replace("chr", "")
+        options.chrom[i] = strip_chr(options.chrom[i])
         sv.append(genome_interval(options.chrom[i], options.start[i], options.end[i]))
     # set up plot
     plot_height, plot_width, window, ranges = set_plot_dimensions(
