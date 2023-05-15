@@ -1113,6 +1113,14 @@ def vcf(parser, args, pass_through_args):
     # connect the sample IDs to bam files
     names_to_bams = get_names_to_bams(args.bams, args.sample_ids)
 
+    # check that at least one sample is can be plotted  
+    if not any(vcf_sample in names_to_bams for vcf_sample in vcf_samples):
+        other = "'--sample_ids'" if args.sample_ids else "BAM"
+        logger.error("Samples in VCF do not match samples specified in {}".format(other))
+        logger.error("VCF samples: {}".format(', '.join(vcf_samples)))
+        logger.error("{} samples: {}".format(other, ', '.join(vcf_samples)))
+        sys.exit(1)
+
     # if important regions are included, load those intervals
     # and only show SVs inside them
     important_regions = read_important_regions(args.important_regions)
