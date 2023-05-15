@@ -9,6 +9,7 @@ Note: additional arguments are passed through to samplot plot
 from __future__ import print_function
 
 import argparse
+import logging
 import operator
 import os
 import random
@@ -25,6 +26,8 @@ except ImportError:
 
 from .samplot import add_plot
 
+
+logger = logging.getLogger(__name__)
 
 cmp_lookup = {
     ">": operator.gt,  # e.g. DHFC < 0.5
@@ -188,7 +191,7 @@ def get_overlap(
         )
     except IndexError:
         # probably not a gff3
-        print("Invalid annotation file specified for --gff3")
+        logger.warning("Invalid annotation file specified for --gff3")
         overlaps = None
     except ValueError:
         if fix_chr:
@@ -210,7 +213,7 @@ def get_overlap(
                 )
     except:
         # bad regions
-        print(
+        logger.warning(
             "Error fetching {chrom}:{start}-{end}".format(
                 chrom=chrom, start=start, end=end
             )
@@ -271,20 +274,22 @@ def get_names_to_bams(bams, name_list=None):
     names = {}
     if name_list:
         if len(name_list) != len(bams):
-            sys.exit("List of sample IDs does not match list of alignment files.")
+            logger.error("List of sample IDs does not match list of alignment files.")
+            sys.exit(1)
+
         for i, p in enumerate(bams):
             names[name_list[i]] = p
     else:
         for p in bams:
             b = pysam.AlignmentFile(p)
+            # TODO - catch specific exception
             try:
                 names[b.header["RG"][0]["SM"]] = p
-            except:
-                sys.exit(
-                    "No RG field in alignment file "
-                    + p
-                    + ". \nInclude ordered list of sample IDs to avoid this error"
-                )
+            except Exception as e:
+                logger.error("No RG field in alignment file {}".format(p))
+                logger.error("Include ordered list of sample IDs to avoid this error")
+                print(e, file=sys.stderr)
+                sys.exit(1)
     return names
 
 
@@ -394,7 +399,7 @@ def read_important_regions(bedfilename):
     return important_regions
 
 
-def var_in_important_regions(important_regions, chrom, start, end, svtype, debug):
+def var_in_important_regions(important_regions, chrom, start, end, svtype):
     if not important_regions:
         # if no important regions are set all locations are valid
         return True
@@ -409,13 +414,11 @@ def var_in_important_regions(important_regions, chrom, start, end, svtype, debug
             ):
                 return True
 
-    if debug:
-        print(
-            "Skipping {} at {}:{}-{}, outside important_regions coordinates".format(
-                svtype, chrom, start, end
-            ),
-            file=sys.stderr,
+    logger.debug(
+        "Skipping {} at {}:{}-{}, outside important_regions coordinates".format(
+            svtype, chrom, start, end
         )
+    )
     return False
 
 
@@ -426,7 +429,7 @@ def cram_input(bams):
     return False
 
 
-def above_call_rate(gts, sample_count, min_call_rate, svtype, chrom, start, end, debug):
+def above_call_rate(gts, sample_count, min_call_rate, svtype, chrom, start, end):
     """
     skips variants with call rate below min_call_rate if set
     """
@@ -435,19 +438,17 @@ def above_call_rate(gts, sample_count, min_call_rate, svtype, chrom, start, end,
 
     call_rate = (sample_count - sum(None in g for g in gts)) / sample_count
     if min_call_rate and (call_rate < min_call_rate):
-        if debug:
-            print(
-                (
-                    "Skipping {} at {}:{}-{}, call rate of variant "
-                    + "({}) below min_call_rate"
-                ).format(svtype, chrom, start, end, call_rate),
-                file=sys.stderr,
-            )
-            return False
+        logger.debug(
+            (
+                "Skipping {} at {}:{}-{}, call rate of variant "
+                + "({}) below min_call_rate"
+            ).format(svtype, chrom, start, end, call_rate),
+        )
+        return False
     return True
 
 
-def below_max_hets(gts, max_hets, svtype, chrom, start, end, debug):
+def below_max_hets(gts, max_hets, svtype, chrom, start, end):
     """
     skips variants with more than max_hets heterozygotes
     if max_hets is set
@@ -458,35 +459,31 @@ def below_max_hets(gts, max_hets, svtype, chrom, start, end, debug):
     # requisite hets/hom-alts
     het_count = sum(sum(x) >= 1 for x in gts if None not in x)
     if het_count > max_hets:
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, more than max_hets heterozygotes".format(
-                    svtype, chrom, start, end
-                ),
-                file=sys.stderr,
+        logger.debug(
+            "Skipping {} at {}:{}-{}, more than max_hets heterozygotes".format(
+                svtype, chrom, start, end
             )
+        )
         return False
     return True
 
 
-def no_variant_found(gts, svtype, chrom, start, end, debug):
+def no_variant_found(gts, svtype, chrom, start, end):
     """
     skips variants with no non-ref samples
     """
     if not any(sum(x) > 0 for x in gts if None not in x):
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, no samples have non-ref genotypes".format(
-                    svtype, chrom, start, end
-                ),
-                file=sys.stderr,
+        logger.debug(
+            "Skipping {} at {}:{}-{}, no samples have non-ref genotypes".format(
+                svtype, chrom, start, end
             )
+        )
         return True
     return False
 
 
 def get_plottable_samples(
-    gts, variant, plot_all, filters, svtype, chrom, start, end, debug,
+    gts, variant, plot_all, filters, svtype, chrom, start, end,
 ):
     """
     gets the samples and indices for all those which need to be plotted,
@@ -494,19 +491,17 @@ def get_plottable_samples(
     """
     if plot_all:
         test_idxs = [i for i, gt in enumerate(gts)]
-        if len(test_idxs) == 0 and debug:
-            print(
-                "No samples found for {} at {}:{}-{}".format(svtype, chrom, start, end),
-                file=sys.stderr,
+        if len(test_idxs) == 0:
+            logger.debug(
+                "No samples found for {} at {}:{}-{}".format(svtype, chrom, start, end)
             )
     else:
         test_idxs = [i for i, gt in enumerate(gts) if None not in gt and sum(gt) > 0]
-        if len(test_idxs) == 0 and debug:
-            print(
+        if len(test_idxs) == 0:
+            logger.debug(
                 "No non-reference samples found for {} at {}:{}-{}".format(
                     svtype, chrom, start, end
-                ),
-                file=sys.stderr,
+                )
             )
 
     test_samples = [s for i, s in enumerate(variant.samples.values()) if i in test_idxs]
@@ -523,18 +518,17 @@ def get_plottable_samples(
 
             if any(check_expr(vdict, fs) for fs in filters):
                 idxs.append(test_idxs[i])
-    if len(idxs) == 0 and debug:
-        print(
+    if len(idxs) == 0:
+        logger.debug(
             "No samples pass filters for {} at {}:{}-{}".format(
                 svtype, chrom, start, end
-            ),
-            file=sys.stderr,
+            )
         )
     return idxs, test_samples
 
 
 def get_variant_samples(
-    idxs, vcf_samples, names_to_bams, svtype, chrom, start, end, debug,
+    idxs, vcf_samples, names_to_bams, svtype, chrom, start, end,
 ):
     """
     gets the samples that need to be plotted and have alignment files assigned
@@ -544,14 +538,12 @@ def get_variant_samples(
         if vcf_samples[i] in names_to_bams:
             variant_samples.append(vcf_samples[i])
     if len(variant_samples) == 0:
-        if debug:
-            print(
-                (
-                    "Skipping {} at {}:{}-{}, no plottable samples "
-                    + "with matched alignment files"
-                ).format(svtype, chrom, start, end),
-                file=sys.stderr,
-            )
+        logger.debug(
+            (
+                "Skipping {} at {}:{}-{}, no plottable samples "
+                + "with matched alignment files"
+            ).format(svtype, chrom, start, end),
+        )
     return variant_samples
 
 
@@ -565,7 +557,6 @@ def get_denovos(
     start,
     end,
     dn_only,
-    debug,
 ):
     """
     we call it a de novo if the sample passed the filters but the mom and
@@ -586,13 +577,11 @@ def get_denovos(
                 denovo_svs.append(sample.id)
 
     if len(denovo_svs) <= 0 and dn_only:
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, dn_only selected and no de novos found".format(
-                    svtype, chrom, start, end
-                ),
-                file=sys.stderr,
-            )
+        logger.debug(
+            "Skipping {} at {}:{}-{}, dn_only selected and no de novos found".format(
+                svtype, chrom, start, end
+            ),
+        )
     return denovo_svs
 
 
@@ -828,7 +817,6 @@ def is_simply_skippable(
     max_hets,
     plot_all,
     translocation_chrom,
-    debug,
 ):
     """
     checks several basic terms that could filter this variant out
@@ -840,41 +828,35 @@ def is_simply_skippable(
 
     # skips variants outside important regions if those are set
     if not var_in_important_regions(
-        important_regions, variant.chrom, variant.start, variant.stop, svtype, debug,
+        important_regions, variant.chrom, variant.start, variant.stop, svtype,
     ):
         return True
 
     # skips insertions
     if svtype in ("INS"):
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, INS type not supported".format(
-                    svtype, variant.chrom, variant.start, variant.stop
-                ),
-                file=sys.stderr,
+        logger.debug(
+            "Skipping {} at {}:{}-{}, INS type not supported".format(
+                svtype, variant.chrom, variant.start, variant.stop
             )
+        )
         return True
 
     # skips variants over max_mb length, if set
     if max_mb and (variant.stop - variant.start > max_mb * 1000000):
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, variant length greater than max_mb".format(
-                    svtype, variant.chrom, variant.start, variant.stop
-                ),
-                file=sys.stderr,
+        logger.debug(
+            "Skipping {} at {}:{}-{}, variant length greater than max_mb".format(
+                svtype, variant.chrom, variant.start, variant.stop
             )
+        )
         return True
     
     # skips variants under min_bp, if set
     if (variant.stop - variant.start < min_bp) and translocation_chrom is None:
-        if debug:
-            print(
-                "Skipping {} at {}:{}-{}, variant length shorter than min_bp".format(
-                    svtype, variant.chrom, variant.start, variant.stop
-                ),
-                file=sys.stderr,
+        logger.debug(
+            "Skipping {} at {}:{}-{}, variant length shorter than min_bp".format(
+                svtype, variant.chrom, variant.start, variant.stop
             )
+        )
         return True
 
     # skips variants if the call rate is below min_call_rate, if set
@@ -886,20 +868,19 @@ def is_simply_skippable(
         variant.chrom,
         variant.start,
         variant.stop,
-        debug,
     ):
         return True
 
     # skips variants if there are more hets than max_hets, if set
     if below_max_hets(
-        gts, max_hets, svtype, variant.chrom, variant.start, variant.stop, debug
+        gts, max_hets, svtype, variant.chrom, variant.start, variant.stop
     ):
         return True
 
     # skips variants where no sample is non-ref, if plot_all is not set
     if not plot_all:
         if no_variant_found(
-            gts, svtype, variant.chrom, variant.start, variant.stop, debug
+            gts, svtype, variant.chrom, variant.start, variant.stop
         ):
             return True
 
@@ -928,7 +909,6 @@ def generate_commands(
     names_to_bams,
     annotations,
     pass_through_args,
-    debug,
 ):
     """
     for every variant in vcf, process and output plot
@@ -966,7 +946,6 @@ def generate_commands(
             max_hets,
             plot_all,
             translocation_chrom,
-            debug,
         ):
             continue
 
@@ -982,7 +961,6 @@ def generate_commands(
             variant.chrom,
             variant.start,
             variant.stop,
-            debug,
         )
         if len(idxs) == 0:
             continue
@@ -996,7 +974,6 @@ def generate_commands(
             variant.chrom,
             variant.start,
             variant.stop,
-            debug,
         )
         if len(variant_samples) <= 0:
             continue
@@ -1014,7 +991,6 @@ def generate_commands(
             variant.start,
             variant.stop,
             dn_only,
-            debug,
         )
         if dn_only and (len(denovo_svs) <= 0):
             continue
@@ -1075,8 +1051,7 @@ def generate_commands(
         )
         commands.append(command)
 
-    if debug:
-        print("VCF entry count:", var_count + 1, file=sys.stderr)
+    logger.debug("VCF entry count:", var_count + 1)
     return commands, table_data
 
 
@@ -1103,15 +1078,20 @@ def vcf(parser, args, pass_through_args):
     """
     Generate commands and html for plotting/reviewing variants from VCF
     """
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+
     if args.dn_only and not args.ped:
-        sys.exit("Missing --ped, required when using --dn_only")
+        logger.error("Missing --ped, required when using --dn_only")
+        sys.exit(1)
 
     if cram_input(args.bams):
         if "-r" not in pass_through_args and "--reference" not in pass_through_args:
-            sys.exit(
+            logger.error(
                 "ERROR: missing reference file required for CRAM. "
                 + "Use -r option. (Run `samplot.py -h` for more help)"
             )
+            sys.exit(1)
 
     vcf = pysam.VariantFile(args.vcf)
     vcf_samples = vcf.header.samples
@@ -1166,7 +1146,6 @@ def vcf(parser, args, pass_through_args):
         names_to_bams,
         annotations,
         pass_through_args,
-        args.debug,
     )
 
     write_site(table_data, args.out_dir, args.output_type, annotations, denovo_row)
