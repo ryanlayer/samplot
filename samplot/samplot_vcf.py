@@ -9,6 +9,7 @@ Note: additional arguments are passed through to samplot plot
 from __future__ import print_function
 
 import argparse
+from collections import Counter
 import logging
 import operator
 import os
@@ -919,6 +920,7 @@ def generate_commands(
     vcf_samples = vcf.header.samples
     vcf_samples_set = set(vcf_samples)
     vcf_samples_list = list(vcf_samples)
+    vcf_stats = Counter()
     for var_count, variant in enumerate(vcf):
         translocation_chrom = None
         svtype = variant.info.get("SVTYPE", "SV")
@@ -947,6 +949,7 @@ def generate_commands(
             plot_all,
             translocation_chrom,
         ):
+            vcf_stats["Skipped"] += 1
             continue
 
         # gets the list of samples to plot
@@ -963,6 +966,7 @@ def generate_commands(
             variant.stop,
         )
         if len(idxs) == 0:
+            vcf_stats["No plottable samples"] += 1
             continue
 
         # matches alignment files to variant samples
@@ -976,6 +980,7 @@ def generate_commands(
             variant.stop,
         )
         if len(variant_samples) <= 0:
+            vcf_stats["No plottable samples with matched BAM"] += 1
             continue
 
         bams = [names_to_bams[s] for s in variant_samples]
@@ -993,6 +998,7 @@ def generate_commands(
             dn_only,
         )
         if dn_only and (len(denovo_svs) <= 0):
+            vcf_stats["Non de novo ('--dn_only' specified)"] += 1
             continue
 
         # save fields for the html.
@@ -1051,7 +1057,13 @@ def generate_commands(
         )
         commands.append(command)
 
+
     logger.debug("VCF entry count: {}".format(var_count + 1))
+    if vcf_stats:
+        logger.debug("VCF entrys filtered out: {}".format(sum(vcf_stats.values())))
+        for reason, count in vcf_stats.items():
+            logger.debug(" - {}: {}".format(reason, count))
+
     return commands, table_data
 
 
