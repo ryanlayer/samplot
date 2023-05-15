@@ -1051,7 +1051,7 @@ def generate_commands(
         )
         commands.append(command)
 
-    logger.debug("VCF entry count:", var_count + 1)
+    logger.debug("VCF entry count: {}".format(var_count + 1))
     return commands, table_data
 
 
