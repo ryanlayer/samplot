@@ -229,25 +229,13 @@ def get_tabix_iter(chrm, start, end, datafile):
 
 ##Coverage methods
 # {{{def add_coverage(bam_file, read, coverage, separate_mqual):
-def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
+def add_coverage(read, coverage_matrix, offset, column):
     """Adds a read to the known coverage 
-    
-    Coverage from Pysam read is added to the coverage list
-    Coverage list is a pair of high- and low-quality lists
-    Quality is determined by separate_mqual, which is min quality
+
+    Coverage from Pysam read is added to coverage_matrix.
+    offset defines the start position of the current range
+    column specifies which column to add to.
     """
-
-    chrm = strip_chr(bam_file.get_reference_name(read.reference_id))
-
-    hp = 0
-
-    if not ignore_hp and read.has_tag("HP"):
-        hp = int(read.get_tag("HP"))
-
-    if hp not in coverage:
-        coverage[hp] = {}
-    if chrm not in coverage[hp]:
-        coverage[hp][chrm] = {}
 
     curr_pos = read.reference_start
     if not read.cigartuples:
@@ -255,16 +243,7 @@ def add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp):
 
     for op, length in read.cigartuples:
         if op in [CIGAR_MAP["M"], CIGAR_MAP["="], CIGAR_MAP["X"]]:
-            for pos in range(curr_pos, curr_pos + length):
-                if pos not in coverage[hp][chrm]:
-                    coverage[hp][chrm][pos] = [0, 0]
-
-                # the two coverage tracks are [0] high-quality and [1]
-                # low-quality
-                if separate_mqual and (read.mapping_quality > separate_mqual):
-                    coverage[hp][chrm][pos][0] += 1
-                else:
-                    coverage[hp][chrm][pos][1] += 1
+            coverage_matrix[curr_pos - offset: curr_pos + length - offset, column] += 1
             curr_pos += length
         elif op == CIGAR_MAP["I"]:
             curr_pos = curr_pos
@@ -2546,6 +2525,7 @@ def get_read_data(
     all_linked_reads = []
 
     max_coverage = 0
+    haplotypes = [0, 1, 2]
 
     for bam_file_name in bams:
         bam_file = None
@@ -2566,19 +2546,35 @@ def get_read_data(
         pairs = {}
         splits = {}
         long_reads = {}
-        coverage = {}
+        coverage = {hp: {} for hp in haplotypes}
         linked_reads = {}
 
         for r in ranges:
+            # Define range boundries
+            range_start = max(0, r.start - 1000)
+            range_end = r.end + 1000
+
             try:
-                bam_iter = bam_file.fetch(r.chrm, max(0, r.start - 1000), r.end + 1000)
+                bam_iter = bam_file.fetch(r.chrm, range_start, range_end)
             except ValueError:
                 chrm = r.chrm
                 if chrm[:3] == "chr":
                     chrm = chrm[3:]
                 else:
                     chrm = "chr" + chrm
-                bam_iter = bam_file.fetch(chrm, max(0, r.start - 1000), r.end + 1000)
+                bam_iter = bam_file.fetch(chrm, range_start, range_end)
+
+            chrm = strip_chr(r.chrm)
+            if chrm not in coverage[0]:
+                for hp in haplotypes:
+                    coverage[hp][chrm] = {}
+
+            # Define a zeros matrix to hold coverage value over the range for all
+            # haplotyps. If using separate_mqual the first column will hold the coverage
+            # for high quality reads and the second column low quality reads. Otherwise
+            # all coverage will be in the second column.
+            range_len = range_end - range_start
+            range_hp_coverage = {hp: np.zeros((range_len, 2), dtype=np.int) for hp in haplotypes}
 
             for read in bam_iter:
                 if (
@@ -2595,7 +2591,20 @@ def get_read_data(
                     else:
                         add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
                         add_split(read, splits, bam_file, linked_reads, ignore_hp)
-                add_coverage(bam_file, read, coverage, separate_mqual, ignore_hp)
+
+                # Add read coverage to the specified haplotype and column
+                hp = 0 if ignore_hp or not read.has_tag("HP") else read.get_tag("HP")
+                column = 0 if separate_mqual and (read.mapping_quality > separate_mqual) else 1
+                add_coverage(read, range_hp_coverage[hp], range_start, column)
+
+            # Tally the coverage for each position and updata coverage dict.
+            for hp, range_coverage in range_hp_coverage.items():
+                # Skip empty haplotypes
+                if (range_coverage.sum() == 0).all():
+                    continue
+
+                for position in range(range_start, range_end):
+                    coverage[hp][chrm][position] = list(range_coverage[position-range_start])
 
         if (
             len(pairs) == 0
@@ -2613,16 +2622,25 @@ def get_read_data(
                     file=sys.stderr,
                 )
 
-        for chrm in coverage:
-            for pos in coverage[chrm]:
+        # Update max_coverage and remove any empty haplotype dict from coverage dict
+        for hp in haplotypes:
+            hp_covered = False
+            for chrm in coverage[hp]:
                 sn_coverages = [
-                    v for values in coverage[chrm][pos].values() for v in values
+                    v for values in coverage[hp][chrm].values() for v in values
                 ]
                 curr_max = 0
                 if len(sn_coverages) > 0:
                     curr_max = np.percentile(sn_coverages, 99.5)
                 if curr_max > max_coverage:
                     max_coverage = curr_max
+
+                if sum(sn_coverages) > 0:
+                    hp_covered = True
+
+            if not hp_covered:
+                del coverage[hp]
+
         all_coverages.append(coverage)
         all_pairs.append(pairs)
         all_splits.append(splits)
