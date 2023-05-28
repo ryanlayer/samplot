@@ -1842,8 +1842,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                     lw=1,
                 )
 
-                if curr_max_insert_size and (max_gap > curr_max_insert_size):
-                    curr_max_insert_size = max_gap
+                curr_max_insert_size = max(curr_max_insert_size, max_gap)
             else:
                 x1 = p[0]
                 x2 = p[1]
@@ -1867,10 +1866,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 ax.add_patch(pp)
 
                 # add some room for the bend line
-                if (
-                    curr_max_insert_size is None
-                ) or max_gap * 1.1 > curr_max_insert_size:
-                    curr_max_insert_size = max_gap * 1.1
+                curr_max_insert_size = max(curr_max_insert_size, max_gap * 1.1)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
