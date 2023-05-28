@@ -1846,13 +1846,14 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
             else:
                 x1 = p[0]
                 x2 = p[1]
-
+                # get offset to bend the line up
+                max_gap_offset = max(jitter(max_gap * 1.1, bounds=jitter_bounds), max_gap)
                 pp = mpatches.PathPatch(
                     Path(
                         [
                             (x1, max_gap),
-                            (x1, jitter(max_gap * 1.1, bounds=jitter_bounds)),
-                            (x2, jitter(max_gap * 1.1, bounds=jitter_bounds)),
+                            (x1, max_gap_offset),
+                            (x2, max_gap_offset),
                             (x2, max_gap),
                         ],
                         [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4],
@@ -1866,7 +1867,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 ax.add_patch(pp)
 
                 # add some room for the bend line
-                curr_max_insert_size = max(curr_max_insert_size, max_gap * 1.1)
+                curr_max_insert_size = max(curr_max_insert_size, max_gap_offset)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
