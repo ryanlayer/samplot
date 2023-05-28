@@ -467,8 +467,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     if not ignore_hp and read.has_tag("HP"):
         HP_tag = int(read.get_tag("HP"))
 
-    READ_TYPES_USED["Paired-end read"] = True
-
     pe = PairedEnd(
         bam_file.get_reference_name(read.reference_id),
         read.reference_start,
@@ -485,7 +483,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
         pairs[pe.HP][read.query_name] = []
 
     if pe.MI:
-        READ_TYPES_USED["Linked read"] = True
         if pe.HP not in linked_reads:
             linked_reads[pe.HP] = {}
 
@@ -722,6 +719,8 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     if not points_in_window(p):
         return False
 
+    READ_TYPES_USED["Paired-end read"] = True
+
     y = step.info["INSERTSIZE"]
 
     # Offset y-values using jitter to avoid overlapping lines
@@ -874,7 +873,6 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
     if not read.has_tag("SA"):
         return
 
-    READ_TYPES_USED["Split-read"] = True
     qs_pos, qe_pos = calc_query_pos_from_cigar(read.cigarstring, (not read.is_reverse))
 
     HP_tag = False
@@ -1039,6 +1037,8 @@ def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
     # some points are far outside of the printable area, so we ignore them
     if not points_in_window(p):
         return False
+
+    READ_TYPES_USED["Split-read"] = True
 
     y = step.info["INSERTSIZE"]
 
@@ -1243,8 +1243,6 @@ def add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp):
     Alignments belonging to the LongRead instance combined if within the
     min_event_size distance apart
     """
-    READ_TYPES_USED["Aligned long read"] = True
-
     if read.is_supplementary or read.is_secondary:
         return
 
@@ -1775,6 +1773,8 @@ def plot_linked_reads(
             if not points_in_window(p):
                 continue
 
+            READ_TYPES_USED["Linked read"] = True
+
             ax.plot(
                 p, [insert_size, insert_size], "-", color="green", alpha=0.75, lw=0.25
             )
@@ -1831,12 +1831,17 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
             if not points_in_window(p):
                 continue
 
-            if step.info["TYPE"] == "Align":
+            READ_TYPES_USED["Aligned long read"] = True
+
+            event_type = step.info["TYPE"]
+            READ_TYPES_USED[event_type] = True
+
+            if event_type == "Align":
                 ax.plot(
                     p,
                     [max_gap, max_gap],
                     "-",
-                    color=colors[step.info["TYPE"]],
+                    color=colors[event_type],
                     alpha=0.25,
                     lw=1,
                 )
@@ -1858,7 +1863,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                         [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4],
                     ),
                     fc="none",
-                    color=colors[step.info["TYPE"]],
+                    color=colors[event_type],
                     alpha=0.25,
                     lw=1,
                     ls=":",
@@ -2946,11 +2951,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
             )
         ]
 
-    if (
-        READ_TYPES_USED["Paired-end read"]
-        or READ_TYPES_USED["Deletion/Normal"]
-        or READ_TYPES_USED["Inversion"]
-    ):
+    if READ_TYPES_USED["Paired-end read"]:
         marker_labels.append("Paired-end read")
         legend_elements += [
             plt.Line2D(
