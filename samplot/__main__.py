@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import logging
 import sys
 
 from .__init__ import __version__
@@ -8,6 +9,9 @@ from .samplot_vcf import add_vcf
 
 
 def main(args=None):
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr,
+                        format="%(module)s - %(levelname)s: %(message)s")
+    
     if args is None:
         args = sys.argv[1:]
 

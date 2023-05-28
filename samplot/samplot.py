@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
+import logging
 import os
 import random
 import re
@@ -21,6 +22,7 @@ warnings.filterwarnings('ignore', 'FixedFormatter should only be used together w
 from matplotlib.offsetbox import AnchoredText
 
 
+logger = logging.getLogger(__name__)
 
 INTERCHROM_YAXIS = 5000
 
@@ -210,16 +212,13 @@ def get_tabix_iter(chrm, start, end, datafile):
         try:
             itr = tbx.fetch(chrm, max(0, start - 1000), end + 1000)
         except ValueError as e:
-            print(
-                "Warning: Could not fetch "
-                + chrm
-                + ":"
-                + str(start)
-                + "-"
-                + str(end)
-                + " from "
-                + datafile,
-                file=sys.stderr,
+            logger.warning(
+                "Could not fetch {}:{}-{} from {}".format(
+                    chrm,
+                    start,
+                    end,
+                    datafile
+                )
             )
             print(e)
     return itr
@@ -468,8 +467,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     if not ignore_hp and read.has_tag("HP"):
         HP_tag = int(read.get_tag("HP"))
 
-    READ_TYPES_USED["Paired-end read"] = True
-
     pe = PairedEnd(
         bam_file.get_reference_name(read.reference_id),
         read.reference_start,
@@ -486,7 +483,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
         pairs[pe.HP][read.query_name] = []
 
     if pe.MI:
-        READ_TYPES_USED["Linked read"] = True
         if pe.HP not in linked_reads:
             linked_reads[pe.HP] = {}
 
@@ -723,6 +719,8 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     if not points_in_window(p):
         return False
 
+    READ_TYPES_USED["Paired-end read"] = True
+
     y = step.info["INSERTSIZE"]
 
     # Offset y-values using jitter to avoid overlapping lines
@@ -875,7 +873,6 @@ def add_split(read, splits, bam_file, linked_reads, ignore_hp):
     if not read.has_tag("SA"):
         return
 
-    READ_TYPES_USED["Split-read"] = True
     qs_pos, qe_pos = calc_query_pos_from_cigar(read.cigarstring, (not read.is_reverse))
 
     HP_tag = False
@@ -1040,6 +1037,8 @@ def plot_split_plan(ranges, step, ax, marker_size, jitter_bounds):
     # some points are far outside of the printable area, so we ignore them
     if not points_in_window(p):
         return False
+
+    READ_TYPES_USED["Split-read"] = True
 
     y = step.info["INSERTSIZE"]
 
@@ -1244,8 +1243,6 @@ def add_long_reads(bam_file, read, long_reads, min_event_size, ignore_hp):
     Alignments belonging to the LongRead instance combined if within the
     min_event_size distance apart
     """
-    READ_TYPES_USED["Aligned long read"] = True
-
     if read.is_supplementary or read.is_secondary:
         return
 
@@ -1395,7 +1392,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
     seen = {}
 
     if read_name not in long_reads:
-        sys.stderr.write("ERROR: Read name " + read_name + " not in list of long reads")
+        logger.error("Read name {} not in list of long reads".format(read_name))
         sys.exit(1)
 
     for long_read in long_reads[read_name]:
@@ -1776,6 +1773,8 @@ def plot_linked_reads(
             if not points_in_window(p):
                 continue
 
+            READ_TYPES_USED["Linked read"] = True
+
             ax.plot(
                 p, [insert_size, insert_size], "-", color="green", alpha=0.75, lw=0.25
             )
@@ -1832,12 +1831,17 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
             if not points_in_window(p):
                 continue
 
-            if step.info["TYPE"] == "Align":
+            READ_TYPES_USED["Aligned long read"] = True
+
+            event_type = step.info["TYPE"]
+            READ_TYPES_USED[event_type] = True
+
+            if event_type == "Align":
                 ax.plot(
                     p,
                     [max_gap, max_gap],
                     "-",
-                    color=colors[step.info["TYPE"]],
+                    color=colors[event_type],
                     alpha=0.25,
                     lw=1,
                 )
@@ -1859,7 +1863,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                         [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4],
                     ),
                     fc="none",
-                    color=colors[step.info["TYPE"]],
+                    color=colors[event_type],
                     alpha=0.25,
                     lw=1,
                     ls=":",
@@ -1889,9 +1893,12 @@ def pair(arg):
         if len(parsed_arg) == 2:
             return parsed_arg
         else:
-            sys.exit("Invalid number of pair values")
-    except:
-        sys.exit("Invalid pair values")
+            logger.error("Invalid number of pair values")
+            sys.exit(1)
+    except Exception as e:
+        logger.error("Invalid pair values")
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
 
 # }}}
@@ -2371,7 +2378,8 @@ def estimate_fragment_len(bam, reference):
         else:
             bam_file = pysam.AlignmentFile(bam, "rc", reference_filename=reference)
     except Exception as err:
-        print("Error:", err, file=sys.stderr)
+        logger.error("Error opening file {}".format(bam_file))
+        print(err, file=sys.stderr)
         sys.exit(1)
 
     frag_lens = []
@@ -2383,9 +2391,8 @@ def estimate_fragment_len(bam, reference):
     if len(frag_lens) >= 5000:
         return np.median(frag_lens)
     else:
-        print(
-            "Insufficient reads for fragment length estimate.\nContinuing with unmodified window size",
-            file=sys.stderr,
+        logger.warning(
+            "Insufficient reads for fragment length estimate.\nContinuing with unmodified window size"
         )
         return 0
 
@@ -2456,12 +2463,11 @@ def set_plot_dimensions(
                 if (0 < frag_len) and (window < 1.5 * frag_len):
                     old_window = window
                     window = int(1.5 * frag_len)
-                    print(
+                    logger.warning(
                         "Window size is under 1.5x the estimated fragment length "
                         + "and will be resized to {}. Rerun with -w {} to override".format(
                             window, old_window
-                        ),
-                        file=sys.stderr,
+                        )
                     )
 
             ranges = [
@@ -2500,7 +2506,7 @@ def set_plot_dimensions(
                 ),
             ]
         else:
-            sys.stderr.write(str(len(sv)) + " genome splits are not supported")
+            logger.error("{} genome splits are not supported".format(str(len(sv))))
             sys.exit(1)
     else:
         ranges = [genome_interval(sv[0].chrm, sv[0].start, sv[0].end)]
@@ -2557,10 +2563,9 @@ def get_read_data(
                     bam_file_name, "rc", reference_filename=reference
                 )
         except Exception as err:
-            print("Error:", err, 
-                    "This can be caused by issues with the alignment file. "
-                    +"Please make sure that it is sorted and indexed before trying again",
-                    file=sys.stderr)
+            logger.error("This can be caused by issues with the alignment file. "
+                    +"Please make sure that it is sorted and indexed before trying again")
+            print(err, file=sys.stderr)
             sys.exit(1)
 
         pairs = {}
@@ -2604,13 +2609,11 @@ def get_read_data(
             and len(linked_reads) == 0
         ):
             if not coverage_only:
-                print(
-                    "Warning: No data returned from fetch in "
-                    + "regions  "
-                    + " ".join([str(r) for r in ranges])
-                    + " from "
-                    + bam_file_name,
-                    file=sys.stderr,
+                logger.warning(
+                    "No data returned from fetch in regions {} from {}".format(
+                        " ".join([str(r) for r in ranges]),
+                        bam_file
+                    )
                 )
 
         for chrm in coverage:
@@ -2881,10 +2884,12 @@ def plot_samples(
                         int(ranges[-1].start + l * (ranges[-1].end - ranges[-1].start))
                         for l in x_ticks[labels_per_range:]
                     ]
-                except:
-                    sys.exit(labels_per_range)
+                except Exception as e:
+                    logger.error(labels_per_range)
+                    print(e, file=sys.stderr)
+                    sys.exit(1)
             else:
-                sys.stderr.write("Ranges greater than 2 are not supported\n")
+                logger.error("Ranges greater than 2 are not supported")
                 sys.exit(1)
             
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
@@ -2946,11 +2951,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
             )
         ]
 
-    if (
-        READ_TYPES_USED["Paired-end read"]
-        or READ_TYPES_USED["Deletion/Normal"]
-        or READ_TYPES_USED["Inversion"]
-    ):
+    if READ_TYPES_USED["Paired-end read"]:
         marker_labels.append("Paired-end read")
         legend_elements += [
             plt.Line2D(
@@ -3105,7 +3106,7 @@ def plot_annotations(
                         fontsize=annotation_fontsize,
                     )
             else:
-                sys.stderr.write("Unsupported annotation type: " + step.event)
+                logger.error("Unsupported annotation type: {}".format(step.event))
                 sys.exit(1)
 
             # set axis parameters
@@ -3409,6 +3410,9 @@ def plot(parser, options, extra_args=None):
     To support translocations, the SVs are specified as an array of 
     genome_interval. For now we let that array be size 1 or 2.
     """
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+    
     random.seed(options.random_seed)
     if options.print_args or options.json_only:
         print_arguments(options)
@@ -3433,17 +3437,22 @@ def plot(parser, options, extra_args=None):
     if (options.annotation_files 
             and options.annotation_filenames 
             and len(options.annotation_files) != len(options.annotation_filenames)):
-        print("annotation filenames do not match annotation files", file=sys.stderr)
-        sys.exit()
+        logger.warning("annotation filenames do not match annotation files")
+        sys.exit(1)
 
     for bam in options.bams:
         if ".cram" in bam:
             if not options.reference:
-                parser.print_help(sys.stderr)
-                sys.exit("Error: Missing reference for CRAM")
+                logger.error("Missing argument reference (-r/--reference) required for CRAM")
+                sys.exit(1)
 
     if len(options.chrom) != len(options.start) != len(options.end):
-        print("The number of chromosomes, starts, and ends do not match.", file=sys.stderr)
+        logger.error("The number of chromosomes ({}), starts ({}), and ends ({}) do not match.".format(
+            len(options.chrom),
+            len(options.start),
+            len(options.end)
+            )
+        )
         sys.exit()
 
     sv = []
@@ -3567,8 +3576,8 @@ def plot(parser, options, extra_args=None):
     try:
         plt.savefig(output_file, dpi=options.dpi)
     except Exception as e:
-        print(
-            "Failed to save figure " + output_file
+        logger.error(
+            "Failed to save figure {}".format(output_file)
         )
         print(e)
 
