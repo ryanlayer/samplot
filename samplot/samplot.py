@@ -1794,7 +1794,7 @@ def plot_linked_reads(
 # }}}
 
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, jitter_bounds):
     """Plots all LongReads for the region
     """
 
@@ -1852,8 +1852,8 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                     Path(
                         [
                             (x1, max_gap),
-                            (x1, max_gap * 1.1),
-                            (x2, max_gap * 1.1),
+                            (x1, jitter(max_gap * 1.1, bounds=jitter_bounds)),
+                            (x2, jitter(max_gap * 1.1, bounds=jitter_bounds)),
                             (x2, max_gap),
                         ],
                         [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4],
@@ -2782,6 +2782,7 @@ def plot_samples(
                     ranges,
                     curr_min_insert_size,
                     curr_max_insert_size,
+                    jitter_bounds
                 )
             else:
                 curr_min_insert_size, curr_max_insert_size = plot_pairs(
