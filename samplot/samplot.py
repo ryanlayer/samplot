@@ -1772,7 +1772,7 @@ def plot_linked_reads(
 # }}}
 
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, jitter_bounds):
     """Plots all LongReads for the region
     """
 
@@ -1825,18 +1825,18 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                     lw=1,
                 )
 
-                if curr_max_insert_size and (max_gap > curr_max_insert_size):
-                    curr_max_insert_size = max_gap
+                curr_max_insert_size = max(curr_max_insert_size, max_gap)
             else:
                 x1 = p[0]
                 x2 = p[1]
-
+                # get offset to bend the line up
+                max_gap_offset = max(jitter(max_gap * 1.1, bounds=jitter_bounds), max_gap)
                 pp = mpatches.PathPatch(
                     Path(
                         [
                             (x1, max_gap),
-                            (x1, max_gap * 1.1),
-                            (x2, max_gap * 1.1),
+                            (x1, max_gap_offset),
+                            (x2, max_gap_offset),
                             (x2, max_gap),
                         ],
                         [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4],
@@ -1850,10 +1850,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 ax.add_patch(pp)
 
                 # add some room for the bend line
-                if (
-                    curr_max_insert_size is None
-                ) or max_gap * 1.1 > curr_max_insert_size:
-                    curr_max_insert_size = max_gap * 1.1
+                curr_max_insert_size = max(curr_max_insert_size, max_gap_offset)
 
     return [curr_min_insert_size, curr_max_insert_size]
 
@@ -2803,6 +2800,7 @@ def plot_samples(
                     ranges,
                     curr_min_insert_size,
                     curr_max_insert_size,
+                    jitter_bounds
                 )
             else:
                 curr_min_insert_size, curr_max_insert_size = plot_pairs(
