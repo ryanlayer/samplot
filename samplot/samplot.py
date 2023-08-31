@@ -2576,7 +2576,7 @@ def get_read_data(
             # for high quality reads and the second column low quality reads. Otherwise
             # all coverage will be in the second column.
             range_len = range_end - range_start
-            range_hp_coverage = {hp: np.zeros((range_len, 2), dtype=np.int) for hp in haplotypes}
+            range_hp_coverage = {hp: np.zeros((range_len, 2), dtype=int) for hp in haplotypes}
 
             for read in bam_iter:
                 if (

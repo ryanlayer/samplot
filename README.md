@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/jbelyeu/samplot/tree/master.svg?style=svg)](https://circleci.com/gh/jbelyeu/samplot/tree/master)
+[![CircleCI](https://circleci.com/gh/ryanlayer/samplot/tree/master.svg?style=svg)](https://circleci.com/gh/ryanlayer/samplot/tree/master)
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/samplot/README.html)
 
 <center><img src="/doc/imgs/samplot_logo_v5.png" width="300"/></center>
