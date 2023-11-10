@@ -931,11 +931,11 @@ def generate_commands(
         # handle translocations
         if svtype in ["BND", "TRA"]:
             try:
-                # TODO add specific exception
-                translocation_chrom = variant.info.get("CHR2x")
-                # translocation_chrom = variant.info.get("CHR2")
-            except:
-                pass
+                translocation_chrom = variant.info.get("CHR2")
+            except KeyError, ValueError as e:
+                logger.debug(e)
+                logger.info(f"Translocation {svtype} on {variant.chrom}:{variant.start}"
+                              "skipped due to missing CHR2 INFO field.")
 
         if is_simply_skippable(
             variant,
