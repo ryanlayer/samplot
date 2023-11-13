@@ -932,7 +932,7 @@ def generate_commands(
         if svtype in ["BND", "TRA"]:
             try:
                 translocation_chrom = variant.info.get("CHR2")
-            except KeyError, ValueError as e:
+            except (KeyError, ValueError) as e:
                 logger.debug(e)
                 logger.info(f"Translocation {svtype} on {variant.chrom}:{variant.start}"
                               "skipped due to missing CHR2 INFO field.")
