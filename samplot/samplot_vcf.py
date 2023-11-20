@@ -759,10 +759,10 @@ def format_template(
     else:
         template = (
             "samplot plot {extra_args} -z {z} -n {titles} "
-            + "{cipos} {ciend} {svtype} -c {chrom} -s {start}"
-            + "-e {end} -o {fig_path} -d {downsample} -b {bams}"
+            + "{cipos} {ciend} {svtype} -c {chrom} -s {start} "
+            + "-e {end} -o {fig_path} -d {downsample} -b {bams} "
+            + "-c {chrom2} -s {start2} -e {end2}"
         )
-        template += " -c {chrom2} -s {start2} -e {end2}"
         start2 = stop
         stop2 = start2 + 1
         stop = start + 1
