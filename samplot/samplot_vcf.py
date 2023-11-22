@@ -732,6 +732,8 @@ def format_template(
         z = 6
     if variant.stop - variant.start > 20000:
         z = 9
+    if data_dict["chrom2"] is None:
+        z = 3
 
     if max_entries:
         bams = bams[:max_entries]
@@ -763,9 +765,25 @@ def format_template(
             + "-e {end} -o {fig_path} -d {downsample} -b {bams} "
             + "-c {chrom2} -s {start2} -e {end2}"
         )
-        start2 = stop
+        # For interchromosomal variants the 2nd breakpoint position should 
+        # not be encoded in INFO/END tag although some callers still do this. 
+        # Currently it is unclear if there is a good replacement.Delly uses 
+        # INFO/POS2 for this, GATK-SV uses INFO/END2.
+        # see:  https://github.com/dellytools/delly/issues/159
+        # see: https://gatk.broadinstitute.org/hc/en-us/articles/5334587352219-How-to-interpret-SV-VCFs
+        # TODO - if the SV breakpoints are specified in the ALT field one 
+        #        could use this info to get the 2nd breakpoint position
+        if "POS2" in variant.info:
+            start2 = variant.info["POS2"]
+        elif "END2" in variant.info:
+            start2 = variant.info["END2"]
+        else:
+            start2 = stop
+            # Update stop if INFO/END denotes the 2nd breakpoint
+            stop = start + 1
+
         stop2 = start2 + 1
-        stop = start + 1
+        
 
     command = template.format(
         extra_args=" ".join(pass_through_args),
