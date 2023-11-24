@@ -767,8 +767,8 @@ def format_template(
         )
         # For interchromosomal variants the 2nd breakpoint position should 
         # not be encoded in INFO/END tag although some callers still do this. 
-        # Currently it is unclear if there is a good replacement.Delly uses 
-        # INFO/POS2 for this, GATK-SV uses INFO/END2.
+        # Currently it is unclear if there is a good replacement. Delly uses 
+        # INFO/POS2 for this, GATK-SV uses INFO/END2, dysgu uses INFO/CHR2_POS.
         # see:  https://github.com/dellytools/delly/issues/159
         # see: https://gatk.broadinstitute.org/hc/en-us/articles/5334587352219-How-to-interpret-SV-VCFs
         # TODO - if the SV breakpoints are specified in the ALT field one 
@@ -777,6 +777,8 @@ def format_template(
             start2 = variant.info["POS2"]
         elif "END2" in variant.info:
             start2 = variant.info["END2"]
+        elif "CHR2_POS" in variant.info:
+            start2 = variant.info["CHR2_POS"]
         else:
             start2 = stop
             # Update stop if INFO/END denotes the 2nd breakpoint
