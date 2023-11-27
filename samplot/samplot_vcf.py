@@ -921,6 +921,24 @@ def generate_commands(
     vcf_samples_set = set(vcf_samples)
     vcf_samples_list = list(vcf_samples)
     vcf_stats = Counter()
+
+    # Check if VCF samples match BAMs
+    if vcf_samples_set != set(names_to_bams):
+        missing_vcf_samples = vcf_samples_set - set(names_to_bams)
+        missing_bam_samples = set(names_to_bams) - vcf_samples_set
+        logger.warning(
+            "VCF samples and BAMs do not match. "
+            "This may be due to different sample names in the VCF and BAMs."
+        )
+        if missing_vcf_samples:
+            logger.warning(
+                "VCF samples missing from BAMs: {}".format(", ".join(missing_vcf_samples))
+            )
+        if missing_bam_samples:
+            logger.warning(
+                "BAMs missing from VCF samples: {}".format(", ".join(missing_bam_samples))
+            )
+
     for var_count, variant in enumerate(vcf):
         translocation_chrom = None
         svtype = variant.info.get("SVTYPE", "SV")
