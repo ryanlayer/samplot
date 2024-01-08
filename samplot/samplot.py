@@ -520,7 +520,7 @@ def sample_normal(max_depth, pairs, z):
                 inside_norm[read_name] = pair
 
         if len(inside_norm) > max_depth:
-            for read_name in random.sample(inside_norm.keys(), max_depth):
+            for read_name in random.sample(sorted(inside_norm.keys()), max_depth):
                 sampled_pairs[read_name] = inside_norm[read_name]
         else:
             for read_name in inside_norm:
