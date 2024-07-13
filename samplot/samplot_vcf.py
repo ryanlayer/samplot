@@ -958,7 +958,8 @@ def generate_commands(
             logger.warning(
                 "BAMs missing from VCF samples: {}".format(", ".join(missing_bam_samples))
             )
-
+    
+    var_count = 0 # define it here, in case of zero variants (otherwise it will raise NameError when used below)
     for var_count, variant in enumerate(vcf):
         translocation_chrom = None
         svtype = variant.info.get("SVTYPE", "SV")
