@@ -423,3 +423,26 @@ If the bam file has an MI tag, then the reads will be treated as linked reads.
 The plots will be similar to short read plots, but all alignments with the same MI is plotted at the same height according to alignment with the largest gap in the group. A green line connects all alignments in a group.
 
 <img src="/doc/imgs/linkedread_del.png">
+
+#### Interchromosomal gene fusion
+
+Interchromosomal variants require two location flag sets (-c, -s, and -e). For example, the BCR-ABL1 fusion from RNA-seq of the K562 chronic myeloid leukemia cell line is shown.
+
+```
+samplot plot \
+    -b test/data/k562.rna.starfusion.sort.region.bam \
+    -n K562.BCR--ABL1 \
+    -c chr22 \
+    -s 23632600 \
+    -e 133729451 \
+    -c chr9 \
+    -s 23632600 \
+    -e 133729451 \
+    -t BND \
+    -A test/data/bcr.abl1.bed.gz \
+    -o k562.bcr.abl1.png
+```
+
+<img src="/doc/imgs/k562.bcr.abl1.png">
+
+
