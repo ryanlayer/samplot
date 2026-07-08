@@ -440,7 +440,6 @@ samplot plot \
     -e 133729451 \
     -t BND \
     -A test/data/bcr.abl1.bed.gz \
-    --zoom 150000 \
     -o k562.bcr.abl1.png
 ```
 
